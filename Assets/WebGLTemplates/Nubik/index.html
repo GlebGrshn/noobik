@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Нубик Шахтёр</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #13222b; color: #fff; font-family: system-ui, sans-serif; }
+    #unity-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; background: #13222b; gap: 16px; padding: 24px; }
+    h1 { color: #ffba40; margin: 0; }
+    progress { width: min(320px, 80vw); accent-color: #38d4ba; }
+    #error { max-width: 36em; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="0" aria-label="Нубик Шахтёр. WASD — движение, пробел — копать, R — наверх"></canvas>
+  <div id="loading"><h1>НУБИК ШАХТЁР</h1><div>Готовим первую вылазку…</div><progress id="progress" value="0" max="1"></progress><div id="error"></div></div>
+  <script>
+    // The platform serves /sdk.js; localhost preview deliberately works offline without it.
+    window.nubikReady = false;
+    window.nubikPlaying = false;
+    if (!['localhost', '127.0.0.1'].includes(location.hostname)) {
+      const sdkScript = document.createElement('script');
+      sdkScript.src = '/sdk.js';
+      sdkScript.onload = () => YaGames.init().then(sdk => {
+        window.nubikSDK = sdk;
+        if (window.nubikReady) sdk.features.LoadingAPI?.ready();
+        if (window.nubikPlaying) sdk.features.GameplayAPI?.start();
+      }).catch(error => console.warn('Yandex SDK unavailable; local progress remains active.', error));
+      sdkScript.onerror = () => console.warn('Yandex SDK unavailable; running local prototype.');
+      document.head.appendChild(sdkScript);
+    }
+    const canvas = document.getElementById('unity-canvas');
+    canvas.addEventListener('contextmenu', event => event.preventDefault());
+    const loader = document.createElement('script');
+    loader.src = 'Build/{{{ LOADER_FILENAME }}}';
+    loader.onload = () => createUnityInstance(canvas, {
+      dataUrl: 'Build/{{{ DATA_FILENAME }}}',
+      frameworkUrl: 'Build/{{{ FRAMEWORK_FILENAME }}}',
+      codeUrl: 'Build/{{{ CODE_FILENAME }}}',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName: 'GlebGrshn', productName: 'Nubik Miner', productVersion: '0.1.0',
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5)
+    }, value => document.getElementById('progress').value = value).then(instance => {
+      window.unityInstance = instance;
+      document.getElementById('loading').remove();
+      const visibility = () => instance.SendMessage('NubikGame', 'OnVisibility', document.hidden ? '0' : '1');
+      document.addEventListener('visibilitychange', visibility);
+      visibility(); canvas.focus();
+    }).catch(error => { document.getElementById('error').textContent = 'Не удалось запустить игру. Обновите страницу. ' + error; });
+    loader.onerror = () => { document.getElementById('error').textContent = 'Не удалось загрузить игру. Проверьте соединение и обновите страницу.'; };
+    document.body.appendChild(loader);
+  </script>
+</body>
+</html>

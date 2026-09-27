@@ -1,0 +1,86 @@
+using System.IO;
+using Nubik;
+using UnityEditor;
+using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
+
+public static class ProjectSetup
+{
+    [MenuItem("Nubik/Prepare prototype")]
+    public static void Prepare()
+    {
+        Directory.CreateDirectory("Assets/Game/Scenes");
+        Directory.CreateDirectory("Assets/Game/Config");
+        var config = AssetDatabase.LoadAssetAtPath<MineConfig>("Assets/Game/Config/MineBalance.asset");
+        if (config == null)
+        {
+            config = ScriptableObject.CreateInstance<MineConfig>();
+            AssetDatabase.CreateAsset(config, "Assets/Game/Config/MineBalance.asset");
+        }
+        string scenePath = "Assets/Game/Scenes/Mine.unity";
+        var material = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Config/Prototype.mat");
+        if (material == null)
+        {
+            material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            AssetDatabase.CreateAsset(material, "Assets/Game/Config/Prototype.mat");
+        }
+        if (!File.Exists(scenePath))
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            var game = new GameObject("NubikGame").AddComponent<MineGame>();
+            game.config = config;
+            game.prototypeMaterial = material;
+            EditorSceneManager.SaveScene(game.gameObject.scene, scenePath);
+        }
+        else
+        {
+            var scene = EditorSceneManager.OpenScene(scenePath);
+            var game = Object.FindFirstObjectByType<MineGame>();
+            if (game != null && game.prototypeMaterial == null)
+            {
+                game.prototypeMaterial = material;
+                EditorSceneManager.MarkSceneDirty(scene);
+                EditorSceneManager.SaveScene(scene);
+            }
+        }
+        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(scenePath, true) };
+        EditorSettings.serializationMode = SerializationMode.ForceText;
+        PlayerSettings.companyName = "GlebGrshn";
+        PlayerSettings.productName = "Nubik Miner";
+        PlayerSettings.bundleVersion = "0.1.0";
+        PlayerSettings.defaultScreenWidth = 1280;
+        PlayerSettings.defaultScreenHeight = 720;
+        PlayerSettings.runInBackground = true;
+        PlayerSettings.colorSpace = ColorSpace.Linear;
+        PlayerSettings.WebGL.template = "PROJECT:Nubik";
+        PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+        PlayerSettings.WebGL.dataCaching = true;
+        PlayerSettings.WebGL.memorySize = 256;
+        var settings = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
+        settings.FindProperty("activeInputHandler").intValue = 0;
+        settings.ApplyModifiedPropertiesWithoutUndo();
+        var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>("Assets/Settings/Mobile_RPAsset.asset");
+        GraphicsSettings.defaultRenderPipeline = pipeline;
+        QualitySettings.renderPipeline = pipeline;
+        AssetDatabase.SaveAssets();
+        Debug.Log("NUBIK_SETUP_OK: prototype scene and WebGL settings prepared.");
+    }
+
+    [MenuItem("Nubik/Build WebGL")]
+    public static void BuildWeb()
+    {
+        Prepare();
+        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        {
+            scenes = new[] { "Assets/Game/Scenes/Mine.unity" },
+            locationPathName = "Builds/WebGL",
+            target = BuildTarget.WebGL,
+            options = BuildOptions.None
+        });
+        if (report.summary.result != BuildResult.Succeeded) throw new System.Exception("WebGL build failed: " + report.summary.result);
+        Debug.Log("NUBIK_BUILD_OK: " + report.summary.totalSize + " bytes");
+    }
+}

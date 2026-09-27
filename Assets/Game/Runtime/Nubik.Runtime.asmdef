@@ -1,0 +1,5 @@
+{
+  "name": "Nubik.Runtime",
+  "rootNamespace": "Nubik",
+  "references": ["Unity.ugui"]
+}
