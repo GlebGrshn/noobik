@@ -714,7 +714,7 @@ namespace Nubik
         {
             if (!int.TryParse(value, out int metres)) return;
             metres = Mathf.Clamp(metres, 1, config.depth);
-            var shaft = new Vector3(1.5f, 0, 1.5f);
+            var shaft = new Vector3(0.8f, 0, -1.2f);
             for (float y = 0; y > -metres - 1.5f; y -= 0.5f)
             {
                 terrain.Dig(new Vector3(shaft.x, y, shaft.z), 1.3f, 999);
@@ -723,6 +723,13 @@ namespace Nubik
             RebuildDirty();
             Teleport(new Vector3(shaft.x, -metres + 0.2f, shaft.z));
             saveDirty = true;
+        }
+
+        public void SetView(float newYaw, float newPitch)
+        {
+            yaw = newYaw;
+            pitch = newPitch;
+            ApplyView();
         }
 
         public void ToggleSound()

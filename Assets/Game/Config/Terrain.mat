@@ -26,7 +26,7 @@ Material:
     m_Ints: []
     m_Floats:
     - _ExtraLights: 1
-    - _Noise: 0.12
+    - _Noise: 0.08
     - _VertexColor: 1
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}

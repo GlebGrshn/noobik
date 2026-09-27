@@ -1,0 +1,5 @@
+{
+  "name": "Nubik.PlayTests",
+  "references": ["Nubik.Runtime"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}

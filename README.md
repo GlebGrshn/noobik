@@ -29,6 +29,8 @@
 
 Тесты: **Window → General → Test Runner → EditMode → Run All**. Командная проверка: `Tools/Check.ps1`. Проверяются повторные выплаты, покупка, коллекция, сериализация прогресса и грунта, миграция, прочность пород и генерация находок. Звуки пересоздаются командой `py -3 Tools/make_sounds.py`.
 
+Снимки глубин: PlayMode-тест `DepthSnapshots` запускает сцену, опускает игрока на 12, 45, 90 и 120 м и сохраняет кадры в `TestResults/Snapshots`. Запускать с графикой (без `-nographics`): `Unity.exe -batchmode -projectPath . -runTests -testPlatform PlayMode`. Локальное сохранение редактора на время теста откладывается и восстанавливается.
+
 WebGL: установить **Web Build Support** для закреплённой версии Unity и выбрать **Nubik → Build WebGL**. Результат — `Builds/WebGL`, открыть через HTTP, а не `file://`. Пример: `py -3 -m http.server 8080 --directory Builds/WebGL`, затем http://localhost:8080. Для консоли Яндекс Игр упаковывается содержимое этой папки, с `index.html` в корне архива. Перед загрузкой требуется пройти `Docs/Development.md`.
 
 ## Работа с GitHub

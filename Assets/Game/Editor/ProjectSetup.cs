@@ -36,7 +36,7 @@ public static class ProjectSetup
         {
             terrainMaterial = new Material(shader) { name = "Terrain" };
             terrainMaterial.SetFloat("_VertexColor", 1);
-            terrainMaterial.SetFloat("_Noise", 0.12f);
+            terrainMaterial.SetFloat("_Noise", 0.08f);
             AssetDatabase.CreateAsset(terrainMaterial, "Assets/Game/Config/Terrain.mat");
         }
         var cube = PrimitivePrefab("Cube", PrimitiveType.Cube, material);

@@ -14,7 +14,8 @@ namespace Nubik
         public readonly List<Renderer> Runes = new List<Renderer>();
         public Light DoorLight { get; private set; }
 
-        private static readonly Color Lawn = new Color(0.42f, 0.67f, 0.26f);
+        // Same as the terrain shader's grass so the diggable patch blends into the lawn.
+        private static readonly Color Lawn = new Color(0.34f, 0.60f, 0.22f);
         private static readonly Color Wood = new Color(0.60f, 0.40f, 0.25f);
         private static readonly Color DarkWood = new Color(0.40f, 0.26f, 0.17f);
         private static readonly Color Hedge = new Color(0.27f, 0.50f, 0.20f);
@@ -22,8 +23,9 @@ namespace Nubik
         public Yard(Shapes s, MineConfig config)
         {
             var root = new GameObject("Yard").transform;
-            float half = config.width / 2f, lip = 0.25f, top = -0.005f;
-            // Lawn around the diggable patch; it overlaps the patch edge so no seam shows.
+            float half = config.width / 2f, lip = 0.35f, top = -0.005f;
+            // Lawn around the diggable patch. Terrain starts at the centre of the outer cells (0.25 m in),
+            // so the lawn reaches a little further to hide the seam.
             void Lawn(float x0, float x1, float z0, float z1) =>
                 s.Box("Lawn", new Vector3((x0 + x1) / 2, top - 0.15f, (z0 + z1) / 2), new Vector3(x1 - x0, 0.3f, z1 - z0), Yard.Lawn, root, true);
             Lawn(-18, 18, -16, -half + lip);
