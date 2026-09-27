@@ -150,6 +150,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Nubik.Runtime::Nubik.MineGame
   config: {fileID: 11400000, guid: 70697e0aa344ab641a00e1b2c2c5ee40, type: 2}
   prototypeMaterial: {fileID: 2100000, guid: 317cd9c4e819bde44b7785fcb419dd27, type: 2}
+  cubePrefab: {fileID: 4146203624539850360, guid: 9e10cd2be4d7a054babf353cf8d24a0e, type: 3}
+  spherePrefab: {fileID: 3111176588639159044, guid: 8f7f8d73370784c478da3c34b7ac0e09, type: 3}
 --- !u!4 &1442416883
 Transform:
   m_ObjectHideFlags: 0

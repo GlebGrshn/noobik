@@ -14,6 +14,7 @@ public static class ProjectSetup
     {
         Directory.CreateDirectory("Assets/Game/Scenes");
         Directory.CreateDirectory("Assets/Game/Config");
+        Directory.CreateDirectory("Assets/Game/Prefabs");
         var config = AssetDatabase.LoadAssetAtPath<MineConfig>("Assets/Game/Config/MineBalance.asset");
         if (config == null)
         {
@@ -27,21 +28,27 @@ public static class ProjectSetup
             material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             AssetDatabase.CreateAsset(material, "Assets/Game/Config/Prototype.mat");
         }
+        var cube = PrimitivePrefab("Cube", PrimitiveType.Cube, material);
+        var sphere = PrimitivePrefab("Sphere", PrimitiveType.Sphere, material);
         if (!File.Exists(scenePath))
         {
             EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             var game = new GameObject("NubikGame").AddComponent<MineGame>();
             game.config = config;
             game.prototypeMaterial = material;
+            game.cubePrefab = cube;
+            game.spherePrefab = sphere;
             EditorSceneManager.SaveScene(game.gameObject.scene, scenePath);
         }
         else
         {
             var scene = EditorSceneManager.OpenScene(scenePath);
-            var game = Object.FindFirstObjectByType<MineGame>();
-            if (game != null && game.prototypeMaterial == null)
+            var game = Object.FindAnyObjectByType<MineGame>();
+            if (game != null)
             {
-                game.prototypeMaterial = material;
+                if (game.prototypeMaterial == null) game.prototypeMaterial = material;
+                if (game.cubePrefab == null) game.cubePrefab = cube;
+                if (game.spherePrefab == null) game.spherePrefab = sphere;
                 EditorSceneManager.MarkSceneDirty(scene);
                 EditorSceneManager.SaveScene(scene);
             }
@@ -67,6 +74,18 @@ public static class ProjectSetup
         QualitySettings.renderPipeline = pipeline;
         AssetDatabase.SaveAssets();
         Debug.Log("NUBIK_SETUP_OK: prototype scene and WebGL settings prepared.");
+    }
+
+    private static GameObject PrimitivePrefab(string name, PrimitiveType type, Material material)
+    {
+        string path = "Assets/Game/Prefabs/" + name + ".prefab";
+        var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (prefab != null) return prefab;
+        var instance = GameObject.CreatePrimitive(type);
+        instance.GetComponent<Renderer>().sharedMaterial = material;
+        prefab = PrefabUtility.SaveAsPrefabAsset(instance, path);
+        Object.DestroyImmediate(instance);
+        return prefab;
     }
 
     [MenuItem("Nubik/Build WebGL")]

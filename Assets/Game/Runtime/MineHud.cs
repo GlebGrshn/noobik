@@ -23,7 +23,7 @@ namespace Nubik
         public void Setup(MineGame owner)
         {
             game = owner;
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            font = Resources.Load<Font>("Fonts/NotoSans");
             var canvas = new GameObject("Game UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             canvas.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             var scaler = canvas.GetComponent<CanvasScaler>();
@@ -45,7 +45,7 @@ namespace Nubik
             Stick.knob = Panel("Stick knob", pad, Mint, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-27, -27), new Vector2(27, 27));
             Stick.knob.GetComponent<Image>().raycastTarget = false;
             Label(pad, "ДВИЖЕНИЕ", 15, Color.white, Vector2.zero, new Vector2(1, 0.20f));
-            var dig = Button(controls.transform, "КОПАТЬ", Amber, null, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-188, 34), new Vector2(-24, 144));
+            var dig = Button(controls.transform, "КОПАТЬ", Amber, game.DigTap, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-188, 34), new Vector2(-24, 144));
             Dig = dig.gameObject.AddComponent<HoldToDig>();
             Button(controls.transform, "Наверх", Mint, game.RequestReturn, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-188, 160), new Vector2(-24, 220));
             Label(controls.transform, "WASD / стрелки · ЛКМ / пробел · R — наверх", 16, Color.white, new Vector2(0, 0), new Vector2(1, 0), new Vector2(12, 232), new Vector2(-12, 272));

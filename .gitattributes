@@ -7,8 +7,11 @@
 *.unity text eol=lf whitespace=-blank-at-eol
 *.asset text eol=lf whitespace=-blank-at-eol
 *.meta text eol=lf whitespace=-blank-at-eol
+*.mat text eol=lf whitespace=-blank-at-eol
+*.prefab text eol=lf whitespace=-blank-at-eol
 *.jslib text eol=lf
 *.blend binary
 *.fbx binary
 *.png binary
 *.wav binary
+*.ttf binary

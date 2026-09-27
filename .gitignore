@@ -22,3 +22,7 @@
 !.env.example
 TestResults/
 Recordings/
+Assets/Resources/PerformanceTestRunInfo.json*
+Assets/Resources/PerformanceTestRunSettings.json*
+/Assets/Resources.meta
+/Data/

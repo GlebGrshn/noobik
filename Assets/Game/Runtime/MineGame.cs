@@ -8,6 +8,8 @@ namespace Nubik
     {
         public MineConfig config;
         public Material prototypeMaterial;
+        public GameObject cubePrefab;
+        public GameObject spherePrefab;
         public GameProgress Progress { get; private set; }
         public bool AtBase { get; private set; }
         public string Hint { get; private set; } = "Подойди к блоку и удерживай КОПАТЬ";
@@ -25,6 +27,7 @@ namespace Nubik
         private GameObject marker;
         private int selected = -1;
         private float nextHit, swing;
+        private bool mining;
         private Material dirt, earth, gold, teal, dark, skin;
 
         private void Start()
@@ -49,7 +52,8 @@ namespace Nubik
 
         private GameObject Shape(string name, PrimitiveType type, Vector3 position, Vector3 scale, Material material, Transform parent = null, bool collision = false)
         {
-            var obj = GameObject.CreatePrimitive(type);
+            // Serialized prefab references keep native mesh/collider types in stripped WebGL builds.
+            var obj = Instantiate(type == PrimitiveType.Sphere ? spherePrefab : cubePrefab);
             obj.name = name;
             obj.transform.SetParent(parent, false);
             obj.transform.localPosition = position;
@@ -157,6 +161,7 @@ namespace Nubik
             SelectTarget();
             bool mouseDig = Input.touchCount == 0 && Input.GetMouseButton(0) && !EventSystem.current.IsPointerOverGameObject();
             bool digging = mouseDig || hud.Dig.Held || Input.GetKey(KeyCode.Space);
+            mining = digging && selected >= 0 && CanReach(selected);
             if (digging && Time.time >= nextHit) Hit();
             swing = Mathf.MoveTowards(swing, 0, Time.deltaTime * 5);
             pick.localRotation = Quaternion.Euler(-65 * Mathf.Sin(swing * Mathf.PI), 0, -18);
@@ -249,8 +254,12 @@ namespace Nubik
 
         public void RequestReturn()
         {
-            if (hud.Dig.Held || Input.GetKey(KeyCode.Space)) { hud.ShowReturnConfirmation(); return; }
+            if (mining || hud.Dig.Held || Input.GetKey(KeyCode.Space)) { hud.ShowReturnConfirmation(); return; }
             ReturnToBase();
+        }
+        public void DigTap()
+        {
+            if (!AtBase && !YandexBridge.Paused && !hud.ModalOpen && Time.time >= nextHit) Hit();
         }
         public void SetMenuOpen(bool open) => platform.SetInMine(!open && !AtBase);
         public void ReturnToBase()
