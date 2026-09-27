@@ -34,6 +34,27 @@
     }
     const canvas = document.getElementById('unity-canvas');
     canvas.addEventListener('contextmenu', event => event.preventDefault());
+    // Mouse look: collect deltas here; the game reads them each frame. Pointer lock is requested
+    // inside the click itself (a user gesture) and may be refused, e.g. in some embedded frames.
+    window.nubikMouseX = 0; window.nubikMouseY = 0;
+    window.nubikWantLock = false; window.nubikLockFailed = false;
+    document.addEventListener('mousemove', event => { window.nubikMouseX += event.movementX || 0; window.nubikMouseY += event.movementY || 0; });
+    document.addEventListener('pointerlockerror', () => { window.nubikLockFailed = true; });
+    canvas.addEventListener('mousedown', () => {
+      if (!window.nubikWantLock || window.nubikLockFailed || document.pointerLockElement === canvas) return;
+      try {
+        const request = canvas.requestPointerLock();
+        if (request && request.catch) request.catch(() => { window.nubikLockFailed = true; });
+      } catch (error) { window.nubikLockFailed = true; }
+    });
+    // Keep a refused pointer lock from reaching Unity's global error handler.
+    window.addEventListener('unhandledrejection', event => {
+      const reason = String(event.reason && (event.reason.name + ' ' + event.reason.message));
+      if (!/pointer ?lock|WrongDocumentError/i.test(reason)) return;
+      window.nubikLockFailed = true;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    });
     const loader = document.createElement('script');
     loader.src = 'Build/{{{ LOADER_FILENAME }}}';
     loader.onload = () => createUnityInstance(canvas, {
@@ -49,6 +70,9 @@
       const visibility = () => instance.SendMessage('NubikGame', 'OnVisibility', document.hidden ? '0' : '1');
       document.addEventListener('visibilitychange', visibility);
       visibility(); canvas.focus();
+      // Local testing only: ?depth=40 carves a shaft and drops the player there.
+      const testDepth = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('depth');
+      if (testDepth) setTimeout(() => instance.SendMessage('NubikGame', 'DebugDig', testDepth), 1500);
     }).catch(error => { document.getElementById('error').textContent = 'Не удалось запустить игру. Обновите страницу. ' + error; });
     loader.onerror = () => { document.getElementById('error').textContent = 'Не удалось загрузить игру. Проверьте соединение и обновите страницу.'; };
     document.body.appendChild(loader);

@@ -27,7 +27,21 @@ namespace Nubik
         private void OnDisable() => ResetInput();
     }
 
-    public sealed class HoldToDig : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+    /// <summary>Drag anywhere on this area to turn the camera. Collects the delta until read.</summary>
+    public sealed class TouchLook : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
+    {
+        private int pointer = int.MinValue;
+        private Vector2 pending;
+        public void OnPointerDown(PointerEventData e) { if (pointer == int.MinValue) pointer = e.pointerId; }
+        public void OnDrag(PointerEventData e) { if (e.pointerId == pointer) pending += e.delta; }
+        public void OnPointerUp(PointerEventData e) { if (e.pointerId == pointer) pointer = int.MinValue; }
+        /// <summary>Screen pixels dragged since the last call.</summary>
+        public Vector2 Consume() { var value = pending; pending = Vector2.zero; return value; }
+        public void ResetInput() { pointer = int.MinValue; pending = Vector2.zero; }
+        private void OnDisable() => ResetInput();
+    }
+
+    public sealed class HoldButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
     {
         public bool Held { get; private set; }
         public void OnPointerDown(PointerEventData e) => Held = true;

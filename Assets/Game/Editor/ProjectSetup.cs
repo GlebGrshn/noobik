@@ -22,11 +22,22 @@ public static class ProjectSetup
             AssetDatabase.CreateAsset(config, "Assets/Game/Config/MineBalance.asset");
         }
         string scenePath = "Assets/Game/Scenes/Mine.unity";
+        EditorUtility.SetDirty(config);
+        var shader = Shader.Find("Nubik/Lit");
         var material = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Config/Prototype.mat");
         if (material == null)
         {
-            material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material = new Material(shader);
             AssetDatabase.CreateAsset(material, "Assets/Game/Config/Prototype.mat");
+        }
+        if (material.shader != shader) { material.shader = shader; EditorUtility.SetDirty(material); }
+        var terrainMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Config/Terrain.mat");
+        if (terrainMaterial == null)
+        {
+            terrainMaterial = new Material(shader) { name = "Terrain" };
+            terrainMaterial.SetFloat("_VertexColor", 1);
+            terrainMaterial.SetFloat("_Noise", 0.12f);
+            AssetDatabase.CreateAsset(terrainMaterial, "Assets/Game/Config/Terrain.mat");
         }
         var cube = PrimitivePrefab("Cube", PrimitiveType.Cube, material);
         var sphere = PrimitivePrefab("Sphere", PrimitiveType.Sphere, material);
@@ -36,6 +47,7 @@ public static class ProjectSetup
             var game = new GameObject("NubikGame").AddComponent<MineGame>();
             game.config = config;
             game.prototypeMaterial = material;
+            game.terrainMaterial = terrainMaterial;
             game.cubePrefab = cube;
             game.spherePrefab = sphere;
             EditorSceneManager.SaveScene(game.gameObject.scene, scenePath);
@@ -47,6 +59,7 @@ public static class ProjectSetup
             if (game != null)
             {
                 if (game.prototypeMaterial == null) game.prototypeMaterial = material;
+                if (game.terrainMaterial == null) game.terrainMaterial = terrainMaterial;
                 if (game.cubePrefab == null) game.cubePrefab = cube;
                 if (game.spherePrefab == null) game.spherePrefab = sphere;
                 EditorSceneManager.MarkSceneDirty(scene);
