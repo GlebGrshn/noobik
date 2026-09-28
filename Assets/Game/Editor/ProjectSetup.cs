@@ -40,6 +40,12 @@ public static class ProjectSetup
             AssetDatabase.CreateAsset(terrainMaterial, "Assets/Game/Config/Terrain.mat");
         }
         var cube = PrimitivePrefab("Cube", PrimitiveType.Cube, material);
+        var skyMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Config/Sky.mat");
+        if (skyMaterial == null)
+        {
+            skyMaterial = new Material(Shader.Find("Nubik/Sky"));
+            AssetDatabase.CreateAsset(skyMaterial, "Assets/Game/Config/Sky.mat");
+        }
         var sphere = PrimitivePrefab("Sphere", PrimitiveType.Sphere, material);
         if (!File.Exists(scenePath))
         {
@@ -48,6 +54,7 @@ public static class ProjectSetup
             game.config = config;
             game.prototypeMaterial = material;
             game.terrainMaterial = terrainMaterial;
+            game.skyMaterial = skyMaterial;
             game.cubePrefab = cube;
             game.spherePrefab = sphere;
             EditorSceneManager.SaveScene(game.gameObject.scene, scenePath);
@@ -60,6 +67,7 @@ public static class ProjectSetup
             {
                 if (game.prototypeMaterial == null) game.prototypeMaterial = material;
                 if (game.terrainMaterial == null) game.terrainMaterial = terrainMaterial;
+                if (game.skyMaterial == null) game.skyMaterial = skyMaterial;
                 if (game.cubePrefab == null) game.cubePrefab = cube;
                 if (game.spherePrefab == null) game.spherePrefab = sphere;
                 EditorSceneManager.MarkSceneDirty(scene);

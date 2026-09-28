@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.EventSystems;
 
 namespace Nubik
 {
@@ -10,6 +11,7 @@ namespace Nubik
         public MineConfig config;
         public Material prototypeMaterial;
         public Material terrainMaterial;
+        public Material skyMaterial;
         public GameObject cubePrefab;
         public GameObject spherePrefab;
 
@@ -30,7 +32,7 @@ namespace Nubik
         private const int IgnoreRaycastLayer = 2;
         private static readonly Color Sky = new Color(0.56f, 0.77f, 0.95f);
         private static readonly Color Haze = new Color(0.70f, 0.82f, 0.93f);
-        private static readonly Color SurfaceAmbient = new Color(0.50f, 0.54f, 0.60f);
+        private static readonly Color SurfaceAmbient = new Color(0.36f, 0.43f, 0.47f);
         private static readonly Color SunColor = new Color(1f, 0.95f, 0.85f);
         private static readonly Color Amber = new Color(1f, 0.78f, 0.25f);
         // Shovel held low on the right: pointing forward-up-left with the blade face towards the camera.
@@ -153,6 +155,7 @@ namespace Nubik
             view = cameraObj.GetComponent<Camera>();
             view.fieldOfView = 70; view.nearClipPlane = 0.03f; view.farClipPlane = 220;
             view.clearFlags = CameraClearFlags.SolidColor; view.backgroundColor = Sky;
+            if (skyMaterial != null) { RenderSettings.skybox = skyMaterial; view.clearFlags = CameraClearFlags.Skybox; }
             sound = cameraObj.AddComponent<GameAudio>();
             GameAudio.SetMuted(Progress.muted);
 
@@ -187,6 +190,11 @@ namespace Nubik
             Part("Collar", new Vector3(0, 0, -0.005f), new Vector3(0.026f, 0.026f, 0.04f), new Color(0.32f, 0.32f, 0.35f));
             Part("Blade", new Vector3(0, 0, 0.055f), new Vector3(0.1f, 0.007f, 0.09f), Tool.color);
             Part("Blade tip", new Vector3(0, 0, 0.1f), new Vector3(0.071f, 0.007f, 0.071f), Tool.color, 45);
+            Part("Blade ridge", new Vector3(0, .006f, .05f), new Vector3(.012f,.008f,.09f), Tool.color * 1.2f);
+            Part("Blade edge", new Vector3(0, .004f, .105f), new Vector3(.062f,.008f,.015f), new Color(.8f,.85f,.83f));
+            Part("Grip", new Vector3(0,0,-.30f), new Vector3(.026f,.026f,.09f), new Color(.14f,.25f,.25f));
+            Part("Glove", new Vector3(.025f,-.018f,-.20f), new Vector3(.063f,.052f,.075f), new Color(.18f,.42f,.37f));
+            Part("Cuff", new Vector3(.025f,-.021f,-.248f), new Vector3(.067f,.054f,.023f), new Color(.89f,.65f,.31f));
             AnimateTool();
         }
 
@@ -218,6 +226,7 @@ namespace Nubik
             UpdateFlights();
             UpdateDebris();
             if (YandexBridge.Paused) { hud.ClearInput(); return; }
+            if (Input.GetKeyDown(KeyCode.Escape) && hud.PanelOpen) hud.ClosePanel();
             if (!TouchMode && Input.touchCount > 0) { TouchMode = true; WebInput.WantLock(false); }
             bool want = !TouchMode && !hud.PanelOpen && !WebInput.LockUnavailable;
             if (want != wantLock) { wantLock = want; WebInput.WantLock(want); }
@@ -235,7 +244,8 @@ namespace Nubik
             UpdateTarget();
             // The click that starts play only engages the mouse.
             bool click = !TouchMode && Input.GetMouseButtonDown(0) && Time.frameCount > engagedFrame + 1;
-            if (active && (DigHeld || click) && Time.time >= nextHit) Swing();
+            bool overUi = !TouchMode && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            if (Active && !overUi && (DigHeld || click) && Time.time >= nextHit) Swing();
             AnimateTool();
             var feet = body.transform.position;
             NearShop = feet.y > -0.5f && Vector2.Distance(new Vector2(feet.x, feet.z), new Vector2(yard.ShopPoint.x, yard.ShopPoint.z)) < 2.8f;
@@ -336,6 +346,7 @@ namespace Nubik
             var origin = view.transform.position;
             var direction = view.transform.forward;
             if (!Physics.Raycast(origin, direction, out var hit, config.reach, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide)) return;
+            hud.HitFeedback();
             if (itemColliders.TryGetValue(hit.collider, out var item))
             {
                 sound.Play("dig_stone", 0.5f, 1.3f);
@@ -579,7 +590,7 @@ namespace Nubik
             Shader.SetGlobalColor("_NubikAmbient", Color.Lerp(SurfaceAmbient, Color.Lerp(previous.ambient, zone.ambient, blend), under));
             Shader.SetGlobalColor("_NubikFogColor", Color.Lerp(Haze, Color.Lerp(previous.fog, zone.fog, blend), under));
             Shader.SetGlobalVector("_NubikFog", new Vector4(Mathf.Lerp(45, 1.5f, under), Mathf.Lerp(170, Mathf.Lerp(previous.fogEnd, zone.fogEnd, blend), under)));
-            sun.intensity = Mathf.Lerp(1.05f, Mathf.Lerp(previous.sunIntensity, zone.sunIntensity, blend), under);
+            sun.intensity = Mathf.Lerp(.9f, Mathf.Lerp(previous.sunIntensity, zone.sunIntensity, blend), under);
             sun.color = Color.Lerp(SunColor, Color.Lerp(previous.sun, zone.sun, blend), under);
             lamp.intensity = Mathf.Lerp(previous.lamp, zone.lamp, blend) * Mathf.Clamp01((depth - 0.8f) / 2.5f);
             if (depth > config.depth - 30)
@@ -638,6 +649,7 @@ namespace Nubik
         {
             engaged = true;
             engagedFrame = Time.frameCount;
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
 #if UNITY_EDITOR || !UNITY_WEBGL
             if (!TouchMode) WebInput.LockNow();
 #endif
@@ -787,6 +799,6 @@ namespace Nubik
         private void OnApplicationPause(bool paused) { if (paused && body != null) SaveNow(); }
         private void OnApplicationFocus(bool focused) { if (!focused && body != null) SaveNow(); }
         private void OnApplicationQuit() { if (body != null) SaveNow(); }
-        private void OnDestroy() { shapes?.Dispose(); }
+        private void OnDestroy() { yard?.Dispose(); shapes?.Dispose(); }
     }
 }

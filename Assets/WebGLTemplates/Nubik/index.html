@@ -6,17 +6,22 @@
   <title>Нубик Шахтёр</title>
   <style>
     * { box-sizing: border-box; }
-    html, body { margin: 0; width: 100%; height: 100%; background: #13222b; color: #fff; font-family: system-ui, sans-serif; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #112024; color: #f7f2de; font-family: system-ui, sans-serif; }
     #unity-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
-    #loading { position: fixed; inset: 0; display: grid; place-content: center; text-align: center; background: #13222b; gap: 16px; padding: 24px; }
-    h1 { color: #ffba40; margin: 0; }
-    progress { width: min(320px, 80vw); accent-color: #38d4ba; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; background: radial-gradient(ellipse at 50% 25%, #304f43, #112024 70%); gap: 22px; padding: 24px; }
+    #loading .badge { color: #70d7b7; font-size: 12px; font-weight: 700; letter-spacing: 3px; }
+    #loading .mark { width: 72px; height: 72px; border: 2px solid #ffc451; border-radius: 22px; display: grid; place-items: center; color: #ffc451; font-size: 44px; }
+    h1 { color: #f7f2de; margin: 0; font-size: clamp(26px, 5vw, 44px); letter-spacing: -1px; }
+    #loading .caption { color: #b0c5bf; }
+    progress { width: min(320px, 80vw); height: 7px; border: 0; border-radius: 5px; overflow: hidden; accent-color: #ffc451; background: #2b4241; }
+    progress::-webkit-progress-bar { background: #2b4241; }
+    progress::-webkit-progress-value { background: #ffc451; border-radius: 5px; }
     #error { max-width: 36em; line-height: 1.5; }
   </style>
 </head>
 <body>
-  <canvas id="unity-canvas" tabindex="0" aria-label="Нубик Шахтёр. WASD — движение, пробел — копать, R — наверх"></canvas>
-  <div id="loading"><h1>НУБИК ШАХТЁР</h1><div>Готовим первую вылазку…</div><progress id="progress" value="0" max="1"></progress><div id="error"></div></div>
+  <canvas id="unity-canvas" tabindex="0" aria-label="Нубик Шахтёр. WASD — движение, ЛКМ — копать, пробел — прыжок, R — наверх"></canvas>
+  <div id="loading"><div class="mark" aria-hidden="true">↓</div><div class="badge">НАВСТРЕЧУ НАХОДКАМ</div><h1>НУБИК ШАХТЁР</h1><div class="caption">Готовим твою следующую вылазку…</div><progress id="progress" aria-label="Загрузка игры" value="0" max="1"></progress><div id="error" role="alert"></div></div>
   <script>
     // The platform serves /sdk.js; localhost preview deliberately works offline without it.
     window.nubikReady = false;

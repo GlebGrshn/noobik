@@ -54,6 +54,7 @@ namespace Nubik.PlayTests
             var game = Object.FindAnyObjectByType<MineGame>();
             Assert.NotNull(game);
             yield return Frames(30);
+            Shot("ui_welcome", true);
             game.SetView(0, 36);
             yield return Frames(3);
             Shot("00_surface");
@@ -125,6 +126,8 @@ namespace Nubik.PlayTests
             int coins = game.Progress.coins, trips = game.Progress.expeditions;
             game.Progress.backpack = 47;
             game.ReturnToSurface();
+            yield return Frames(3);
+            Shot("ui_shop", true);
             Assert.AreEqual(0, game.Progress.backpack);
             Assert.AreEqual(coins + 47, game.Progress.coins);
             Assert.AreEqual(trips + 1, game.Progress.expeditions);
@@ -170,14 +173,23 @@ namespace Nubik.PlayTests
             for (int i = 0; i < count; i++) yield return null;
         }
 
-        private static void Shot(string name)
+        private static void Shot(string name, bool includeUi = false)
         {
             var camera = Camera.main;
             if (camera == null || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) return;
             var target = new RenderTexture(960, 540, 24);
+            var canvas = GameObject.Find("Game UI").GetComponent<Canvas>();
+            if (includeUi)
+            {
+                canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                canvas.worldCamera = camera;
+                canvas.planeDistance = .1f;
+                Canvas.ForceUpdateCanvases();
+            }
             camera.targetTexture = target;
             camera.Render();
             camera.targetTexture = null;
+            if (includeUi) canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             RenderTexture.active = target;
             var image = new Texture2D(960, 540, TextureFormat.RGB24, false);
             image.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);

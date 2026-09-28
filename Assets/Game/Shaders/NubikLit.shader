@@ -10,7 +10,7 @@ Shader "Nubik/Lit"
         _VertexColor("Use vertex color", Range(0, 1)) = 0
         _Noise("Surface grain", Range(0, 0.5)) = 0.06
         _ExtraLights("Lit by extra lights", Range(0, 1)) = 1
-        _GrassColor("Grass on flat ground (vertex colour mode)", Color) = (0.34, 0.6, 0.22, 1)
+        _GrassColor("Grass on flat ground (vertex colour mode)", Color) = (0.42, 0.55, 0.30, 1)
     }
     SubShader
     {
@@ -76,12 +76,14 @@ Shader "Nubik/Lit"
                 // Per-pixel grass keeps a crisp lawn edge around holes instead of a vertex-colour smear.
                 half grass = _VertexColor * step(0.8, normal.y) * step(-0.12, input.positionWS.y);
                 albedo = lerp(albedo, _GrassColor.rgb, grass);
-                float3 cell = floor(input.positionWS * 5.0);
+                // Subtle striations and fine grain replace the conspicuous square checker pattern.
+                float3 cell = floor(input.positionWS * 28.0);
                 half grain = frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
-                albedo *= 1.0 + (grain - 0.5) * _Noise;
+                half strata = sin(input.positionWS.y * 13 + sin(input.positionWS.x * 1.3 + input.positionWS.z * 1.8));
+                albedo *= 1.0 + (grain - 0.5) * _Noise * .45 + strata * _VertexColor * (1-grass) * .035;
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half3 light = mainLight.color * saturate(dot(normal, mainLight.direction)) * mainLight.shadowAttenuation;
+                half3 light = mainLight.color * saturate(dot(normal, mainLight.direction) * .8 + .2) * lerp(.25,1,mainLight.shadowAttenuation);
                 light += _NubikAmbient.rgb * (0.7 + 0.3 * normal.y);
                 #if defined(_ADDITIONAL_LIGHTS)
                 int count = GetAdditionalLightsCount();
