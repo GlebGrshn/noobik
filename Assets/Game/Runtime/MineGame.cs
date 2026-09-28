@@ -48,7 +48,9 @@ namespace Nubik
         private YandexBridge platform;
         private GameAudio sound;
         private CharacterController body;
-        private Transform head, terrainRoot, tool;
+        private Transform head, terrainRoot, tool, load;
+        private Renderer[] loadParts;
+        private float loadSince = -10;
         private Camera view;
         private Light sun, lamp;
         private Mesh scratch;
@@ -62,6 +64,7 @@ namespace Nubik
         private float yaw, pitch, verticalSpeed, nextHit, swing = 1, nextVisibility, nextAutosave, walkCycle, lastDig = -10;
         private bool saveDirty, endingShown, wasActive, engaged, wantLock;
         private int engagedFrame = -10;
+        private string pendingDebugDig;
         private bool underground;
         private Vector3 lastUndergroundPosition;
         private float lastUndergroundYaw;
@@ -99,6 +102,7 @@ namespace Nubik
             SpawnAtStart();
             UpdateAmbience();
             platform.Ready();
+            if (pendingDebugDig != null) DebugDig(pendingDebugDig);
         }
 
         // ---------- World ----------
@@ -195,6 +199,19 @@ namespace Nubik
             Part("Grip", new Vector3(0,0,-.30f), new Vector3(.026f,.026f,.09f), new Color(.14f,.25f,.25f));
             Part("Glove", new Vector3(.025f,-.018f,-.20f), new Vector3(.063f,.052f,.075f), new Color(.18f,.42f,.37f));
             Part("Cuff", new Vector3(.025f,-.021f,-.248f), new Vector3(.067f,.054f,.023f), new Color(.89f,.65f,.31f));
+            // A scoop of ground rides on the blade for a moment after each successful hit.
+            load = new GameObject("Load").transform;
+            load.SetParent(tool, false);
+            load.localPosition = new Vector3(0, 0.012f, 0.06f);
+            loadParts = new Renderer[3];
+            for (int i = 0; i < loadParts.Length; i++)
+            {
+                var lump = shapes.Make("Lump", cubePrefab, new Vector3((i - 1) * 0.022f, i == 1 ? 0.012f : 0.004f, (i % 2) * 0.012f),
+                    new Vector3(0.05f, 0.03f - i % 2 * 0.008f, 0.045f), Quaternion.Euler(10 * i, 30 * i, 8), shapes.Mat(Color.gray, 0, false), load, false);
+                loadParts[i] = lump.GetComponent<Renderer>();
+                loadParts[i].shadowCastingMode = ShadowCastingMode.Off;
+            }
+            load.gameObject.SetActive(false);
             AnimateTool();
         }
 
@@ -368,6 +385,7 @@ namespace Nubik
             if (hardness <= 3) sound.Play("dig_dirt", 0.8f);
             else sound.Play("dig_stone", 0.75f, Mathf.Lerp(1.05f, 0.72f, Mathf.InverseLerp(6, 32, hardness)));
             RebuildDirty();
+            ShowLoad(dust);
             int paid = Progress.AddDigValue(result.Value);
             if (paid > 0) { hud.Popup(hit.point, "+" + paid, Amber); sound.Play("coin", 0.35f, 1, 0.1f); }
             saveDirty = true;
@@ -403,7 +421,9 @@ namespace Nubik
                 case LootKind.Collectible:
                     sound.Play("collect", 1, 1, 0);
                     var def = config.collection[item.Collectible];
-                    hud.Notify("Коллекция: " + def.nameRu + "! +" + config.firstDiscoveryCoins + " монет");
+                    hud.Announce((UiGlyph.Kind)((int)UiGlyph.Kind.Helmet + item.Collectible), def.color,
+                        "В КОЛЛЕКЦИЮ  ·  " + Progress.CollectionCount + " / " + config.collection.Length, def.nameRu,
+                        "Предмет навсегда в альбоме. +" + config.firstDiscoveryCoins + " монет");
                     hud.Popup(item.Position, def.nameRu, def.color);
                     break;
                 case LootKind.Chest:
@@ -511,9 +531,19 @@ namespace Nubik
 
         // ---------- Feedback ----------
 
+        private void ShowLoad(Color color)
+        {
+            var material = shapes.Mat(color * 0.9f, 0.05f, false);
+            foreach (var part in loadParts) part.sharedMaterial = material;
+            loadSince = Time.time;
+        }
+
         private void AnimateTool()
         {
             if (tool == null) return;
+            float carried = Time.time - loadSince;
+            load.gameObject.SetActive(carried < 0.5f);
+            load.localScale = Vector3.one * Mathf.Clamp01(carried / 0.08f);
             swing = Mathf.MoveTowards(swing, 1, Time.deltaTime / (config.hitInterval * 0.8f));
             float thrust = Mathf.Sin(swing * Mathf.PI) * (swing < 1 ? 1 : 0);
             // Narrow portrait screens pull the shovel towards the centre so the blade stays visible.
@@ -616,7 +646,8 @@ namespace Nubik
                 saveDirty = true;
                 if (newZone > oldZone)
                 {
-                    hud.Notify("Новая зона: " + config.zones[newZone].nameRu + "!");
+                    var zone = config.zones[newZone];
+                    hud.Announce(UiGlyph.Kind.Down, new Color(0.43f, 0.86f, 0.72f), "НОВАЯ ЗОНА  ·  " + zone.startDepth + " м", zone.nameRu, zone.noteRu);
                     sound.Play("zone", 1, 1, 0);
                     SaveNow();
                 }
@@ -758,6 +789,8 @@ namespace Nubik
         /// <summary>Localhost-only test helper (see the WebGL template): carves a shaft and drops the player to that depth.</summary>
         public void DebugDig(string value)
         {
+            // The page may call before the first frame on slow devices; run it once the world exists.
+            if (terrain == null) { pendingDebugDig = value; return; }
             if (!int.TryParse(value, out int metres)) return;
             metres = Mathf.Clamp(metres, 1, config.depth);
             var shaft = new Vector3(0.8f, 0, -1.2f);

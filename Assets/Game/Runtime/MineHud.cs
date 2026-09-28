@@ -36,6 +36,12 @@ namespace Nubik
         private Text shopWallet, bagCaption, record;
         private Image depthFill, crosshair;
         private RawImage vignette;
+        private RectTransform announceCard;
+        private CanvasGroup announceGroup;
+        private UiGlyph announceIcon;
+        private Text announceKicker, announceTitle, announceNote;
+        private float announceStart = -10;
+        private const float AnnounceTime = 3.4f;
         private readonly List<Image> zoneTicks = new List<Image>();
         private readonly List<Image> albumTiles = new List<Image>();
         private readonly List<UiGlyph> albumIcons = new List<UiGlyph>();
@@ -73,6 +79,7 @@ namespace Nubik
             BuildStart();
             BuildShop();
             BuildDialogs();
+            BuildAnnouncement();
             // Toasts sit above modals: automatic sale feedback stays readable when the shop opens.
             toastCard = Panel("Notification", root, Ink);
             Icon(toastCard, UiGlyph.Kind.Coin, Amber, 14, 16, 28);
@@ -165,6 +172,49 @@ namespace Nubik
             hint = Caption(root, "", 16, Cream, 0, 0, 600, 46);
             hint.alignment = TextAnchor.MiddleCenter;
             hint.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(1, -1);
+        }
+
+        /// <summary>Large card for milestones: a new zone or a collection item.</summary>
+        private void BuildAnnouncement()
+        {
+            announceCard = Panel("Announcement", root, Ink);
+            announceGroup = announceCard.gameObject.AddComponent<CanvasGroup>();
+            announceGroup.blocksRaycasts = false;
+            var badge = Panel("Badge", announceCard, Inset);
+            At(badge, 16, 16, 86, 86);
+            announceIcon = Icon(badge, UiGlyph.Kind.Down, Mint, 17, 17, 52);
+            announceKicker = Caption(announceCard, "", 13, Mint, 118, 14, 330, 22, true);
+            announceTitle = Caption(announceCard, "", 30, Cream, 118, 34, 330, 42, true);
+            announceNote = Caption(announceCard, "", 15, Muted, 118, 76, 330, 36);
+            announceNote.resizeTextForBestFit = true;
+            announceNote.resizeTextMinSize = 11;
+            announceNote.resizeTextMaxSize = 15;
+            announceCard.gameObject.SetActive(false);
+        }
+
+        public void Announce(UiGlyph.Kind icon, Color color, string kicker, string title, string note)
+        {
+            announceIcon.kind = icon;
+            announceIcon.color = color;
+            announceKicker.text = kicker;
+            announceKicker.color = color;
+            announceTitle.text = title;
+            announceNote.text = note;
+            announceStart = Time.unscaledTime;
+        }
+
+        private void UpdateAnnouncement(bool blocked)
+        {
+            float age = Time.unscaledTime - announceStart;
+            // Windows and the start screen hold the announcement until they close.
+            if (blocked && age < AnnounceTime) announceStart = Mathf.Min(Time.unscaledTime, announceStart + Time.unscaledDeltaTime);
+            bool visible = age < AnnounceTime && !blocked;
+            announceCard.gameObject.SetActive(visible);
+            if (!visible) return;
+            // Pops in, holds, then fades out.
+            float appear = Mathf.Clamp01(age / 0.25f), vanish = Mathf.Clamp01((AnnounceTime - age) / 0.45f);
+            announceGroup.alpha = Mathf.Min(appear, vanish);
+            announceCard.localScale = Vector3.one * Mathf.Lerp(0.88f, 1, 1 - (1 - appear) * (1 - appear));
         }
 
         private void BuildStart()
@@ -284,6 +334,7 @@ namespace Nubik
             Center(targetCard, 0, -54, 384, 42);
             Center(crosshair.rectTransform, 0, 0, 7, 7);
             CenterTop(toastCard, portrait ? 300 : 194, portrait ? 504 : 500, 68);
+            CenterTop(announceCard, portrait ? 300 : 170, 470, 118);
             BottomLeft(pad, 24, 28, 150, 150);
             BottomRight(digRect, 24, 28, 156, 132);
             if (portrait) BottomRight(jumpRect, 24, 174, 156, 64);
@@ -369,7 +420,8 @@ namespace Nubik
             crosshair.color = hit ? Amber : game.InReach ? Mint : Cream;
             crosshair.rectTransform.sizeDelta = Vector2.one * (hit ? 11 : 7);
             hint.text = modal || waiting ? "" : game.Hint;
-            toastCard.gameObject.SetActive(Time.unscaledTime < toastUntil && !modal);
+            UpdateAnnouncement(modal || waiting);
+            toastCard.gameObject.SetActive(Time.unscaledTime < toastUntil && !modal && !announceCard.gameObject.activeSelf);
             vignette.color = new Color(0, 0, 0, modal || waiting ? 0.35f : Mathf.Lerp(0.3f, 0.82f, Mathf.Clamp01(metres / 12f)));
             UpdatePopups();
             if (shop.activeSelf) UpdateShop();

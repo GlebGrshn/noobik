@@ -4,7 +4,8 @@
 //   py -3 -m http.server 8080 --directory Builds/WebGL      (in another terminal)
 //   node Tools/web-check.mjs [url] [outDir]
 //
-// Steps: desktop start screen, start, dig, shop; then a portrait phone layout with touch controls.
+// Steps: desktop start screen, start, dig, shop, zone announcement at 35 m; then a portrait phone
+// layout with touch controls.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,6 +29,7 @@ const browser = spawn(browserPath, [
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const problems = [];
+let step = 'loading';
 
 async function connect() {
   for (let i = 0; i < 50; i++) {
@@ -51,9 +53,9 @@ socket.addEventListener('message', event => {
     pending.get(message.id)(message);
     pending.delete(message.id);
   } else if (message.method === 'Runtime.exceptionThrown') {
-    problems.push('exception: ' + message.params.exceptionDetails.text + ' ' + (message.params.exceptionDetails.exception?.description ?? ''));
+    problems.push(`[${step}] exception: ` + message.params.exceptionDetails.text + ' ' + (message.params.exceptionDetails.exception?.description ?? ''));
   } else if (message.method === 'Runtime.consoleAPICalled' && ['error', 'warning'].includes(message.params.type)) {
-    problems.push(message.params.type + ': ' + message.params.args.map(arg => arg.value ?? arg.description).join(' '));
+    problems.push(`[${step}] ${message.params.type}: ` + message.params.args.map(arg => arg.value ?? arg.description).join(' '));
   }
 });
 const send = (method, params = {}) => new Promise(resolve => {
@@ -64,6 +66,7 @@ const send = (method, params = {}) => new Promise(resolve => {
 const evaluate = async expression => (await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true })).result?.result?.value;
 
 async function shot(name) {
+  step = 'after ' + name;
   const { result } = await send('Page.captureScreenshot', { format: 'png' });
   writeFileSync(join(out, name + '.png'), Buffer.from(result.data, 'base64'));
   console.log('saved', name);
@@ -76,13 +79,13 @@ async function key(code, text) {
   await sleep(80);
   await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: text, windowsVirtualKeyCode: keyCode });
 }
-async function load(width, height, mobile) {
+async function load(width, height, mobile, address = url) {
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
   await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
   await send('Emulation.setUserAgentOverride', {
     userAgent: mobile ? 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36' : '',
   });
-  await send('Page.navigate', { url });
+  await send('Page.navigate', { url: address });
   for (let i = 0; i < 240 && !(await evaluate('!!window.unityInstance')); i++) await sleep(500);
   await sleep(3000);
 }
@@ -109,6 +112,17 @@ try {
   await key('KeyR', 'r');
   await sleep(1200);
   await shot('desktop_04_shop');
+
+  // Leaving the page must save quietly.
+  step = 'leaving the page';
+  await send('Page.navigate', { url: 'about:blank' });
+  await sleep(1500);
+  // Drop to the stone zone (localhost test helper), start, and catch the zone announcement.
+  step = 'loading at depth';
+  await load(1280, 720, false, url + (url.includes('?') ? '&' : '?') + 'depth=35');
+  await click(640, 415);
+  await sleep(700);
+  await shot('desktop_05_zone');
 
   await load(390, 844, true);
   await shot('phone_01_start');

@@ -110,16 +110,31 @@ public static class ProjectSetup
     }
 
     [MenuItem("Nubik/Build WebGL")]
-    public static void BuildWeb()
+    public static void BuildWeb() => Build("Builds/WebGL", BuildOptions.None);
+
+    /// <summary>Development build with readable stack traces, next to the release one.</summary>
+    [MenuItem("Nubik/Build WebGL (development)")]
+    public static void BuildWebDevelopment() => Build("Builds/WebGL-dev", BuildOptions.Development);
+
+    private static void Build(string path, BuildOptions options)
     {
         Prepare();
-        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        bool development = (options & BuildOptions.Development) != 0;
+        var exceptions = PlayerSettings.WebGL.exceptionSupport;
+        // Full managed stack traces only in the development build; the release keeps the smaller setting.
+        if (development) PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.FullWithStacktrace;
+        BuildReport report;
+        try
         {
-            scenes = new[] { "Assets/Game/Scenes/Mine.unity" },
-            locationPathName = "Builds/WebGL",
-            target = BuildTarget.WebGL,
-            options = BuildOptions.None
-        });
+            report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { "Assets/Game/Scenes/Mine.unity" },
+                locationPathName = path,
+                target = BuildTarget.WebGL,
+                options = options
+            });
+        }
+        finally { PlayerSettings.WebGL.exceptionSupport = exceptions; }
         if (report.summary.result != BuildResult.Succeeded) throw new System.Exception("WebGL build failed: " + report.summary.result);
         Debug.Log("NUBIK_BUILD_OK: " + report.summary.totalSize + " bytes");
     }
