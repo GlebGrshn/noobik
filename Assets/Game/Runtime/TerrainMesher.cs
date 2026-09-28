@@ -113,7 +113,10 @@ namespace Nubik
             var normal = Normal(grid);
             vertices.Add(world);
             normals.Add(normal);
-            colors.Add(Tint(world, normal) * Occlusion(world, normal));
+            var tint = Tint(world, normal);
+            float occlusion = Occlusion(world, normal);
+            // Alpha carries how rocky the ground is (detail strength in the shader), not light.
+            colors.Add(new Color(tint.r * occlusion, tint.g * occlusion, tint.b * occlusion, tint.a));
             return vertices.Count - 1;
         }
 
@@ -154,12 +157,15 @@ namespace Nubik
         {
             if (world.y < config.FloorY + 0.7f) return Bedrock.linear;
             float depth = -world.y;
-            Color color = config.Rock(world).color;
+            var rock = config.Rock(world);
+            Color color = rock.color;
             if (depth < 1.4f) color = Color.Lerp(Topsoil, color, depth / 1.4f);
             // Soft strata so walls read as layers while digging down.
             color *= 0.88f + 0.12f * Mathf.Sin(world.y * 2.3f + config.Noise(world * 0.35f, 5) * 5f);
-            color.a = 1;
-            return color.linear;
+            color = color.linear;
+            // Soft dirt shows gentle lumps; hard rock shows its relief and fractures.
+            color.a = Mathf.Clamp(0.2f + rock.hardness * 0.12f, 0.2f, 1f);
+            return color;
         }
     }
 }

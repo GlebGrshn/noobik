@@ -39,6 +39,7 @@ public static class ProjectSetup
             terrainMaterial.SetFloat("_Noise", 0.08f);
             AssetDatabase.CreateAsset(terrainMaterial, "Assets/Game/Config/Terrain.mat");
         }
+        AssignRockDetail(material, terrainMaterial);
         var cube = PrimitivePrefab("Cube", PrimitiveType.Cube, material);
         var skyMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Config/Sky.mat");
         if (skyMaterial == null)
@@ -95,6 +96,38 @@ public static class ProjectSetup
         QualitySettings.renderPipeline = pipeline;
         AssetDatabase.SaveAssets();
         Debug.Log("NUBIK_SETUP_OK: prototype scene and WebGL settings prepared.");
+    }
+
+    /// <summary>Rock detail made by Tools/make_textures.py: linear data (normals, height, cracks), no compression.</summary>
+    private static void AssignRockDetail(Material props, Material terrain)
+    {
+        const string path = "Assets/Game/Textures/RockDetail.png";
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer &&
+            (importer.sRGBTexture || importer.textureCompression != TextureImporterCompression.Uncompressed || importer.anisoLevel != 4))
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.sRGBTexture = false;
+            importer.alphaIsTransparency = false;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.mipmapEnabled = true;
+            importer.wrapMode = TextureWrapMode.Repeat;
+            importer.filterMode = FilterMode.Trilinear;
+            importer.anisoLevel = 4;
+            importer.SaveAndReimport();
+        }
+        var detail = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        foreach (var material in new[] { props, terrain })
+        {
+            if (material.GetTexture("_Detail") == detail) continue;
+            material.SetTexture("_Detail", detail);
+            EditorUtility.SetDirty(material);
+        }
+        if (terrain.GetFloat("_DetailStrength") < 0.01f)
+        {
+            terrain.SetFloat("_DetailStrength", 1);
+            terrain.SetFloat("_DetailScale", 0.55f);
+            EditorUtility.SetDirty(terrain);
+        }
     }
 
     private static GameObject PrimitivePrefab(string name, PrimitiveType type, Material material)

@@ -79,6 +79,7 @@ namespace Nubik
             if (n.Contains("roof")) return 8;
             if (n.Contains("blanket") || n.Contains("pillow") || n.Contains("glove") || n.Contains("cuff") || n.Contains("umbrella")) return 4;
             if (n.Contains("wall") || n.Contains("plaster")) return 7;
+            if (n.Contains("sealed") || n.Contains("door frame") || n.Contains("lintel")) return 2;
             if (n.Contains("stone") || n.Contains("slab") || n.Contains("patio") || n.Contains("carved") || n.Contains("sanctum") || n.Contains("chimney") || n.Contains("rubble")) return 2;
             if (n.Contains("metal") || n.Contains("iron") || n.Contains("rail") || n.Contains("cart") || n.Contains("band") || n.Contains("lock") || n.Contains("blade") || n.Contains("drill") || n.Contains("motor") || n.Contains("fuel pump") || n.Contains("nugget")) return 3;
             if (n.Contains("wood") || n.Contains("timber") || n.Contains("support") || n.Contains("beam") || n.Contains("brace") || n.Contains("walkway") || n.Contains("sleeper") || n.Contains("crate") || n.Contains("supplies") || n.Contains("bed") || n.Contains("table") || n.Contains("leg") || n.Contains("chest") || n.Contains("lid") || n.Contains("fence") || n.Contains("trunk") || n.Contains("shaft") || n.Contains("shutter") || n.Contains("frame") || n.Contains("chair") || n.Contains("root")) return 1;

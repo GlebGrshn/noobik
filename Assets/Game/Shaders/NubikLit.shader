@@ -13,6 +13,9 @@ Shader "Nubik/Lit"
         _GrassColor("Grass on flat ground (vertex colour mode)", Color) = (0.42, 0.55, 0.30, 1)
         _Lawn("Lawn pattern", Range(0, 1)) = 0
         _Surface("Detail: wood / masonry / metal / cloth / crystal / skin / plaster / tile", Float) = 0
+        _Detail("Rock detail (normal xy, height, cracks)", 2D) = "gray" {}
+        _DetailStrength("Rock detail strength", Range(0, 1)) = 0
+        _DetailScale("Rock detail tiles per metre", Float) = 0.6
     }
     SubShader
     {
@@ -29,7 +32,11 @@ Shader "Nubik/Lit"
             half4 _GrassColor;
             half _Lawn;
             half _Surface;
+            half _DetailStrength;
+            float _DetailScale;
         CBUFFER_END
+        TEXTURE2D(_Detail);
+        SAMPLER(sampler_Detail);
         ENDHLSL
 
         Pass
@@ -103,6 +110,27 @@ Shader "Nubik/Lit"
                 return color * detail;
             }
 
+            /// Triplanar rock relief: bends the normal, darkens hollows and fractures. Three samples, only where needed.
+            void RockRelief(float3 p, inout half3 normal, inout half3 albedo, half amount)
+            {
+                float3 uv = p * _DetailScale;
+                half3 blend = pow(abs(normal), 4);
+                blend /= blend.x + blend.y + blend.z;
+                half4 sx = SAMPLE_TEXTURE2D(_Detail, sampler_Detail, uv.zy);
+                half4 sy = SAMPLE_TEXTURE2D(_Detail, sampler_Detail, uv.xz);
+                half4 sz = SAMPLE_TEXTURE2D(_Detail, sampler_Detail, uv.xy);
+                // Whiteout blend of the three projected tangent normals.
+                half3 nx = half3((sx.xy * 2 - 1) * amount + normal.zy, normal.x);
+                half3 ny = half3((sy.xy * 2 - 1) * amount + normal.xz, normal.y);
+                half3 nz = half3((sz.xy * 2 - 1) * amount + normal.xy, normal.z);
+                normal = normalize(nx.zyx * blend.x + ny.xzy * blend.y + nz * blend.z);
+                half height = sx.b * blend.x + sy.b * blend.y + sz.b * blend.z;
+                half cracks = sx.a * blend.x + sy.a * blend.y + sz.a * blend.z;
+                // Fractures come in patches, so walls do not repeat the tile; soft ground barely cracks.
+                cracks *= smoothstep(0.3, 0.7, ValueNoise(p.xz * 0.23 + p.y * 0.31)) * amount * amount;
+                albedo *= lerp(1, 0.74 + 0.38 * height, amount) * (1 - cracks * 0.6);
+            }
+
             half4 _NubikAmbient;
             half4 _NubikFogColor;
             float4 _NubikFog; // x: start distance, y: end distance
@@ -156,6 +184,12 @@ Shader "Nubik/Lit"
                 float strataNoise = ValueNoise(input.positionWS.xz * .8);
                 float sediment = sin(input.positionWS.y * 17 + strataNoise * 6);
                 albedo *= 1 + rock * (sediment * .045 + (ValueNoise(input.positionWS.xy * 6) - .5) * .12);
+                // Relief: dug rock by its hardness (vertex alpha), stone masonry, creature skin and plaster.
+                half relief = _DetailStrength * lerp(1, input.color.a, _VertexColor) * (1 - grass);
+                if (_Surface > 1.5 && _Surface < 2.5) relief = max(relief, 0.7);
+                else if (_Surface > 5.5 && _Surface < 6.5) relief = max(relief, 0.45);
+                else if (_Surface > 6.5 && _Surface < 7.5) relief = max(relief, 0.2);
+                if (relief > 0.01) RockRelief(input.positionWS, normal, albedo, relief);
                 // Lawn: soft patches, fine blades and mowing stripes in world space, so the dig patch
                 // and the surrounding lawn slabs share one pattern without a seam.
                 half lawn = max(grass, _Lawn);
