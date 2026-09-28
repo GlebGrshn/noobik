@@ -35,7 +35,7 @@ namespace Nubik
         private GameObject overlay, ending;
         private Button startButton, stationButton, menuButton, scanButton, medkitButton, rescueButton;
         private Text coins, depth, zone, backpack, bagCaption, record, target, hint, toast, toolName, toolKeys;
-        private Text endingText, startHelp, startKicker, startSub, startAction, stationText, medkitText, scanText, healthText, fuelText;
+        private Text endingTitle, endingText, startHelp, startKicker, startSub, startAction, stationText, medkitText, scanText, healthText, fuelText;
         private Image depthFill, crosshair, bagFill, healthFill, fuelFill;
         private RawImage vignette;
         private Image fade;
@@ -145,9 +145,9 @@ namespace Nubik
             healthText = Caption(vitalsCard, "", 14, Cream, 188, 3, 40, 26, true);
             fuelRow = Rect("Fuel", vitalsCard);
             At(fuelRow, 0, 30, 232, 30);
-            Icon(fuelRow, UiGlyph.Kind.Jet, Blue, 12, 5, 20);
-            fuelFill = Bar(fuelRow, 42, 11, 138, Blue);
-            fuelText = Caption(fuelRow, "", 14, Cream, 188, 1, 40, 26, true);
+            Icon(fuelRow, UiGlyph.Kind.Fuel, Amber, 12, 5, 20);
+            fuelFill = Bar(fuelRow, 42, 11, 120, Amber);
+            fuelText = Caption(fuelRow, "", 14, Cream, 170, 1, 58, 26, true);
 
             depthCard = Panel("Depth", root, Card);
             Icon(depthCard, UiGlyph.Kind.Down, Mint, 15, 17, 32);
@@ -176,7 +176,7 @@ namespace Nubik
             bagFill = Bar(bagCard, 70, 66, 150, Mint);
 
             actions = Rect("Actions", root);
-            stationButton = Action(actions, "", Amber, game.OpenHouse);
+            stationButton = Action(actions, "", Amber, game.Interact);
             stationText = stationButton.GetComponentInChildren<Text>();
             menuButton = Action(actions, "", Inset, game.OpenMenu, Cream);
             Center(Icon(menuButton.transform, UiGlyph.Kind.Menu, Cream, 0, 0, 30).rectTransform, 0, 0, 30, 30);
@@ -242,12 +242,19 @@ namespace Nubik
         {
             ending = Backdrop("Ending");
             var endCard = Panel("Ending card", ending.transform, Ink);
-            Center(endCard, 0, 0, 480, 460);
+            Center(endCard, 0, 0, 480, 500);
             Icon(endCard, UiGlyph.Kind.Key, Mint, 212, 24, 56);
-            Caption(endCard, "ЗАПЕЧАТАННАЯ ДВЕРЬ", 27, Cream, 24, 94, 432, 44, true).alignment = TextAnchor.MiddleCenter;
-            endingText = Caption(endCard, "", 18, Muted, 28, 151, 424, 203);
-            var stay = Action(endCard, "Осмотреться", Amber, () => { ending.SetActive(false); game.Engage(); });
-            At((RectTransform)stay.transform, 28, 372, 424, 60);
+            endingTitle = Caption(endCard, "", 27, Cream, 24, 94, 432, 44, true);
+            endingTitle.alignment = TextAnchor.MiddleCenter;
+            endingText = Caption(endCard, "", 18, Muted, 28, 151, 424, 180);
+            var retry = Action(endCard, "Продолжить", Amber, () =>
+            {
+                if (game.Battle.Phase == BattlePhase.Lost) game.RetryBoss();
+                else { ending.SetActive(false); game.Engage(); }
+            });
+            At((RectTransform)retry.transform, 28, 346, 424, 58);
+            var home = Action(endCard, "Вернуться домой", Inset, game.ReturnFromBoss, Cream);
+            At((RectTransform)home.transform, 28, 418, 424, 54);
             ending.SetActive(false);
         }
 
@@ -370,16 +377,21 @@ namespace Nubik
             shownCoins = Mathf.MoveTowards(shownCoins, progress.coins, Mathf.Max(30, Mathf.Abs(progress.coins - shownCoins) * 10) * Time.unscaledDeltaTime);
             coins.text = Mathf.RoundToInt(shownCoins).ToString("N0");
             coins.color = Time.unscaledTime < pulseUntil ? Amber : Cream;
-            depth.text = metres + " м";
-            zone.text = config.zones[zoneIndex].nameRu.ToUpperInvariant();
-            record.text = game.ExpeditionGoal;
-            depthFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(metres / (float)config.depth), 1);
+            depth.text = game.InBoss ? "КТУЛХУ" : metres + " м";
+            zone.text = game.InBoss ? (game.Battle.Enraged ? "ЯРОСТЬ" : "ДРЕВНИЙ") : config.zones[zoneIndex].nameRu.ToUpperInvariant();
+            record.text = game.InBoss ? "Голова уязвима между атаками" : game.ExpeditionGoal;
+            depthFill.rectTransform.anchorMax = new Vector2(game.InBoss ? game.Battle.Health / BossBattle.MaxHealth : Mathf.Clamp01(metres / (float)config.depth), 1);
+            depthFill.color = game.InBoss ? Red : Mint;
             for (int i = 0; i < zoneTicks.Count; i++)
+            {
+                zoneTicks[i].gameObject.SetActive(!game.InBoss);
                 zoneTicks[i].color = progress.maxDepth >= config.zones[i + 1].startDepth ? Mint : Cream;
+            }
             UpdateVitals();
             UpdateBag(progress, config);
-            toolName.text = game.Tool.nameRu;
-            toolKeys.text = (game.FreeMouse ? "ЛКМ копать · ПКМ обзор" : "ЛКМ копать") + " · ПРОБЕЛ " +
+            toolName.text = game.InBoss && progress.hasWeapon ? "Древний гарпун" : progress.tool == config.tools.Length - 1 && !game.UsingDrill ? "Лопата · бак пуст" : game.Tool.nameRu;
+            digRect.GetComponentInChildren<Text>().text = game.InBoss ? "СТРЕЛЯТЬ" : game.UsingDrill ? "БУРИТЬ" : "КОПАТЬ";
+            toolKeys.text = (game.InBoss ? "ЛКМ стрелять" : game.UsingDrill ? "ЛКМ бурить" : "ЛКМ копать") + (game.FreeMouse ? " · ПКМ обзор" : "") + " · ПРОБЕЛ " +
                 (game.HasJetpack ? "прыжок / полёт" : "прыжок") + (progress.scanner ? " · F скан" : "") +
                 (progress.medkits > 0 ? " · Q аптечка" : "");
 
@@ -390,8 +402,8 @@ namespace Nubik
             bagCard.gameObject.SetActive(!modal);
             vitalsCard.gameObject.SetActive(!modal);
             actions.gameObject.SetActive(!modal && !waiting);
-            stationButton.gameObject.SetActive(game.Station != Station.None);
-            stationText.text = (game.Station == Station.Counter ? "Скупка" : "Мастерская") + (game.TouchMode ? "" : "  ·  E");
+            stationButton.gameObject.SetActive(!string.IsNullOrEmpty(game.Interaction));
+            stationText.text = game.Interaction + (game.TouchMode ? "" : "  ·  E");
             menuButton.gameObject.SetActive(game.TouchMode);
             touchControls.gameObject.SetActive(game.TouchMode && !modal && !waiting);
             scanButton.gameObject.SetActive(progress.scanner);
@@ -431,8 +443,8 @@ namespace Nubik
             vitalsCard.sizeDelta = new Vector2(232, jet ? 62 : 36);
             if (!jet) return;
             fuelFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(game.Fuel / Mathf.Max(0.01f, game.FuelMax)), 1);
-            fuelFill.color = game.Thrusting ? Cream : Blue;
-            fuelText.text = game.Fuel.ToString("0.0");
+            fuelFill.color = game.Fuel < game.FuelMax * .2f ? Red : game.Refuelling ? Mint : Amber;
+            fuelText.text = Mathf.FloorToInt(game.Fuel) + " л";
         }
 
         private void UpdateBag(GameProgress progress, MineConfig config)
@@ -455,12 +467,12 @@ namespace Nubik
             // Returning players see their progress instead of the tagline; the same card is the pause menu.
             bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
             startKicker.text = game.MenuOpen ? "ПАУЗА" : returning ? "С ВОЗВРАЩЕНИЕМ" : "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.";
-            startSub.text = returning ? "Рекорд " + progress.maxDepth + " м  ·  коллекция " + progress.CollectionCount + " / " + config.collection.Length
-                : "Копай глубже. Находи сокровища.";
+            startSub.text = returning ? "Ключи " + progress.KeyCount + " / 5 · глубина " + progress.maxDepth + " м"
+                : "Пять ключей. Дверь. Тайна глубины.";
             startAction.text = game.MenuOpen || returning ? "Продолжить" : "Начать вылазку";
             rescueButton.gameObject.SetActive(game.CanRescue);
             startHelp.text = game.TouchMode ? "Стик — идти, справа — осмотр\n" +
-                (game.HasJetpack ? "Держи ПРЫЖОК в воздухе — джетпак\n" : "Копай ступеньки, чтобы вернуться наверх\n") + "Скупка и мастерская — в доме"
+                (game.HasJetpack ? "Держи ПРЫЖОК в воздухе — джетпак\n" : "Копай ступеньки, чтобы вернуться наверх\n") + "Общий бензобак заправляется на базе"
                 : "WASD — идти · " + (game.FreeMouse ? "ПКМ — обзор" : "мышь — обзор") + "\nЛКМ — копать · пробел — прыжок" +
                   (game.HasJetpack ? " / полёт" : "") + "\nE — скупка и мастерская в доме · Esc — пауза" +
                   (progress.scanner || progress.medkits > 0 ? "\n" + (progress.scanner ? "F — сканер  " : "") + (progress.medkits > 0 ? "Q — аптечка" : "") : "");
@@ -481,10 +493,10 @@ namespace Nubik
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screen, null, out var local);
                 mark.rect.gameObject.SetActive(true);
                 Center(mark.rect, local.x, local.y, 26, 26);
-                mark.icon.kind = item.Kind == LootKind.Collectible ? UiGlyph.Kind.Key : item.Kind == LootKind.Chest ? UiGlyph.Kind.Bag : UiGlyph.Kind.Gem;
+                mark.icon.kind = item.Kind == LootKind.Key || item.Kind == LootKind.Collectible ? UiGlyph.Kind.Key : item.Kind == LootKind.Chest ? UiGlyph.Kind.Bag : UiGlyph.Kind.Gem;
                 float pulse = 0.75f + 0.25f * Mathf.Sin(Time.unscaledTime * 6 + i);
                 mark.icon.color = new Color(item.Color.r, item.Color.g, item.Color.b, pulse);
-                string name = item.Kind == LootKind.Collectible ? "???" : game.config.ores[item.Ore].nameRu;
+                string name = item.Kind == LootKind.Key ? Expedition.Keys[item.Key].Name : item.Kind == LootKind.Collectible ? "???" : game.config.ores[item.Ore].nameRu;
                 mark.label.text = name + " · " + Mathf.RoundToInt(screen.z) + " м";
             }
         }
@@ -496,15 +508,13 @@ namespace Nubik
             ClearInput();
         }
 
-        public void ShowEnding()
+        public void ShowBattleResult(bool won)
         {
-            var progress = game.Progress;
-            bool key = progress.HasCollectible(game.config.collection.Length - 1);
-            endingText.text = "На глубине " + game.config.depth + " м тебя ждала древняя дверь. За камнем слышится тихий гул.\n\n" +
-                (key ? "Найденный ключ откроет путь в следующем обновлении." : "Может быть, ключ ещё спрятан в шахте?") +
-                "\n\nКоллекция: " + progress.CollectionCount + " / " + game.config.collection.Length + ". Обратный путь — на джетпаке или по уступам.";
-            ClearInput();
-            ending.SetActive(true);
+            endingTitle.text = won ? "ДВОР СПАСЁН" : "КТУЛХУ ОКАЗАЛСЯ СИЛЬНЕЕ";
+            endingTitle.resizeTextForBestFit = true; endingTitle.resizeTextMinSize = 19; endingTitle.resizeTextMaxSize = 27;
+            endingText.text = won ? "Пять ключей разомкнули печать, а твой гарпун отправил Ктулху обратно в глубину.\n\nТеперь под двором тихо. Можно вернуться домой или продолжить поиски коллекции. Победа сохранена."
+                : "Ключи и покупки сохранены.\n\nВыходи из светящихся зон до удара. Между атаками голова уязвима — целься в глаза.\n\n«Продолжить» начнёт новую попытку.";
+            ClearInput(); ending.SetActive(true);
         }
 
         public void ClearInput() { Stick.ResetInput(); Dig.ResetInput(); Look.ResetInput(); Jump.ResetInput(); jumpQueued = false; }

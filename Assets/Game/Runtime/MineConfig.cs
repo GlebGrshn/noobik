@@ -87,7 +87,8 @@ namespace Nubik
     {
         public int seed = 28092026;
         [Tooltip("Depth of the sealed door, meters.")] public int depth = 120;
-        [Tooltip("Width and length of the diggable yard patch, meters.")] public int width = 12;
+        [Tooltip("Width and length of the diggable yard patch, meters.")] public int width = 14;
+        [Range(0, 1)] public float oreDensity = 2f / 3f;
         public float voxel = 0.5f;
         [Tooltip("Voxels per chunk edge.")] public int chunk = 12;
         public float reach = 3.2f;
@@ -102,6 +103,13 @@ namespace Nubik
         [Tooltip("Share of the tank refilled per second while standing.")] public float jetRecharge = 0.35f;
         public float scanDuration = 6f, scanCooldown = 10f;
         public int firstDiscoveryCoins = 50;
+        public float refillRate = 12f, drillFuelPerHit = .55f;
+        public LevelDef[] fuelTank =
+        {
+            new LevelDef { price = 0, value = 40 }, new LevelDef { price = 100, value = 65 },
+            new LevelDef { price = 280, value = 100 }, new LevelDef { price = 600, value = 150 },
+            new LevelDef { price = 1000, value = 220 }, new LevelDef { price = 1600, value = 320 }
+        };
 
         public ToolDef[] tools =
         {
@@ -112,7 +120,7 @@ namespace Nubik
             new ToolDef { nameRu = "Закалённая лопата", nameEn = "Tempered shovel", damage = 6, price = 650, radius = 1.16f, interval = 0.35f, color = new Color(0.45f, 0.55f, 0.75f) },
             new ToolDef { nameRu = "Титановая лопата", nameEn = "Titanium shovel", damage = 8, price = 1100, radius = 1.2f, interval = 0.33f, color = new Color(0.72f, 0.74f, 0.80f) },
             new ToolDef { nameRu = "Кристальная лопата", nameEn = "Crystal shovel", damage = 11, price = 1800, radius = 1.26f, interval = 0.31f, color = new Color(0.55f, 0.95f, 1f) },
-            new ToolDef { nameRu = "Алмазная лопата", nameEn = "Diamond shovel", damage = 15, price = 3000, radius = 1.32f, interval = 0.29f, color = new Color(0.75f, 1f, 0.98f) },
+            new ToolDef { nameRu = "Бензобур", nameEn = "Petrol drill", damage = 20, price = 3000, radius = 1.4f, interval = 0.16f, color = new Color(0.95f, 0.67f, 0.24f) },
         };
 
         [Tooltip("Backpack slots per level.")]
@@ -122,11 +130,11 @@ namespace Nubik
             new LevelDef { price = 450, value = 26 }, new LevelDef { price = 800, value = 36 }, new LevelDef { price = 1400, value = 50 },
         };
 
-        [Tooltip("Jetpack fuel in seconds per level; level 0 means no jetpack.")]
+        [Tooltip("Jetpack petrol consumption in litres per second. Basic jetpack is available from the start.")]
         public LevelDef[] jetpack =
         {
-            new LevelDef { price = 0, value = 0 }, new LevelDef { price = 250, value = 2.5f }, new LevelDef { price = 450, value = 4f },
-            new LevelDef { price = 800, value = 6f }, new LevelDef { price = 1300, value = 9f }, new LevelDef { price = 2000, value = 13f },
+            new LevelDef { price = 0, value = 1.6f }, new LevelDef { price = 250, value = 1.4f }, new LevelDef { price = 450, value = 1.2f },
+            new LevelDef { price = 800, value = 1f }, new LevelDef { price = 1300, value = .85f }, new LevelDef { price = 2000, value = .7f },
         };
 
         [Tooltip("Maximum health per level.")]
@@ -191,7 +199,7 @@ namespace Nubik
             new CollectibleDef { nameRu = "Окаменелая ракушка", nameEn = "Fossil shell", depth = 44, color = new Color(0.95f, 0.86f, 0.68f) },
             new CollectibleDef { nameRu = "Светящийся кристалл", nameEn = "Glowing crystal", depth = 78, color = new Color(0.45f, 1f, 0.92f) },
             new CollectibleDef { nameRu = "Фрагмент механизма", nameEn = "Mechanism fragment", depth = 97, color = new Color(0.80f, 0.58f, 0.28f) },
-            new CollectibleDef { nameRu = "Загадочный ключ", nameEn = "Mysterious key", depth = 114, color = new Color(1f, 0.84f, 0.30f) },
+            new CollectibleDef { nameRu = "Осколок печати", nameEn = "Seal fragment", depth = 114, color = new Color(1f, 0.84f, 0.30f) },
         };
 
         /// <summary>Picks an ore of the zone from a hash, by weight.</summary>
@@ -217,6 +225,8 @@ namespace Nubik
         public int ChunksY => Mathf.CeilToInt((depth + 6) / voxel / chunk);
         public int SizeY => ChunksY * chunk;
         public int ChunkCount => ChunksX * ChunksY * ChunksZ;
+        // World-aligned 6 m loot cells keep old central finds stable when the terrain grid grows.
+        public int LootChunkCount => 16 * ChunksY;
         /// <summary>World Y of grid layer 0; ground level is y = 0.</summary>
         public float Bottom => -(depth + 2f);
         public float FloorY => -depth - 0.5f;

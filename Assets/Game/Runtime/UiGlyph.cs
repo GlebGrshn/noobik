@@ -7,7 +7,7 @@ namespace Nubik
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class UiGlyph : MaskableGraphic
     {
-        public enum Kind { Coin, Bag, Down, Shovel, Helmet, Shell, Crystal, Gear, Key, Lock, Heart, Jet, Radar, Cross, Gem, Menu }
+        public enum Kind { Coin, Bag, Down, Shovel, Helmet, Shell, Crystal, Gear, Key, Lock, Heart, Jet, Radar, Cross, Gem, Menu, Fuel }
         private Kind glyph;
         public Kind kind
         {
@@ -19,6 +19,9 @@ namespace Nubik
             mesh.Clear();
             switch (kind)
             {
+                case Kind.Fuel:
+                    Box(mesh, .23f, .17f, .77f, .75f); Box(mesh, .31f, .74f, .62f, .86f);
+                    Line(mesh, .62f, .8f, .83f, .92f, .1f); Line(mesh, .32f, .3f, .65f, .64f, .04f); break;
                 case Kind.Coin:
                     Ring(mesh, 0.5f, 0.5f, 0.39f, 0.29f); Line(mesh, .5f, .29f, .5f, .71f, .08f); break;
                 case Kind.Bag:

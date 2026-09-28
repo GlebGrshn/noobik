@@ -12,6 +12,7 @@ Shader "Nubik/Lit"
         _ExtraLights("Lit by extra lights", Range(0, 1)) = 1
         _GrassColor("Grass on flat ground (vertex colour mode)", Color) = (0.42, 0.55, 0.30, 1)
         _Lawn("Lawn pattern", Range(0, 1)) = 0
+        _Surface("Detail: wood / masonry / metal / cloth / crystal / skin / plaster / tile", Float) = 0
     }
     SubShader
     {
@@ -27,6 +28,7 @@ Shader "Nubik/Lit"
             half _ExtraLights;
             half4 _GrassColor;
             half _Lawn;
+            half _Surface;
         CBUFFER_END
         ENDHLSL
 
@@ -49,6 +51,56 @@ Shader "Nubik/Lit"
                 float2 f = frac(p);
                 f = f * f * (3 - 2 * f);
                 return lerp(lerp(Hash2(i), Hash2(i + float2(1, 0)), f.x), lerp(Hash2(i + float2(0, 1)), Hash2(i + 1), f.x), f.y);
+            }
+
+            half3 SurfaceDetail(float3 p, half3 n, half3 color)
+            {
+                if (_Surface < .5) return color;
+                float3 an = abs(n);
+                float2 uv = an.y > max(an.x, an.z) ? p.xz : an.x > an.z ? p.zy : p.xy;
+                float noise = ValueNoise(uv * 3.7);
+                float detail = 1;
+                if (_Surface > .5 && _Surface < 1.5)
+                {
+                    float grain = sin(uv.y * 75 + ValueNoise(uv * float2(2, 7)) * 12 + sin(uv.x * 3) * 4);
+                    float knot = sin(length((frac(uv * .7) - .5) * float2(2.2, .7)) * 60);
+                    float aa = saturate(1 - length(fwidth(uv)) * 22);
+                    detail = 1 + noise * .12 - .08 + (grain * .08 + knot * .035) * aa;
+                }
+                else if (_Surface > 1.5 && _Surface < 2.5 || _Surface > 7.5)
+                {
+                    float2 bricks = uv * (_Surface > 7.5 ? float2(3, 4) : float2(1.7, 2.8));
+                    bricks.x += fmod(floor(bricks.y), 2) * .5;
+                    float2 edge = min(frac(bricks), 1 - frac(bricks));
+                    float seam = 1 - smoothstep(.025, .055 + length(fwidth(bricks)), min(edge.x, edge.y));
+                    detail = .92 + Hash2(floor(bricks)) * .17 - seam * .22 + (noise - .5) * .1;
+                }
+                else if (_Surface > 2.5 && _Surface < 3.5)
+                {
+                    float brushed = sin(uv.y * 170) * saturate(1 - length(fwidth(uv)) * 45);
+                    detail = .94 + noise * .09 + brushed * .035;
+                    float polish = pow(saturate(dot(reflect(normalize(_WorldSpaceCameraPos - p), n), normalize(float3(-.4, .8, .3)))), 18);
+                    color += polish * .1;
+                }
+                else if (_Surface > 3.5 && _Surface < 4.5)
+                {
+                    float weave = sin(uv.x * 130) * sin(uv.y * 130);
+                    detail = .96 + noise * .07 + weave * .045 * saturate(1 - length(fwidth(uv)) * 40);
+                }
+                else if (_Surface > 4.5 && _Surface < 5.5)
+                {
+                    float facet = pow(saturate(dot(n, normalize(_WorldSpaceCameraPos - p))), 8);
+                    detail = .88 + noise * .12 + facet * .23;
+                }
+                else if (_Surface > 5.5 && _Surface < 6.5)
+                {
+                    float pores = ValueNoise(uv * 19), veins = abs(noise - .5);
+                    detail = .85 + pores * .2 - (1 - smoothstep(.01, .045, veins)) * .17;
+                    color = lerp(color, color * half3(.72, 1.14, 1.08), noise * .35);
+                }
+                else if (_Surface > 6.5 && _Surface < 7.5)
+                    detail = .95 + (noise - .5) * .08 + (ValueNoise(uv * 35) - .5) * .055;
+                return color * detail;
             }
 
             half4 _NubikAmbient;
@@ -85,6 +137,7 @@ Shader "Nubik/Lit"
             {
                 half3 normal = normalize(input.normalWS);
                 half3 albedo = _BaseColor.rgb * lerp(half3(1, 1, 1), input.color.rgb, _VertexColor);
+                albedo = SurfaceDetail(input.positionWS, normal, albedo);
                 // Per-pixel grass keeps a crisp lawn edge around holes instead of a vertex-colour smear.
                 half grass = _VertexColor * step(0.8, normal.y) * step(-0.12, input.positionWS.y);
                 albedo = lerp(albedo, _GrassColor.rgb, grass);
@@ -95,11 +148,14 @@ Shader "Nubik/Lit"
                 albedo *= 1.0 + (grain - 0.5) * _Noise * .45 + strata * _VertexColor * (1-grass) * .035;
                 // Pebbles in dug ground: round light and dark specks, one possible per 20 cm cell.
                 half rock = _VertexColor * (1 - grass);
-                float3 pebbleSpace = input.positionWS * 5.0;
+                float3 pebbleSpace = input.positionWS * 9.0;
                 float pebble = frac(sin(dot(floor(pebbleSpace), float3(17.1, 31.7, 47.3))) * 43758.5453);
                 float3 pebbleCenter = 0.3 + 0.4 * frac(pebble * float3(13.7, 71.3, 37.9));
                 half spot = 1 - smoothstep(0.15, 0.21, length(frac(pebbleSpace) - pebbleCenter));
                 albedo *= 1 + rock * spot * (step(0.8, pebble) * 0.45 - step(pebble, 0.16) * 0.3);
+                float strataNoise = ValueNoise(input.positionWS.xz * .8);
+                float sediment = sin(input.positionWS.y * 17 + strataNoise * 6);
+                albedo *= 1 + rock * (sediment * .045 + (ValueNoise(input.positionWS.xy * 6) - .5) * .12);
                 // Lawn: soft patches, fine blades and mowing stripes in world space, so the dig patch
                 // and the surrounding lawn slabs share one pattern without a seam.
                 half lawn = max(grass, _Lawn);

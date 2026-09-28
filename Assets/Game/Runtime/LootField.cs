@@ -3,13 +3,13 @@ using UnityEngine;
 
 namespace Nubik
 {
-    public enum LootKind { Find, Chest, Collectible }
+    public enum LootKind { Find, Chest, Collectible, Key }
 
     public sealed class LootItem
     {
         public LootKind Kind;
         /// <summary>Finds: save slot inside their chunk. Specials and collectibles use their own indices.</summary>
-        public int Chunk = -1, Slot = -1, Special = -1, Collectible = -1;
+        public int Chunk = -1, Slot = -1, Special = -1, Collectible = -1, Key = -1;
         /// <summary>Ore entry for finds and chests; -1 for collectibles.</summary>
         public int Ore = -1;
         public int Value, Slots;
@@ -57,23 +57,32 @@ namespace Nubik
             foreach (var site in MineSites.All)
                 Add(WithOre(new LootItem { Special = site.CacheId, Position = site.Cache, Size = 0.45f }, config.Zone(site.Depth).chestOre));
 
+            for (int i = 0; i < Expedition.Keys.Length; i++)
+                Add(new LootItem { Kind = LootKind.Key, Key = i, Position = Expedition.Keys[i].Position, Size = .34f, Color = Expedition.Keys[i].Color });
+
             float edge = config.width / 2f - 0.8f, extent = config.chunk * config.voxel;
-            for (int chunk = 0; chunk < config.ChunkCount; chunk++)
-            {
-                var c = terrain.ChunkCoords(chunk);
-                var min = config.PointPosition(c.x * config.chunk, c.y * config.chunk, c.z * config.chunk);
-                var zone = config.Zone(-(min.y + extent / 2));
-                int count = Mathf.Min(48, Mathf.RoundToInt(extent * extent * extent / Mathf.Max(1, zone.volumePerFind)));
-                uint state = config.Hash(chunk, 0, 0, 97) | 1;
-                for (int slot = 0; slot < count; slot++)
-                {
-                    var position = min + new Vector3(Next(ref state), Next(ref state), Next(ref state)) * extent;
-                    float size = 0.2f + Next(ref state) * 0.12f;
-                    if (position.y > -0.6f || position.y < config.FloorY + 0.8f || Mathf.Abs(position.x) > edge || Mathf.Abs(position.z) > edge) continue;
-                    int ore = config.PickOre(config.Zone(-position.y), state);
-                    Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = MineSites.AnchorOre(position, terrain), Size = size }, ore));
-                }
-            }
+            for (int cy = 0; cy < config.ChunksY; cy++)
+                for (int iz = 0; iz < 4; iz++)
+                    for (int ix = 0; ix < 4; ix++)
+                    {
+                        int chunk = (cy * 4 + iz) * 4 + ix;
+                        var min = new Vector3((ix - 2) * extent, config.Origin.y + cy * extent, (iz - 2) * extent);
+                        var zone = config.Zone(-(min.y + extent / 2));
+                        int count = Mathf.Min(48, Mathf.RoundToInt(extent * extent * extent / Mathf.Max(1, zone.volumePerFind)));
+                        bool original = ix >= 1 && ix <= 2 && iz >= 1 && iz <= 2;
+                        int seedCell = original ? (cy * 2 + iz - 1) * 2 + ix - 1 : 10000 + chunk;
+                        uint state = config.Hash(seedCell, 0, 0, 97) | 1;
+                        for (int slot = 0; slot < count; slot++)
+                        {
+                            var position = min + new Vector3(Next(ref state), Next(ref state), Next(ref state)) * extent;
+                            float size = .2f + Next(ref state) * .12f;
+                            // Thin the existing sequence, never reroll positions or collected slot IDs.
+                            if (Mathf.FloorToInt((slot + 1) * config.oreDensity + .0001f) == Mathf.FloorToInt(slot * config.oreDensity + .0001f)) continue;
+                            if (position.y > -.6f || position.y < config.FloorY + .8f || Mathf.Abs(position.x) > edge || Mathf.Abs(position.z) > edge) continue;
+                            int ore = config.PickOre(config.Zone(-position.y), state);
+                            Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = MineSites.AnchorOre(position, terrain), Size = size }, ore));
+                        }
+                    }
         }
 
         public static readonly Vector3 FirstFindPosition = new Vector3(0, -0.05f, -2.5f);
@@ -118,12 +127,12 @@ namespace Nubik
                             if (!item.Taken && (item.Position - center).sqrMagnitude <= radius * radius) result.Add(item);
         }
 
-        public bool IsExposed(LootItem item) => terrain.IsExposed(item.Position, item.Size + 0.35f);
+        public bool IsExposed(LootItem item) => item.Key == 0 || terrain.IsExposed(item.Position, item.Size + 0.35f);
 
         public void MarkTaken(GameProgress progress)
         {
             foreach (var item in Items)
-                item.Taken = item.Collectible >= 0 ? progress.HasCollectible(item.Collectible)
+                item.Taken = item.Key >= 0 ? progress.HasKey(item.Key) : item.Collectible >= 0 ? progress.HasCollectible(item.Collectible)
                     : item.Special >= 0 ? progress.HasSpecial(item.Special)
                     : progress.IsFound(item.Chunk, item.Slot);
         }

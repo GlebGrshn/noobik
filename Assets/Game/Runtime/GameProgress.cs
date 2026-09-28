@@ -11,19 +11,19 @@ namespace Nubik
         public string data;
     }
 
-    public enum Track { Tool, Backpack, Jetpack, Health }
+    public enum Track { Tool, Backpack, Jetpack, Health, Fuel }
 
     public enum Pickup { Collected, BagFull, Gone }
 
     /// <summary>
-    /// Save schema v3. Every payout is guarded by a bit or a counter, so repeating a call
+    /// Save schema v4. Every payout is guarded by a bit or a counter, so repeating a call
     /// (double tap, reload, returning from an ad) never pays twice. New fields need defaults.
     /// Ore rides in the backpack until it is sold in the house; items take backpack slots too.
     /// </summary>
     [Serializable]
     public sealed class GameProgress
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
         public int version = CurrentVersion;
         public int seed;
         public int coins;
@@ -55,18 +55,25 @@ namespace Nubik
         public float health = -1;
         public bool scanner;
         public int medkits;
+        public int fuelLevel, keys;
+        public float fuel = -1;
+        public bool doorOpened, hasWeapon;
+        public int worldWidth = 14;
 
-        public static GameProgress New(MineConfig config) => new GameProgress { seed = config.seed };
+        public static GameProgress New(MineConfig config) => new GameProgress { seed = config.seed, worldWidth = config.width, fuel = config.fuelTank[0].value };
 
         public bool IsValid(MineConfig config)
         {
             if (version != CurrentVersion || seed != config.seed || coins < 0 || expeditions < 0) return false;
+            if (worldWidth != config.width || fuelLevel < 0 || fuelLevel >= config.fuelTank.Length || keys < 0 || keys > 31) return false;
+            if (float.IsNaN(fuel) || float.IsInfinity(fuel) || fuel < -1 || fuel > FuelCapacity(config)) return false;
+            if ((doorOpened || finished) && keys != 31) return false;
             if (tool < 0 || tool >= config.tools.Length || maxDepth < 0 || maxDepth > config.depth) return false;
             if (bagLevel < 0 || bagLevel >= config.backpack.Length || jetLevel < 0 || jetLevel >= config.jetpack.Length) return false;
             if (healthLevel < 0 || healthLevel >= config.health.Length || float.IsNaN(health) || health > MaxHealth(config) || medkits < 0) return false;
             if (ores == null || ores.Length > config.ores.Length) return false;
             foreach (int count in ores) if (count < 0) return false;
-            if (digCredit < 0 || digCredit >= 100 || found == null || found.Length > config.ChunkCount || terrain == null) return false;
+            if (digCredit < 0 || digCredit >= 100 || found == null || found.Length > config.LootChunkCount || terrain == null) return false;
             if (collection < 0 || collection >= 1 << config.collection.Length || specials < 0) return false;
             if (sites < 0 || sites >= 1 << MineSites.All.Length) return false;
             if (hasResume && !(IsFinite(resume) && resume.y > config.FloorY - 1)) return false;
@@ -117,6 +124,12 @@ namespace Nubik
         /// <summary>Takes a find into the backpack, or records a collectible. Nothing changes if the bag is full.</summary>
         public Pickup Collect(LootItem item, MineConfig config)
         {
+            if (item.Kind == LootKind.Key)
+            {
+                if (item.Key < 0 || item.Key >= 5 || HasKey(item.Key)) return Pickup.Gone;
+                keys |= 1 << item.Key;
+                return Pickup.Collected;
+            }
             if (item.Kind == LootKind.Collectible)
             {
                 if (item.Collectible < 0 || item.Collectible >= config.collection.Length || HasCollectible(item.Collectible)) return Pickup.Gone;
@@ -126,7 +139,7 @@ namespace Nubik
             }
             if (item.Ore < 0 || item.Ore >= config.ores.Length) return Pickup.Gone;
             if (item.Special >= 0 ? item.Special > 30 || HasSpecial(item.Special)
-                : item.Chunk < 0 || item.Chunk >= config.ChunkCount || item.Slot < 0 || item.Slot >= LootField.SlotsPerChunk || IsFound(item.Chunk, item.Slot))
+                : item.Chunk < 0 || item.Chunk >= config.LootChunkCount || item.Slot < 0 || item.Slot >= LootField.SlotsPerChunk || IsFound(item.Chunk, item.Slot))
                 return Pickup.Gone;
             if (FreeSlots(config) < Mathf.Max(1, config.ores[item.Ore].slots)) return Pickup.BagFull;
             if (item.Special >= 0) specials |= 1 << item.Special;
@@ -159,16 +172,16 @@ namespace Nubik
 
         // ---------- Upgrades and items ----------
 
-        public int Level(Track track) => track == Track.Tool ? tool : track == Track.Backpack ? bagLevel : track == Track.Jetpack ? jetLevel : healthLevel;
+        public int Level(Track track) => track == Track.Fuel ? fuelLevel : track == Track.Tool ? tool : track == Track.Backpack ? bagLevel : track == Track.Jetpack ? jetLevel : healthLevel;
 
         public int Levels(Track track, MineConfig config) =>
-            track == Track.Tool ? config.tools.Length : track == Track.Backpack ? config.backpack.Length : track == Track.Jetpack ? config.jetpack.Length : config.health.Length;
+            track == Track.Fuel ? config.fuelTank.Length : track == Track.Tool ? config.tools.Length : track == Track.Backpack ? config.backpack.Length : track == Track.Jetpack ? config.jetpack.Length : config.health.Length;
 
         public int NextPrice(Track track, MineConfig config)
         {
             int next = Level(track) + 1;
             if (next >= Levels(track, config)) return -1;
-            return track == Track.Tool ? config.tools[next].price : track == Track.Backpack ? config.backpack[next].price
+            return track == Track.Fuel ? config.fuelTank[next].price : track == Track.Tool ? config.tools[next].price : track == Track.Backpack ? config.backpack[next].price
                 : track == Track.Jetpack ? config.jetpack[next].price : config.health[next].price;
         }
 
@@ -182,6 +195,7 @@ namespace Nubik
                 case Track.Tool: tool++; break;
                 case Track.Backpack: bagLevel++; break;
                 case Track.Jetpack: jetLevel++; break;
+                case Track.Fuel: fuelLevel++; break;
                 default:
                     float before = MaxHealth(config);
                     healthLevel++;
@@ -230,6 +244,18 @@ namespace Nubik
             return true;
         }
 
-        public float JetFuel(MineConfig config) => config.jetpack[jetLevel].value;
+        public float FuelCapacity(MineConfig config) => config.fuelTank[fuelLevel].value;
+        public float Petrol(MineConfig config) => fuel < 0 ? FuelCapacity(config) : fuel;
+        public float JetConsumption(MineConfig config) => config.jetpack[jetLevel].value;
+        public bool UseFuel(float amount, MineConfig config)
+        {
+            if (amount <= 0 || Petrol(config) + .0001f < amount) return false;
+            fuel = Mathf.Max(0, Petrol(config) - amount);
+            return true;
+        }
+        public void Refill(float amount, MineConfig config) => fuel = Mathf.Min(FuelCapacity(config), Petrol(config) + Mathf.Max(0, amount));
+        public bool HasKey(int index) => index >= 0 && index < 5 && (keys & 1 << index) != 0;
+        public int KeyCount { get { int n = 0; for (int bits = keys; bits != 0; bits &= bits - 1) n++; return n; } }
+        public bool OpenDoor() { if (keys != 31) return false; doorOpened = true; return true; }
     }
 }

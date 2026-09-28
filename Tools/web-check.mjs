@@ -5,7 +5,7 @@
 //   node Tools/web-check.mjs [url] [outDir]
 //
 // Steps: desktop start screen, start, dig, the house at the ore buyer, zone announcement at 35 m,
-// pause menu; then a portrait phone layout with touch controls.
+// pause menu; then a portrait phone layout with touch controls and the house window.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -147,6 +147,27 @@ try {
   await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(1000);
   await shot('phone_02_playing');
+
+  // Narrow phone: the house window must fit five upgrade rows and the journal.
+  step = 'phone house';
+  const tap = async (x, y) => {
+    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    await sleep(90);
+    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await sleep(500);
+  };
+  await load(390, 844, true, withParam('at=counter'));
+  await sleep(2500);
+  // Canvas units (540 wide, scale 390/540) to screen pixels.
+  const unit = 390 / 540;
+  await tap(365 * unit, 238 * unit);
+  await sleep(600);
+  await shot('phone_03_house');
+  const tabY = ((844 / unit - 964) / 2 + 118) * unit;
+  await tap((14 + 28 + 116 + 54) * unit, tabY);
+  await shot('phone_04_upgrades');
+  await tap((14 + 28 + 3 * 116 + 54) * unit, tabY);
+  await shot('phone_05_journal');
 } finally {
   writeFileSync(join(out, 'console.txt'), problems.join('\n'));
   console.log(problems.length ? problems.join('\n') : 'no console errors');

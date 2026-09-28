@@ -12,6 +12,8 @@ namespace Nubik
         /// <summary>Where a fainted or rescued player wakes up, facing the workbench.</summary>
         public static readonly Vector3 HomeSpawn = new Vector3(-3, 0.15f, 19.2f);
         public const float HomeYaw = 0;
+        public static readonly Vector3 FuelPumpPoint = new Vector3(8.5f, 0, 14.8f);
+        public static bool AtFuelPump(Vector3 p) => p.y > -.3f && p.y < 1.2f && Vector2.Distance(new Vector2(p.x, p.z), new Vector2(FuelPumpPoint.x, FuelPumpPoint.z)) < 2.4f;
         /// <summary>Standing spots in front of the ore buyer's counter and the workbench.</summary>
         public static readonly Vector3 CounterPoint = new Vector3(-7.6f, 0, 22.4f);
         public static readonly Vector3 WorkbenchPoint = new Vector3(1.8f, 0, 22.6f);
@@ -27,6 +29,7 @@ namespace Nubik
         private static readonly Color Hedge = new Color(0.27f, 0.50f, 0.20f);
         private readonly List<Mesh> combinedMeshes = new List<Mesh>();
         private Transform clouds;
+        private int shownSeals = -1;
 
         public Yard(Shapes s, MineConfig config)
         {
@@ -51,6 +54,14 @@ namespace Nubik
             s.Box("Patio", new Vector3(-1, 0.04f, 15.5f), new Vector3(26, 0.1f, 3.2f), new Color(0.74f, 0.48f, 0.36f), root, true);
             var wall = new Color(0.60f, 0.55f, 0.48f);
             BuildHouse(s, root, wall);
+            var pump = FuelPumpPoint;
+            s.Box("Fuel pump base", pump + Vector3.up * .15f, new Vector3(.95f, .3f, .85f), new Color(.28f, .33f, .32f), root, true);
+            s.Box("Fuel pump housing", pump + Vector3.up * .95f, new Vector3(.65f, 1.4f, .55f), new Color(.75f, .30f, .16f), root, true);
+            s.Box("Fuel pump meter", pump + new Vector3(0, 1.35f, -.29f), new Vector3(.48f, .34f, .04f), new Color(.1f, .2f, .2f), root);
+            s.Box("Fuel hose", pump + new Vector3(.49f, .8f, 0), new Vector3(.08f, 1.25f, .08f), new Color(.13f, .17f, .17f), root);
+            s.Box("Fuel nozzle", pump + new Vector3(.43f, 1.36f, -.12f), new Vector3(.2f, .15f, .3f), new Color(.32f, .4f, .4f), root);
+            WorldSign(root, pump + new Vector3(0, 1.35f, -.32f), 0, "БЕНЗИН", new Color(1, .8f, .32f), .45f, .24f);
+            WorldSign(root, pump + new Vector3(0, 2.2f, -.05f), 0, "ЗАПРАВКА", new Color(1, .8f, .32f), 1.8f, .4f);
             s.Box("Roof south", new Vector3(-3, 6.25f, 19.1f), new Vector3(16, 0.35f, 4.9f), Quaternion.Euler(-32, 0, 0), new Color(0.86f, 0.46f, 0.24f), root);
             s.Box("Roof north", new Vector3(-3, 6.25f, 22.9f), new Vector3(16, 0.35f, 4.9f), Quaternion.Euler(32, 0, 0), new Color(0.80f, 0.42f, 0.22f), root);
             var glass = new Color(0.26f, 0.36f, 0.46f);
@@ -97,10 +108,10 @@ namespace Nubik
             s.Box("Door lintel", door + new Vector3(0, 1.85f, 0.1f), new Vector3(3.2f, 0.5f, 0.6f), stone, root, true);
             s.Box("Sealed door", door, new Vector3(2.2f, 3.2f, 0.3f), new Color(0.30f, 0.27f, 0.36f), root, true);
             s.Box("Keyhole", door + new Vector3(0, -0.2f, -0.17f), new Vector3(0.14f, 0.34f, 0.05f), new Color(0.05f, 0.04f, 0.07f), root);
-            for (int i = 0; i < 8; i++)
+            for (int i = 0; i < 5; i++)
             {
-                float angle = i * Mathf.PI / 4;
-                var rune = s.Box("Rune", door + new Vector3(Mathf.Cos(angle) * 0.75f, Mathf.Sin(angle) * 0.75f + 0.3f, -0.17f), new Vector3(0.16f, 0.16f, 0.04f), Quaternion.Euler(0, 0, i * 45), new Color(0.3f, 1f, 0.85f), root, false, 0.9f);
+                float angle = i * Mathf.PI * 2 / 5;
+                var rune = s.Box("Rune", door + new Vector3(Mathf.Cos(angle) * 0.75f, Mathf.Sin(angle) * 0.75f + 0.3f, -0.17f), new Vector3(0.24f, 0.24f, 0.04f), Quaternion.Euler(0, 0, i * 72), Expedition.Keys[i].Color, root, false, 0.9f);
                 Runes.Add(rune.GetComponent<Renderer>());
             }
             DoorLight = new GameObject("Door glow", typeof(Light)).GetComponent<Light>();
@@ -140,8 +151,8 @@ namespace Nubik
             s.Box("Mine sign",new Vector3(0,2.5f,z-.18f),new Vector3(2.9f,.65f,.13f),iron,root);
             WorldSign(root,new Vector3(0,2.5f,z-.27f),0,"ШАХТА  /  120 м",new Color(1,.81f,.45f),2.6f,.48f);
             // Stepping stones lead from the patio to the excavation without covering the patch.
-            for(int i=0;i<7;i++)
-                s.Box("Path slab",new Vector3((i%2==0?-.18f:.18f),.025f,8.2f+i*.83f),new Vector3(1.7f,.05f,.64f),Quaternion.Euler(0,(i%3-1)*5,0),stone,root);
+            for(int i=0;i<6;i++)
+                s.Box("Path slab",new Vector3((i%2==0?-.18f:.18f),.025f,half+1.1f+i*(6f-half*.15f)/6),new Vector3(1.7f,.05f,.64f),Quaternion.Euler(0,(i%3-1)*5,0),stone,root);
             // Window mullions and shutters make the existing house read as a building at a distance.
             foreach(var w in new[]{new Vector2(-8,1.6f),new Vector2(2,1.6f),new Vector2(-8,4),new Vector2(-3,4),new Vector2(2,4)})
             {
@@ -342,7 +353,7 @@ namespace Nubik
             var lr=label.rectTransform;lr.anchorMin=Vector2.zero;lr.anchorMax=Vector2.one;lr.offsetMin=lr.offsetMax=Vector2.zero;
             label.font=Resources.Load<Font>("Fonts/NotoSans");label.fontSize=60;label.fontStyle=FontStyle.Bold;
             label.text=text;label.color=color;label.alignment=TextAnchor.MiddleCenter;label.raycastTarget=false;
-            label.resizeTextForBestFit=true;label.resizeTextMinSize=30;label.resizeTextMaxSize=60;
+            label.resizeTextForBestFit=true;label.resizeTextMinSize=12;label.resizeTextMaxSize=60;
         }
 
         private void CombineScenery(Transform root)
@@ -366,6 +377,20 @@ namespace Nubik
                 var obj=new GameObject("Scenery "+group.Key.name,typeof(MeshFilter),typeof(MeshRenderer));
                 obj.transform.SetParent(root,false);obj.GetComponent<MeshFilter>().sharedMesh=mesh;
                 obj.GetComponent<MeshRenderer>().sharedMaterial=group.Key;
+            }
+        }
+
+        public void SetSeals(int keys)
+        {
+            if (shownSeals == keys) return;
+            shownSeals = keys;
+            for (int i = 0; i < Runes.Count; i++)
+            {
+                bool found = (keys & 1 << i) != 0;
+                var block = new MaterialPropertyBlock();
+                block.SetColor("_BaseColor", found ? Expedition.Keys[i].Color : new Color(.16f, .19f, .2f));
+                block.SetColor("_Emission", found ? Expedition.Keys[i].Color * .9f : Color.black);
+                Runes[i].SetPropertyBlock(block);
             }
         }
 

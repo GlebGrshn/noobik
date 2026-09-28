@@ -11,7 +11,7 @@ namespace Nubik
     /// First-person digging in the backyard: player, shovel, terrain, finds, health, jetpack and saves.
     /// There are no teleports: ore is carried out of the mine and sold in the house.
     /// </summary>
-    public sealed class MineGame : MonoBehaviour
+    public sealed partial class MineGame : MonoBehaviour
     {
         public MineConfig config;
         public Material prototypeMaterial;
@@ -22,7 +22,7 @@ namespace Nubik
 
         public GameProgress Progress { get; private set; }
         public int Depth => Mathf.Clamp(Mathf.FloorToInt(-body.transform.position.y + 0.1f), 0, config.depth);
-        public ToolDef Tool => config.tools[Progress.tool];
+        public ToolDef Tool => config.tools[Progress.tool == config.tools.Length - 1 && !UsingDrill ? Progress.tool - 1 : Progress.tool];
         public string TargetText { get; private set; } = "";
         public string Hint { get; private set; } = "";
         public Station Station { get; private set; }
@@ -36,9 +36,9 @@ namespace Nubik
         public bool Active => !hud.PanelOpen && !YandexBridge.Paused && !NeedsClick;
         public float Health => Progress.Health(config);
         public float MaxHealth => Progress.MaxHealth(config);
-        public bool HasJetpack => Progress.jetLevel > 0;
-        public float Fuel { get; private set; }
-        public float FuelMax => Progress.JetFuel(config);
+        public bool HasJetpack => true;
+        public float Fuel { get => Progress.Petrol(config); private set => Progress.fuel = value; }
+        public float FuelMax => Progress.FuelCapacity(config);
         public bool Thrusting { get; private set; }
         public bool Underground => body.transform.position.y < -1.5f;
         public bool ScanActive => Time.time < scanUntil;
@@ -68,8 +68,7 @@ namespace Nubik
         {
             get { for (int i = 0; i < MineSites.All.Length; i++) if (!Progress.HasSite(i)) return i; return -1; }
         }
-        public string ExpeditionGoal => NextSite >= 0 ? MineSites.All[NextSite].Name + " · " + MineSites.All[NextSite].Depth + " м"
-            : Progress.finished ? "Все места исследованы" : "Загадочная дверь · " + config.depth + " м";
+        public string ExpeditionGoal => InBoss ? (Progress.hasWeapon ? "Ктулху · " + Mathf.CeilToInt(boss.Battle.Health) : "Возьми гарпун у входа") : Expedition.Objective(Progress);
         private MineHud hud;
         private YandexBridge platform;
         private GameAudio sound;
@@ -114,6 +113,7 @@ namespace Nubik
             foreach (var entry in Progress.terrain)
                 if (!terrain.Decode(entry.chunk, entry.data)) Debug.LogWarning("Skipped damaged terrain chunk " + entry.chunk);
             MineSites.Carve(terrain);
+            Expedition.Prepare(terrain);
             terrain.ClearDirty();
             mesher = new TerrainMesher(terrain);
             loot = new LootField(terrain);
@@ -121,12 +121,13 @@ namespace Nubik
             foreach (var item in loot.Items) item.Exposed = !item.Taken && loot.IsExposed(item);
             yard = new Yard(shapes, config);
             sites = new MineSites(shapes);
+            Expedition.Decorate(shapes);
+            boss = new BossEncounter(shapes);
             BuildTerrain();
             BuildPlayer();
             hud = gameObject.AddComponent<MineHud>();
             hud.Setup(this);
             SpawnAtStart();
-            Fuel = FuelMax;
             UpdateAmbience();
             platform.Ready();
             if (pendingDebugDig != null) DebugDig(pendingDebugDig);
@@ -211,6 +212,8 @@ namespace Nubik
             if (tool != null) Destroy(tool.gameObject);
             tool = new GameObject("Shovel").transform;
             tool.SetParent(view.transform, false);
+            modelDrill = UsingDrill; modelWeapon = InBoss && Progress.hasWeapon;
+            if (BuildPoweredTool()) { AnimateTool(); return; }
             var wood = new Color(0.58f, 0.38f, 0.22f);
             // Modelled along +z (shaft behind the pivot, blade ahead), blade face along +y.
             void Part(string name, Vector3 at, Vector3 size, Color color, float yaw = 0)
@@ -292,7 +295,7 @@ namespace Nubik
             {
                 Look();
                 Move(Time.deltaTime);
-                if (!keyUsed && Input.GetKeyDown(KeyCode.E) && Station != Station.None) OpenHouse();
+                if (!keyUsed && Input.GetKeyDown(KeyCode.E)) Interact();
                 if (Input.GetKeyDown(KeyCode.F)) Scan();
                 if (Input.GetKeyDown(KeyCode.Q)) UseMedkit();
                 if (Input.GetKeyDown(KeyCode.M)) ToggleSound();
@@ -312,8 +315,8 @@ namespace Nubik
             UpdateStation();
             UpdateHealth(Time.deltaTime);
             TrackTrips();
-            TrackDepth();
-            TrackSites();
+            if (!InBoss) { TrackDepth(); TrackSites(); }
+            UpdateExpedition(Time.deltaTime);
             if (ScanActive) RefreshScan();
             if (Time.unscaledTime >= nextVisibility) UpdateVisibility();
             if (saveDirty && Time.unscaledTime >= nextAutosave) SaveNow();
@@ -357,9 +360,10 @@ namespace Nubik
             if (Thrusting)
             {
                 verticalSpeed = Mathf.Min(verticalSpeed + config.jetThrust * dt, config.jetMaxRise);
-                Fuel = Mathf.Max(0, Fuel - dt);
+                Fuel = Mathf.Max(0, Fuel - Progress.JetConsumption(config) * dt);
+                saveDirty = true;
             }
-            else if (grounded) Fuel = Mathf.Min(FuelMax, Fuel + FuelMax * config.jetRecharge * dt);
+
             verticalSpeed = Mathf.Max(verticalSpeed - config.gravity * dt, -40);
             float impact = -verticalSpeed;
             body.Move((horizontal + Vector3.up * verticalSpeed) * dt);
@@ -375,7 +379,11 @@ namespace Nubik
             hud.Hurt(damage / MaxHealth);
             hud.Popup(view.transform.position + view.transform.forward * 1.2f - Vector3.up * 0.3f, "-" + Mathf.CeilToInt(damage), Danger);
             saveDirty = true;
-            if (Progress.Hurt(damage, config)) WakeAtHome("ТЫ ПОТЕРЯЛ СОЗНАНИЕ", "Падение было слишком высоким", true);
+            if (Progress.Hurt(damage, config))
+            {
+                if (InBoss) LoseBattle();
+                else WakeAtHome("ТЫ ПОТЕРЯЛ СОЗНАНИЕ", "Падение было слишком высоким", true);
+            }
         }
 
         private void UpdateHealth(float dt)
@@ -390,6 +398,12 @@ namespace Nubik
         {
             TargetText = "";
             InReach = false;
+            if (InBoss)
+            {
+                if (Physics.Raycast(view.transform.position, view.transform.forward, out var aim, 35, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide) && boss.IsBoss(aim.collider))
+                { InReach = Progress.hasWeapon; }
+                return;
+            }
             if (!Physics.Raycast(view.transform.position, view.transform.forward, out var hit, config.reach + 5, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide)) return;
             if (hit.distance > config.reach)
             {
@@ -417,6 +431,7 @@ namespace Nubik
 
         private string ItemLabel(LootItem item)
         {
+            if (item.Kind == LootKind.Key) return Expedition.Keys[item.Key].Name + " · забрать";
             if (item.Kind == LootKind.Collectible) return "Что-то особенное!";
             var ore = config.ores[item.Ore];
             string space = item.Slots > 1 ? " · " + item.Slots + " " + Plural(item.Slots, "слот", "слота", "слотов") : "";
@@ -434,6 +449,7 @@ namespace Nubik
 
         private void Swing()
         {
+            if (InBoss) { FireHarpoon(); return; }
             nextHit = Time.time + Tool.interval;
             swing = 0;
             var origin = view.transform.position;
@@ -448,8 +464,10 @@ namespace Nubik
                 return;
             }
             if (!terrainColliders.Contains(hit.collider)) return;
-            var center = hit.point + direction * Tool.radius * 0.4f;
-            var result = terrain.Dig(center, Tool.radius, Tool.damage);
+            var diggingTool = Tool;
+            if (UsingDrill && !Progress.UseFuel(config.drillFuelPerHit, config)) return;
+            var center = hit.point + direction * diggingTool.radius * 0.4f;
+            var result = terrain.Dig(center, diggingTool.radius, diggingTool.damage);
             var dust = hit.point.y > -0.2f && hit.normal.y > 0.5f ? new Color(0.34f, 0.60f, 0.22f) : result.Rock.color;
             Burst(hit.point, hit.normal, dust, result.Changed ? 7 : 3);
             if (!result.Changed) { sound.Play("dig_stone", 0.7f, 0.55f); return; }
@@ -502,6 +520,11 @@ namespace Nubik
             if (result != Pickup.Collected) return;
             switch (item.Kind)
             {
+                case LootKind.Key:
+                    sound.Play("collect", 1, 1, 0);
+                    hud.Announce(UiGlyph.Kind.Key, item.Color, "КЛЮЧИ ПЕЧАТИ · " + Progress.KeyCount + " / 5", Expedition.Keys[item.Key].Name,
+                        Progress.KeyCount == 5 ? "Все ключи найдены. Открой дверь на 120 м." : "Ключ сохранён навсегда. Следующая подсказка — в дневнике.");
+                    break;
                 case LootKind.Collectible:
                     sound.Play("collect", 1, 1, 0);
                     var def = config.collection[item.Collectible];
@@ -534,9 +557,13 @@ namespace Nubik
             var collider = root.gameObject.AddComponent<BoxCollider>();
             collider.isTrigger = true;
             collider.size = Vector3.one * item.Size * 2.2f;
+            if (item.Kind == LootKind.Key) { collider.center = Vector3.up * .08f; collider.size = new Vector3(.6f, .85f, .4f); }
             float s = item.Size;
             switch (item.Kind)
             {
+                case LootKind.Key:
+                    BuildSealKey(item, root);
+                    break;
                 case LootKind.Chest:
                     shapes.Box("Chest", Vector3.zero, new Vector3(0.75f, 0.48f, 0.5f), new Color(0.52f, 0.32f, 0.18f), root);
                     shapes.Box("Lid", new Vector3(0, 0.27f, 0), new Vector3(0.78f, 0.1f, 0.53f), new Color(0.42f, 0.25f, 0.14f), root);
@@ -637,7 +664,11 @@ namespace Nubik
             var eye = view.transform.position;
             float range = config.scanner.power;
             loot.Near(eye, range, nearby);
-            nearby.Sort((a, b) => (a.Position - eye).sqrMagnitude.CompareTo((b.Position - eye).sqrMagnitude));
+            nearby.Sort((a, b) =>
+            {
+                int priority = (a.Kind == LootKind.Key ? 0 : 1).CompareTo(b.Kind == LootKind.Key ? 0 : 1);
+                return priority != 0 ? priority : (a.Position - eye).sqrMagnitude.CompareTo((b.Position - eye).sqrMagnitude);
+            });
             for (int i = 0; i < nearby.Count && ScanHits.Count < 14; i++)
                 if (!nearby[i].Taken) ScanHits.Add(nearby[i]);
         }
@@ -675,7 +706,8 @@ namespace Nubik
             // The jetpack shakes the view model a little.
             if (Thrusting) bob += Random.insideUnitSphere * 0.003f;
             tool.localPosition = new Vector3(side, -0.2f, 0.34f) + bob + ToolAim * 0.09f * thrust;
-            tool.localRotation = ToolRotation * Quaternion.Euler(-35 * thrust, 0, 0);
+            tool.localRotation = (modelDrill || modelWeapon ? Quaternion.Euler(-8, -8, 0) : ToolRotation) * Quaternion.Euler(-35 * thrust, 0, 0);
+            if (drillRotor != null) drillRotor.localRotation = Quaternion.Euler(0, 0, Time.time * (DigHeld && Active ? 1600 : 140));
         }
 
         private void Burst(Vector3 at, Vector3 normal, Color color, int count)
@@ -739,6 +771,13 @@ namespace Nubik
 
         private void UpdateAmbience()
         {
+            if (InBoss)
+            {
+                Shader.SetGlobalColor("_NubikAmbient", new Color(.3f, .42f, .43f));
+                Shader.SetGlobalColor("_NubikFogColor", new Color(.035f, .075f, .09f));
+                Shader.SetGlobalVector("_NubikFog", new Vector4(15, 48));
+                sun.intensity = .1f; lamp.intensity = 1.8f; return;
+            }
             float depth = Mathf.Max(0, -view.transform.position.y);
             float under = Mathf.Clamp01((depth - 0.3f) / 5f);
             int index = config.ZoneIndex(depth);
@@ -800,14 +839,11 @@ namespace Nubik
                     SaveNow();
                 }
             }
-            if (!endingShown && body.transform.position.y < -(config.depth - 1.3f))
+            if (!endingShown && Depth >= config.depth - 2)
             {
                 endingShown = true;
-                Progress.finished = true;
-                sound.Play("door", 1, 1, 0);
-                SaveNow();
-                ReleaseMouse();
-                hud.ShowEnding();
+                hud.Announce(UiGlyph.Kind.Key, Amber, "ДВЕРЬ ПЯТИ ПЕЧАТЕЙ", "За дверью кто-то ждёт",
+                    Progress.KeyCount == 5 ? "Все ключи собраны. Подойди к двери." : "Нужно пять ключей. Подсказки есть в дневнике.");
             }
         }
 
@@ -830,6 +866,9 @@ namespace Nubik
 
         private void UpdateHint()
         {
+            if (InBoss) { Hint = boss.Battle.Cue + (Battle.Phase == BattlePhase.Warning ? " · " + Battle.Remaining.ToString("0.0") + " с" : ""); return; }
+            if (NearDoor) { Hint = Progress.finished ? "Печать снята · Ктулху побеждён" : Progress.KeyCount == 5 ? "E — открыть дверь пяти печатей" : "Дверь ждёт ключи: " + Progress.KeyCount + " / 5"; return; }
+            if (Refuelling) { Hint = "База · заправка бензином " + Mathf.FloorToInt(Fuel) + " / " + FuelMax + " л"; return; }
             int free = Progress.FreeSlots(config);
             if (Progress.coins == 0 && Progress.OrePieces == 0 && Progress.maxDepth == 0)
                 Hint = TouchMode ? "Наведи прицел на землю и держи КОПАТЬ"
@@ -844,13 +883,15 @@ namespace Nubik
                 Hint = "Рюкзак полон — отнеси руду в дом, к скупщику";
             else if (Progress.OrePieces > 0 && !Underground)
                 Hint = "Продай руду в доме: вход за патио, скупщик слева";
+            else if (Underground && Fuel < Mathf.Max(8, Depth / config.jetMaxRise * Progress.JetConsumption(config)))
+                Hint = Fuel <= 0 ? "Бак пуст · поднимайся по ступенькам или вызови спасателей через паузу" : "Мало бензина для подъёма · береги запас и возвращайся на базу";
             else if (CurrentSite >= 0 && !Progress.HasSpecial(MineSites.All[CurrentSite].CacheId))
                 Hint = "Тайник справа у дальней стены · нужно 2 места в рюкзаке";
             else if (NextSite >= 0 && Mathf.Abs(Depth - MineSites.All[NextSite].Depth) <= 3)
                 Hint = "Здесь есть старый проход — ищи свет фонарей";
             else if (!HasJetpack && Depth > 6 && Depth < 10)
                 Hint = "Оставляй ступеньки для возвращения";
-            else Hint = "";
+            else Hint = Expedition.NextKey(Progress) >= 0 ? Expedition.Keys[Expedition.NextKey(Progress)].Clue : "Все ключи найдены · дверь на 120 м";
         }
 
         /// <summary>The click that starts or resumes mouse play; the page takes the pointer lock in the same click.</summary>
@@ -891,6 +932,7 @@ namespace Nubik
 
         private void WakeAtHome(string kicker, string title, bool dropOre)
         {
+            if (InBoss) { boss.Exit(); BuildTool(); }
             int lost = dropOre ? Progress.DropOre() : 0;
             Progress.health = MaxHealth;
             wentDown = false;
@@ -927,12 +969,12 @@ namespace Nubik
         public void Buy(Track track)
         {
             if (!Progress.Upgrade(track, config)) return;
-            if (track == Track.Jetpack) Fuel = FuelMax;
+            if (track == Track.Fuel) Fuel = FuelMax;
             SaveNow();
             sound.Play("buy", 1, 1, 0);
             if (track == Track.Tool) BuildTool();
-            hud.Notify(track == Track.Tool ? "Новая лопата: " + Tool.nameRu + "!" : track == Track.Backpack ? "Рюкзак стал вместительнее"
-                : track == Track.Jetpack ? (Progress.jetLevel == 1 ? "Джетпак! Держи пробел в прыжке" : "Больше топлива в джетпаке") : "Здоровье выросло");
+            hud.Notify(track == Track.Tool ? "Новый инструмент: " + Tool.nameRu : track == Track.Backpack ? "Рюкзак стал вместительнее"
+                : track == Track.Jetpack ? "Джетпак расходует меньше бензина" : track == Track.Fuel ? "Общий бензобак увеличен" : "Здоровье выросло");
         }
 
         public void BuyScanner()
@@ -1003,7 +1045,7 @@ namespace Nubik
 
         public void SaveNow()
         {
-            var feet = body.transform.position;
+            var feet = InBoss ? DoorLanding : body.transform.position;
             Progress.hasResume = Standable(feet);
             Progress.resume = feet;
             Progress.resumeYaw = yaw;
@@ -1017,6 +1059,6 @@ namespace Nubik
         private void OnApplicationPause(bool paused) { if (paused && body != null) SaveNow(); }
         private void OnApplicationFocus(bool focused) { if (!focused && body != null) SaveNow(); }
         private void OnApplicationQuit() { if (body != null) SaveNow(); }
-        private void OnDestroy() { sites?.Dispose(); yard?.Dispose(); shapes?.Dispose(); }
+        private void OnDestroy() { boss?.Dispose(); sites?.Dispose(); yard?.Dispose(); shapes?.Dispose(); }
     }
 }

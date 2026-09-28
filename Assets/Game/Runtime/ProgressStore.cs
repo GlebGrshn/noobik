@@ -55,9 +55,10 @@ namespace Nubik
             {
                 int version = JsonUtility.FromJson<VersionProbe>(json).version;
                 if (version == 1) return Migrate(JsonUtility.FromJson<LegacyV1>(json), config);
-                if (version != 2 && version != GameProgress.CurrentVersion) return null;
+                if (version != 2 && version != 3 && version != GameProgress.CurrentVersion) return null;
                 var data = JsonUtility.FromJson<GameProgress>(json);
                 if (data != null && version == 2) Migrate(data, JsonUtility.FromJson<LegacyV2>(json), config);
+                if (data != null && data.version == 3 && !ExpandWorld(data, config)) return null;
                 return data != null && data.IsValid(config) ? data : null;
             }
             catch (ArgumentException) { return null; }
@@ -79,13 +80,44 @@ namespace Nubik
         private static void Migrate(GameProgress data, LegacyV2 old, MineConfig config)
         {
             if (old == null || old.backpack < 0) { data.version = -1; return; }
-            data.version = GameProgress.CurrentVersion;
+            data.version = 3;
             data.coins += old.backpack;
             data.tool = ToolFromOld(old.tool, config);
         }
 
         private static int ToolFromOld(int tier, MineConfig config) =>
             tier < 0 ? -1 : Mathf.Min(tier < OldTools.Length ? OldTools[tier] : OldTools[OldTools.Length - 1], config.tools.Length - 1);
+
+        private static bool ExpandWorld(GameProgress data, MineConfig config)
+        {
+            var oldConfig = UnityEngine.Object.Instantiate(config);
+            try
+            {
+                oldConfig.width = 12;
+                data.version = GameProgress.CurrentVersion;
+                data.worldWidth = 12;
+                // The prototype's depth milestone is not the new campaign victory.
+                data.finished = false;
+                data.fuel = config.fuelTank[0].value;
+                if (!data.IsValid(oldConfig) || data.found.Length > oldConfig.ChunkCount) return false;
+                var old = new VoxelTerrain(oldConfig);
+                foreach (var entry in data.terrain) if (!old.Decode(entry.chunk, entry.data)) return false;
+                var expanded = new VoxelTerrain(config);
+                expanded.ImportExcavation(old);
+                data.terrain.Clear();
+                foreach (int chunk in expanded.EditedChunks()) data.terrain.Add(new ChunkSave { chunk = chunk, data = expanded.Encode(chunk) });
+                var found = new long[config.LootChunkCount];
+                for (int i = 0; i < data.found.Length; i++)
+                {
+                    var c = old.ChunkCoords(i);
+                    found[(c.y * 4 + c.z + 1) * 4 + c.x + 1] = data.found[i];
+                }
+                data.found = found;
+                data.worldWidth = config.width;
+                return true;
+            }
+            finally { UnityEngine.Object.DestroyImmediate(oldConfig); }
+        }
 
         public static string Encode(GameProgress data) => JsonUtility.ToJson(data);
 

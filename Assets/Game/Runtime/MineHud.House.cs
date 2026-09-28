@@ -29,8 +29,8 @@ namespace Nubik
         private readonly List<Image> albumTiles = new List<Image>();
         private readonly List<UiGlyph> albumIcons = new List<UiGlyph>();
         private readonly List<Text> albumNames = new List<Text>();
-        private static readonly Track[] Tracks = { Track.Tool, Track.Backpack, Track.Jetpack, Track.Health };
-        private static readonly string[] TrackNames = { "Лопата", "Рюкзак", "Джетпак", "Здоровье" };
+        private static readonly Track[] Tracks = { Track.Tool, Track.Backpack, Track.Fuel, Track.Jetpack, Track.Health };
+        private static readonly string[] TrackNames = { "Инструмент", "Рюкзак", "Бензобак", "Джетпак", "Здоровье" };
 
         private sealed class OreLine { public RectTransform rect; public UiGlyph icon; public Text name, amount; }
         private sealed class ShopRow { public RectTransform rect; public UiGlyph icon; public Text title, info, buttonText; public Button button; }
@@ -75,8 +75,8 @@ namespace Nubik
             sellText = sellButton.GetComponentInChildren<Text>();
 
             // Upgrades page.
-            var icons = new[] { UiGlyph.Kind.Shovel, UiGlyph.Kind.Bag, UiGlyph.Kind.Jet, UiGlyph.Kind.Heart };
-            var colors = new[] { Amber, Mint, Blue, Red };
+            var icons = new[] { UiGlyph.Kind.Shovel, UiGlyph.Kind.Bag, UiGlyph.Kind.Fuel, UiGlyph.Kind.Jet, UiGlyph.Kind.Heart };
+            var colors = new[] { Amber, Mint, Amber, Blue, Red };
             for (int i = 0; i < Tracks.Length; i++)
             {
                 var track = Tracks[i];
@@ -89,7 +89,8 @@ namespace Nubik
             itemsNote = Caption(pages[2], "", 15, Mint, 0, 0, 400, 50);
 
             // Collection page.
-            var album = pages[3];
+            var album = Rect("Collection page", pages[3]);
+            journalAlbum = album;
             albumTitle = Caption(album, "", 20, Cream, 0, 0, 500, 30, true);
             for (int i = 0; i < game.config.collection.Length; i++)
             {
@@ -103,6 +104,7 @@ namespace Nubik
             albumNote = Caption(album, "Предметы коллекции не занимают места в рюкзаке и остаются с тобой навсегда.", 15, Mint, 0, 0, 500, 50);
             sitesTitle = Caption(album, "ЗАБРОШЕННЫЕ МЕСТА", 15, Muted, 0, 0, 500, 26, true);
             foreach (var site in MineSites.All) siteNotes.Add(Caption(album, "", 15, Cream, 0, 0, 500, 30));
+            BuildJournal();
             house.SetActive(false);
         }
 
@@ -119,14 +121,14 @@ namespace Nubik
             };
             row.buttonText = row.button.GetComponentInChildren<Text>();
             row.info.resizeTextForBestFit = true;
-            row.info.resizeTextMinSize = 11;
-            row.info.resizeTextMaxSize = 15;
+            row.info.resizeTextMinSize = 13;
+            row.info.resizeTextMaxSize = 17;
             return row;
         }
 
         private void LayoutHouse(bool portraitLayout, bool wideTouch)
         {
-            float width = portraitLayout ? 512 : 880, height = portraitLayout ? 900 : 620;
+            float width = portraitLayout ? 512 : 880, height = portraitLayout ? 964 : 680;
             Center(houseCard, 0, 0, width, height);
             At(houseWallet.rectTransform, width - 288, 18, 260, 40);
             float tabWidth = (width - 56 - 3 * 8) / 4;
@@ -145,11 +147,12 @@ namespace Nubik
             At((RectTransform)sellButton.transform, 0, contentHeight - 64, contentWidth, 64);
 
             // Upgrade and item rows: button on the right in landscape, below the text in portrait.
-            float rowHeight = portraitLayout ? 150 : 86, gap = 8;
+            float rowHeight = portraitLayout ? 138 : 80, gap = 6;
             LayoutRows(upgradeRows, contentWidth, rowHeight, gap, portraitLayout, wideTouch);
             LayoutRows(itemRows, contentWidth, rowHeight, gap, portraitLayout, wideTouch);
             At(itemsNote.rectTransform, 0, itemRows.Count * (rowHeight + gap) + 6, contentWidth, 50);
 
+            LayoutJournal(contentWidth, contentHeight, portraitLayout);
             At(albumTitle.rectTransform, 0, 0, contentWidth, 30);
             int count = albumTiles.Count;
             float tile = portraitLayout ? 84 : 110, tileGap = (contentWidth - count * tile) / Mathf.Max(1, count - 1);
@@ -174,8 +177,8 @@ namespace Nubik
                 At(row.rect, 0, i * (rowHeight + gap), width, rowHeight);
                 float buttonWidth = portraitLayout ? width - 32 : 250;
                 At(row.title.rectTransform, 78, 8, portraitLayout ? width - 94 : width - 94 - buttonWidth - 16, 30);
-                At(row.info.rectTransform, 78, 38, portraitLayout ? width - 94 : width - 94 - buttonWidth - 16, portraitLayout ? 48 : 40);
-                if (portraitLayout) At((RectTransform)row.button.transform, 16, 92, buttonWidth, 48);
+                At(row.info.rectTransform, 78, portraitLayout ? 31 : 34, portraitLayout ? width - 94 : width - 94 - buttonWidth - 16, 40);
+                if (portraitLayout) At((RectTransform)row.button.transform, 16, rowHeight - 66, buttonWidth, 60);
                 else At((RectTransform)row.button.transform, width - 16 - buttonWidth, (rowHeight - (wideTouch ? 64 : 56)) / 2, buttonWidth, wideTouch ? 64 : 56);
             }
         }
@@ -251,10 +254,10 @@ namespace Nubik
                 var row = upgradeRows[i];
                 int level = progress.Level(track), levels = progress.Levels(track, config), price = progress.NextPrice(track, config);
                 bool max = price < 0;
-                row.title.text = TrackNames[i] + "  ·  ур. " + (level + (track == Track.Jetpack ? 0 : 1)) + " / " + (levels - (track == Track.Jetpack ? 1 : 0));
+                row.title.text = TrackNames[i] + "  ·  ур. " + (level + 1) + " / " + levels;
                 row.info.text = UpgradeInfo(track, level, max, config);
                 row.button.interactable = !max && progress.coins >= price;
-                row.buttonText.text = max ? "Максимум" : (track == Track.Jetpack && level == 0 ? "Купить" : "Улучшить") + "  ·  " + price;
+                row.buttonText.text = max ? "Максимум" : "Улучшить" + "  ·  " + price;
             }
         }
 
@@ -265,18 +268,20 @@ namespace Nubik
             {
                 case Track.Tool:
                     var tool = config.tools[level];
-                    return max ? tool.nameRu + ": сила " + tool.damage + ". Лучшая лопата."
-                        : tool.nameRu + " → " + config.tools[next].nameRu + "\nсила " + tool.damage + " → " + config.tools[next].damage + ", удар быстрее";
+                    return max ? tool.nameRu + ": сила " + tool.damage + ". Использует общий бензобак."
+                        : "Далее: " + config.tools[next].nameRu + "\nСила с " + tool.damage + " до " + config.tools[next].damage + ", удар быстрее";
                 case Track.Backpack:
                     return max ? config.backpack[level].value + " слотов. Больше не унести."
-                        : "Вместимость " + config.backpack[level].value + " → " + config.backpack[next].value + " слотов";
+                        : "Вместимость с " + config.backpack[level].value + " до " + config.backpack[next].value + " слотов";
+                case Track.Fuel:
+                    return max ? "Общий бак " + config.fuelTank[level].value + " л. Заправка на базе."
+                        : "Общий бак с " + config.fuelTank[level].value + " до " + config.fuelTank[next].value + " л · бур + джетпак";
                 case Track.Jetpack:
-                    if (level == 0) return "Держи прыжок в воздухе, чтобы взлететь и мягко садиться.\nТопливо: " + config.jetpack[next].value + " с, заряжается на земле";
-                    return max ? "Топливо " + config.jetpack[level].value + " с. Полный бак."
-                        : "Топливо " + config.jetpack[level].value + " → " + config.jetpack[next].value + " с";
+                    return max ? "Расход " + config.jetpack[level].value + " л/с. Максимальная экономичность."
+                        : "Расход с " + config.jetpack[level].value + " до " + config.jetpack[next].value + " л/с. Бак общий с буром.";
                 default:
                     return max ? config.health[level].value + " здоровья. Крепче некуда."
-                        : "Здоровье " + config.health[level].value + " → " + config.health[next].value + ": падения менее опасны";
+                        : "Здоровье с " + config.health[level].value + " до " + config.health[next].value + ": падения менее опасны";
             }
         }
 
@@ -296,6 +301,7 @@ namespace Nubik
 
         private void UpdateAlbum(GameProgress progress, MineConfig config)
         {
+            UpdateJournal(progress);
             albumTitle.text = "ТВОЯ КОЛЛЕКЦИЯ  ·  " + progress.CollectionCount + " / " + config.collection.Length;
             for (int i = 0; i < siteNotes.Count; i++)
             {

@@ -234,6 +234,23 @@ namespace Nubik
             return true;
         }
 
+        /// <summary>Copy removed density by world position when a save's horizontal grid expands.</summary>
+        public void ImportExcavation(VoxelTerrain old)
+        {
+            foreach (int chunk in old.EditedChunks())
+                foreach (int index in old.OwnedPoints(chunk))
+                {
+                    int ox = index % (old.SizeX + 1), oz = index / (old.SizeX + 1) % (old.SizeZ + 1), oy = index / ((old.SizeX + 1) * (old.SizeZ + 1));
+                    if (old.density[index] >= old.Initial(ox, oy, oz)) continue;
+                    var g = ToGrid(old.Config.PointPosition(ox, oy, oz));
+                    int x = Mathf.RoundToInt(g.x), y = Mathf.RoundToInt(g.y), z = Mathf.RoundToInt(g.z);
+                    if (x < 0 || x > SizeX || y < 0 || y > SizeY || z < 0 || z > SizeZ || Fixed(x, y, z)) continue;
+                    int target = Index(x, y, z);
+                    if (density[target] <= old.density[index]) continue;
+                    density[target] = old.density[index]; MarkChanged(x, y, z);
+                }
+        }
+
         private IEnumerable<int> OwnedPoints(int chunk)
         {
             var c = ChunkCoords(chunk);

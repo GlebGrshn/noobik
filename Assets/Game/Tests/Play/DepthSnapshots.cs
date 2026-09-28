@@ -69,7 +69,8 @@ namespace Nubik.PlayTests
             }
             game.DebugDig(game.config.depth.ToString());
             yield return Frames(8);
-            Assert.IsTrue(game.Progress.finished);
+            Assert.IsFalse(game.Progress.finished, "Reaching the door is not the campaign ending.");
+            Assert.IsFalse(game.Progress.OpenDoor(), "Five keys are required.");
             game.SetView(-14, 8);
             yield return Frames(3);
             Shot("120_door");
@@ -231,6 +232,58 @@ namespace Nubik.PlayTests
             typeof(MineHud).GetMethod("SelectTab", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(hud, new object[] { 3 });
             yield return Frames(5);
             Shot("ui_exploration_journal", true);
+        }
+
+        [UnityTest]
+        public IEnumerator PetrolOnlyRefillsAtBaseAndFinalToolBecomesADrill()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game); game.Engage();
+            Assert.IsTrue(game.HasJetpack, "A basic petrol jetpack is available from the start.");
+            game.DebugPlace(MineSites.All[0].Origin + new Vector3(0, .2f, .4f), 0, 0);
+            game.Progress.fuel = 7;
+            yield return new WaitForSeconds(.7f);
+            Assert.AreEqual(7, game.Fuel, .01f, "Standing underground must not refill petrol.");
+            game.Progress.tool = game.config.tools.Length - 1;
+            yield return Frames(4);
+            Assert.IsTrue(game.UsingDrill); Assert.NotNull(GameObject.Find("Drill rotor")); Shot("campaign_drill", true);
+            game.Progress.scanner = true; game.Scan(); yield return Frames(4);
+            Assert.IsTrue(game.ScanHits.Exists(item => item.Kind == LootKind.Key), "The scanner must include nearby quest keys.");
+            game.Progress.fuel = 0; yield return Frames(4);
+            Assert.IsFalse(game.UsingDrill); Assert.AreEqual("Кристальная лопата", game.Tool.nameRu);
+            game.DebugPlace(Yard.FuelPumpPoint + Vector3.back * 1.4f + Vector3.up * .1f, 0, 2);
+            yield return new WaitForSeconds(1);
+            Assert.Greater(game.Fuel, 5); Shot("campaign_refuel", true);
+            game.SaveNow(); Assert.AreEqual(game.Fuel, ProgressStore.Load(game.config).fuel, .05f);
+        }
+
+        [UnityTest]
+        public IEnumerator FiveKeysOpenTheDoorAndTheHarpoonDefeatsCthulhu()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game); game.Engage();
+            var field = Field<LootField>(game, "loot");
+            for (int i = 0; i < 5; i++) Invoke(game, "Collect", field.Items.Find(x => x.Key == i));
+            game.Progress.healthLevel = 4; game.Progress.health = game.MaxHealth;
+            game.DebugPlace(new Vector3(0, game.config.FloorY + .15f, -.8f), 0, 0);
+            yield return Frames(6);
+            Assert.IsFalse(game.Progress.finished); Assert.AreEqual("Открыть дверь", game.Interaction);
+            Shot("campaign_five_seals", true);
+            game.Interact(); yield return Frames(5); Assert.IsTrue(game.InBoss);
+            Assert.IsFalse(game.Progress.hasWeapon);
+            game.Interact(); yield return Frames(5); Assert.IsTrue(game.Progress.hasWeapon);
+            game.Progress.Hurt(9999, game.config); Invoke(game, "LoseBattle"); yield return Frames(3);
+            Assert.AreEqual(BattlePhase.Lost, game.Battle.Phase);
+            game.RetryBoss(); yield return Frames(3);
+            Assert.AreEqual(game.MaxHealth, game.Health); Assert.AreEqual(5, game.Progress.KeyCount);
+            game.SetView(0, -13); yield return new WaitForSeconds(3.6f); Shot("campaign_cthulhu", true);
+            for (int shot = 0; shot < 80 && !game.Progress.finished; shot++)
+            {
+                Invoke(game, "Swing"); yield return new WaitForSeconds(.46f);
+            }
+            Assert.IsTrue(game.Progress.finished, "Real aim rays and the equipped harpoon must damage the boss.");
+            Assert.AreEqual(BattlePhase.Won, game.Battle.Phase); Shot("campaign_victory", true);
+            game.ReturnFromBoss(); yield return Frames(5);
+            Assert.IsFalse(game.InBoss); Assert.IsTrue(Yard.InsideHouse(Body(game).transform.position));
+            Assert.IsTrue(ProgressStore.Load(game.config).finished);
         }
 
         private static void PlayByTouch(MineGame game)
