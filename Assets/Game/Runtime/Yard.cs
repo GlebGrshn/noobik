@@ -20,6 +20,7 @@ namespace Nubik
         private static readonly Color DarkWood = new Color(0.40f, 0.26f, 0.17f);
         private static readonly Color Hedge = new Color(0.27f, 0.50f, 0.20f);
         private readonly List<Mesh> combinedMeshes = new List<Mesh>();
+        private Transform clouds;
 
         public Yard(Shapes s, MineConfig config)
         {
@@ -28,7 +29,7 @@ namespace Nubik
             // Lawn around the diggable patch. Terrain starts at the centre of the outer cells (0.25 m in),
             // so the lawn reaches a little further to hide the seam.
             void Lawn(float x0, float x1, float z0, float z1) =>
-                s.Box("Lawn", new Vector3((x0 + x1) / 2, top - 0.15f, (z0 + z1) / 2), new Vector3(x1 - x0, 0.3f, z1 - z0), Yard.Lawn, root, true);
+                s.Box("Lawn", new Vector3((x0 + x1) / 2, top - 0.15f, (z0 + z1) / 2), new Vector3(x1 - x0, 0.3f, z1 - z0), s.Mat(Yard.Lawn, 0, true, true), root, true);
             Lawn(-18, 18, -16, -half + lip);
             Lawn(-18, 18, half - lip, 17.3f);
             Lawn(-18, -half + lip, -half + lip, half - lip);
@@ -116,6 +117,7 @@ namespace Nubik
             DoorLight.intensity = 1.6f;
             DressYard(s, root, half);
             CombineScenery(root);
+            BuildClouds(s);
         }
 
         private void DressYard(Shapes s, Transform root, float half)
@@ -133,8 +135,12 @@ namespace Nubik
                 s.Box("Lantern stem",new Vector3(side*2.4f,2.26f,z-.26f),new Vector3(.04f,.36f,.04f),iron,root);
                 s.Box("Lantern frame",new Vector3(side*2.4f,2.02f,z-.26f),new Vector3(.27f,.36f,.27f),iron,root);
                 s.Box("Lantern glass",new Vector3(side*2.4f,2.02f,z-.28f),new Vector3(.21f,.24f,.25f),new Color(1,.74f,.32f),root,false,.5f);
-                // Timber edging remains outside the diggable surface and never obstructs an exit.
-                s.Box("Patch border",new Vector3(side*(half+.2f),.09f,0),new Vector3(.18f,.18f,half*2),Wood,root);
+            }
+            // Low plank frame around the patch, like a garden bed: outside the diggable ground, easy to step over.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                s.Box("Patch frame", new Vector3(side * (half + 0.22f), 0.05f, 0), new Vector3(0.26f, 0.1f, half * 2 + 0.7f), paleWood, root);
+                s.Box("Patch frame", new Vector3(0, 0.05f, side * (half + 0.22f)), new Vector3(half * 2 + 0.18f, 0.1f, 0.26f), paleWood, root);
             }
             s.Box("Mine crossbeam",new Vector3(0,3.05f,z),new Vector3(6.2f,.32f,.4f),paleWood,root);
             s.Box("Mine sign",new Vector3(0,2.5f,z-.18f),new Vector3(2.9f,.65f,.13f),iron,root);
@@ -153,20 +159,50 @@ namespace Nubik
             s.Box("Chimney",new Vector3(-7,6.2f,21.5f),new Vector3(.85f,2,.8f),new Color(.48f,.30f,.24f),root);
             s.Box("Chimney cap",new Vector3(-7,7.24f,21.5f),new Vector3(1.05f,.18f,1),DarkWood,root);
             WorldSign(root,new Vector3(-9.88f,1.65f,-9.5f),-90,"ЛАВКА",new Color(1,.81f,.45f),1.55f,.55f);
-            // Limited, deterministic foliage outside the excavation: no changes to loot or save seeds.
+            // Deterministic foliage outside the excavation; its own random stream never touches loot or saves.
             var random = new System.Random(41);
-            var greens = new[]{new Color(.35f,.48f,.25f),new Color(.52f,.63f,.33f),new Color(.61f,.66f,.36f)};
-            for(int i=0;i<100;i++)
+            float Range(float min, float max) => min + (float)random.NextDouble() * (max - min);
+            bool Free(float x, float z) =>
+                !(Mathf.Abs(x) < half + 0.7f && Mathf.Abs(z) < half + 0.7f) && !(Mathf.Abs(x) < 1.3f && z > half) &&
+                !(z > 13.6f && x > -14.5f && x < 12.5f) && Mathf.Abs(x) < 17.4f && z > -15.6f && z < 17;
+            // Tufts gather along the fence, hedges, trees and the patch border, with a few in the open lawn.
+            var anchors = new List<Vector2>();
+            for (int i = 0; i < 40; i++) anchors.Add(new Vector2(Range(-17, 17), -15.2f));
+            for (int i = 0; i < 24; i++) anchors.Add(new Vector2(Range(-1, 1) * 16.6f, Range(-8, 12)));
+            foreach (var tree in new[] { new Vector2(-14, 10), new Vector2(14.5f, -12), new Vector2(-14.5f, -12.5f), new Vector2(15, 9) })
+                for (int i = 0; i < 7; i++) anchors.Add(tree + Random2(random, 1.6f));
+            for (int i = 0; i < 26; i++) anchors.Add(new Vector2(Range(-1, 1) * (half + 1.1f), Range(-half, half)));
+            for (int i = 0; i < 45; i++) anchors.Add(new Vector2(Range(-16, 16), Range(-14, 13)));
+            var greens = new[] { new Color(0.46f, 0.62f, 0.29f), new Color(0.53f, 0.68f, 0.32f), new Color(0.38f, 0.54f, 0.24f) };
+            foreach (var anchor in anchors)
             {
-                float x=(float)random.NextDouble()*30-15;
-                float pz=(float)random.NextDouble()*27-13;
-                if(Mathf.Abs(x)<half+1.1f&&Mathf.Abs(pz)<half+1.1f)continue;
-                if(Mathf.Abs(x)<2&&pz>half)continue;
-                float h=.12f+(float)random.NextDouble()*.15f;
-                var color=greens[i%greens.Length];
-                s.Box("Grass blade",new Vector3(x,h*.5f,pz),new Vector3(.035f,h,.10f),Quaternion.Euler(0,i*31,(i%3-1)*18),color,root);
-                s.Box("Grass blade",new Vector3(x+.07f,h*.4f,pz),new Vector3(.04f,h*.8f,.10f),Quaternion.Euler(0,i*31+80,-20),color,root);
-                if(i%8==0)s.Ball("Pebble",new Vector3(x,.06f,pz+.25f),new Vector3(.28f,.17f,.24f),stone,root);
+                if (!Free(anchor.x, anchor.y)) continue;
+                var color = greens[random.Next(greens.Length)];
+                float height = Range(0.22f, 0.42f), turn = Range(0, 360);
+                for (int blade = 0; blade < 3; blade++)
+                {
+                    float lean = Range(10, 26), yaw = turn + blade * 120;
+                    var tilt = Quaternion.Euler(0, yaw, 0) * Quaternion.Euler(lean, 0, 0);
+                    s.Box("Grass tuft", new Vector3(anchor.x, 0, anchor.y) + tilt * new Vector3(0, height * 0.5f, 0), new Vector3(0.035f, height, 0.012f), tilt, color, root);
+                }
+            }
+            // Flower beds by the patio and the south fence, plus a few by the trees.
+            var petals = new[] { new Color(0.93f, 0.33f, 0.30f), new Color(1f, 0.83f, 0.30f), new Color(0.96f, 0.95f, 0.90f), new Color(0.68f, 0.48f, 0.86f) };
+            var flowers = new List<Vector2>();
+            for (int i = 0; i < 34; i++) flowers.Add(new Vector2(Range(-13.5f, 11.5f), Range(13.0f, 13.5f)));
+            for (int i = 0; i < 26; i++) flowers.Add(new Vector2(Range(-16.5f, 16.5f), Range(-15.3f, -14.6f)));
+            foreach (var tree in new[] { new Vector2(-14, 10), new Vector2(15, 9) })
+                for (int i = 0; i < 6; i++) flowers.Add(tree + Random2(random, 1.3f));
+            foreach (var flower in flowers)
+            {
+                float height = Range(0.2f, 0.34f);
+                s.Box("Flower stem", new Vector3(flower.x, height * 0.5f, flower.y), new Vector3(0.018f, height, 0.018f), new Color(0.32f, 0.50f, 0.22f), root);
+                s.Ball("Flower", new Vector3(flower.x, height, flower.y), new Vector3(0.1f, 0.06f, 0.1f), petals[random.Next(petals.Length)], root);
+            }
+            for (int i = 0; i < 10; i++)
+            {
+                var spot = new Vector2(Range(-16, 16), Range(-14, 13));
+                if (Free(spot.x, spot.y)) s.Ball("Pebble", new Vector3(spot.x, 0.04f, spot.y), new Vector3(0.28f, 0.14f, 0.22f), stone, root);
             }
             // Hills form a silhouette beyond the fence; inexpensive silhouettes instead of distant scenery.
             for(int i=0;i<9;i++)
@@ -174,6 +210,45 @@ namespace Nubik
                 float angle=i*Mathf.PI*2/9;
                 s.Ball("Distant hill",new Vector3(Mathf.Sin(angle)*74,-7,Mathf.Cos(angle)*74),
                     new Vector3(42,27+(i%3)*5,38),new Color(.37f,.52f,.45f),root);
+            }
+        }
+
+        private static Vector2 Random2(System.Random random, float radius)
+        {
+            float angle = (float)random.NextDouble() * Mathf.PI * 2, distance = Mathf.Sqrt((float)random.NextDouble()) * radius;
+            return new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * distance;
+        }
+
+        private void BuildClouds(Shapes s)
+        {
+            // Slow puffy clouds; kept out of the combined scenery because they move.
+            var random = new System.Random(7);
+            clouds = new GameObject("Clouds").transform;
+            for (int i = 0; i < 8; i++)
+            {
+                var cloud = new GameObject("Cloud").transform;
+                cloud.SetParent(clouds, false);
+                float angle = i * Mathf.PI * 2 / 8 + (float)random.NextDouble() * 0.5f;
+                cloud.localPosition = new Vector3(Mathf.Sin(angle) * (70 + i % 3 * 14), 38 + (float)random.NextDouble() * 12, Mathf.Cos(angle) * (70 + i % 3 * 14));
+                int puffs = 3 + random.Next(3);
+                for (int p = 0; p < puffs; p++)
+                {
+                    float size = 7 + (float)random.NextDouble() * 6;
+                    var at = new Vector3((p - puffs / 2f) * 5.5f, (float)random.NextDouble() * 2.5f, (float)random.NextDouble() * 4 - 2);
+                    s.Ball("Puff", at, new Vector3(size * 1.3f, size * 0.62f, size), new Color(0.97f, 0.97f, 0.95f), cloud, false, 0.45f)
+                        .GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                }
+            }
+        }
+
+        /// <summary>Drifts the clouds across the sky and wraps them around.</summary>
+        public void Animate(float deltaTime)
+        {
+            foreach (Transform cloud in clouds)
+            {
+                var position = cloud.localPosition + Vector3.right * 0.8f * deltaTime;
+                if (position.x > 110) position.x -= 220;
+                cloud.localPosition = position;
             }
         }
 

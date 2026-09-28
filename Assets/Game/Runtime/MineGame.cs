@@ -224,6 +224,9 @@ namespace Nubik
             if (body == null) return;
             UpdateAmbience();
             UpdateFlights();
+            yard.Animate(Time.deltaTime);
+            // Narrow portrait screens get a wider vertical view so the shovel and HUD leave room for the world.
+            view.fieldOfView = Mathf.Lerp(88, 70, Mathf.InverseLerp(0.5f, 1.3f, view.aspect));
             UpdateDebris();
             if (YandexBridge.Paused) { hud.ClearInput(); return; }
             if (Input.GetKeyDown(KeyCode.Escape) && hud.PanelOpen) hud.ClosePanel();

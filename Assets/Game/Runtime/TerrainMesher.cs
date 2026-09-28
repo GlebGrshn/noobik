@@ -113,7 +113,7 @@ namespace Nubik
             var normal = Normal(grid);
             vertices.Add(world);
             normals.Add(normal);
-            colors.Add(Tint(world, normal));
+            colors.Add(Tint(world, normal) * Occlusion(world, normal));
             return vertices.Count - 1;
         }
 
@@ -132,6 +132,22 @@ namespace Nubik
             grid.x = Mathf.Clamp(grid.x, 0, terrain.SizeX); grid.y = Mathf.Clamp(grid.y, 0, terrain.SizeY); grid.z = Mathf.Clamp(grid.z, 0, terrain.SizeZ);
             return terrain.Sample(config.Origin + grid * config.voxel);
         }
+
+        /// <summary>
+        /// Cheap ambient occlusion: how much ground surrounds the vertex in the hemisphere above it.
+        /// Pit floors, corners and narrow shafts get darker, open ground stays bright.
+        /// </summary>
+        private float Occlusion(Vector3 world, Vector3 normal)
+        {
+            var side = Vector3.Cross(normal, Mathf.Abs(normal.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+            var other = Vector3.Cross(normal, side);
+            float solid = Solidity(world + normal * 0.5f) + Solidity(world + normal * 1.4f);
+            solid += Solidity(world + (normal + side).normalized * 1.1f) + Solidity(world + (normal - side).normalized * 1.1f);
+            solid += Solidity(world + (normal + other).normalized * 1.1f) + Solidity(world + (normal - other).normalized * 1.1f);
+            return Mathf.Lerp(1f, 0.38f, Mathf.Clamp01(solid / 6f * 1.4f));
+        }
+
+        private float Solidity(Vector3 world) => Mathf.Clamp01(terrain.Sample(world) / 255f);
 
         /// <summary>Linear-space vertex colour; the shader paints grass on flat ground itself.</summary>
         private Color Tint(Vector3 world, Vector3 normal)

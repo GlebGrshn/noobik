@@ -11,6 +11,7 @@ Shader "Nubik/Lit"
         _Noise("Surface grain", Range(0, 0.5)) = 0.06
         _ExtraLights("Lit by extra lights", Range(0, 1)) = 1
         _GrassColor("Grass on flat ground (vertex colour mode)", Color) = (0.42, 0.55, 0.30, 1)
+        _Lawn("Lawn pattern", Range(0, 1)) = 0
     }
     SubShader
     {
@@ -25,6 +26,7 @@ Shader "Nubik/Lit"
             half _Noise;
             half _ExtraLights;
             half4 _GrassColor;
+            half _Lawn;
         CBUFFER_END
         ENDHLSL
 
@@ -38,6 +40,16 @@ Shader "Nubik/Lit"
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile _ _ADDITIONAL_LIGHTS
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+
+            float Hash2(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+
+            float ValueNoise(float2 p)
+            {
+                float2 i = floor(p);
+                float2 f = frac(p);
+                f = f * f * (3 - 2 * f);
+                return lerp(lerp(Hash2(i), Hash2(i + float2(1, 0)), f.x), lerp(Hash2(i + float2(0, 1)), Hash2(i + 1), f.x), f.y);
+            }
 
             half4 _NubikAmbient;
             half4 _NubikFogColor;
@@ -81,6 +93,15 @@ Shader "Nubik/Lit"
                 half grain = frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
                 half strata = sin(input.positionWS.y * 13 + sin(input.positionWS.x * 1.3 + input.positionWS.z * 1.8));
                 albedo *= 1.0 + (grain - 0.5) * _Noise * .45 + strata * _VertexColor * (1-grass) * .035;
+                // Lawn: soft patches, fine blades and mowing stripes in world space, so the dig patch
+                // and the surrounding lawn slabs share one pattern without a seam.
+                half lawn = max(grass, _Lawn);
+                float2 ground = input.positionWS.xz;
+                half patches = ValueNoise(ground * 0.33) - 0.5;
+                half blades = ValueNoise(ground * 7.3) - 0.5;
+                half stripe = frac(ground.x * 0.21 + 0.3) > 0.5 ? 0.045 : -0.035;
+                albedo *= 1.0 + lawn * (patches * 0.28 + blades * 0.12 + stripe);
+                albedo = lerp(albedo, albedo * half3(1.14, 1.08, 0.78), lawn * saturate(patches * 2.2));
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half3 light = mainLight.color * saturate(dot(normal, mainLight.direction) * .8 + .2) * lerp(.25,1,mainLight.shadowAttenuation);
@@ -94,7 +115,9 @@ Shader "Nubik/Lit"
                 }
                 #endif
 
-                half3 color = albedo * light + _Emission.rgb;
+                // Glowing finds, runes and lanterns glint now and then; the phase varies with position.
+                half glint = pow(saturate(sin(_Time.y * 2.6 + dot(input.positionWS, float3(4.1, 6.3, 5.2)))), 8);
+                half3 color = albedo * light + _Emission.rgb * (0.8 + 0.9 * glint);
                 float distance = length(input.positionWS - _WorldSpaceCameraPos);
                 half fog = saturate((distance - _NubikFog.x) / max(0.01, _NubikFog.y - _NubikFog.x));
                 return half4(lerp(color, _NubikFogColor.rgb, fog), 1);

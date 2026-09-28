@@ -28,9 +28,12 @@ namespace Nubik
                     Line(mesh, .5f, .84f, .5f, .2f, .085f);
                     Line(mesh, .23f, .46f, .5f, .19f, .085f); Line(mesh, .77f, .46f, .5f, .19f, .085f); break;
                 case Kind.Shovel:
-                    Line(mesh, .3f, .28f, .7f, .75f, .09f);
-                    Line(mesh, .59f, .83f, .81f, .65f, .09f);
-                    Tri(mesh, new Vector2(.12f,.35f), new Vector2(.43f,.08f), new Vector2(.46f,.43f)); break;
+                    Line(mesh, .36f, .40f, .76f, .80f, .1f);
+                    Line(mesh, .64f, .90f, .88f, .66f, .1f);
+                    // Spade blade pointing down-left from the handle.
+                    var left = new Vector2(.26f, .50f); var right = new Vector2(.46f, .30f);
+                    var lowLeft = new Vector2(.12f, .36f); var lowRight = new Vector2(.32f, .16f); var tip = new Vector2(.12f, .16f);
+                    Tri(mesh, left, right, lowRight); Tri(mesh, left, lowRight, tip); Tri(mesh, left, tip, lowLeft); break;
                 case Kind.Helmet:
                     Disc(mesh, .5f, .43f, .34f); Box(mesh, .1f, .2f, .9f, .3f);
                     Box(mesh, .43f, .58f, .57f, .88f); break;
