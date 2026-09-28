@@ -31,7 +31,9 @@ namespace Nubik
         private readonly List<Texture2D> textures = new List<Texture2D>();
         private CanvasScaler scaler;
         private RectTransform root, coinCard, depthCard, bagCard, vitalsCard, actions, toolCard, targetCard, toastCard, depthTrack;
-        private RectTransform startCard, touchControls, pad, digRect, jumpRect, scanRect, medkitRect, fuelRow;
+        private RectTransform startCard, touchControls, pad, digRect, jumpRect, scanRect, medkitRect, dynamiteRect, fuelRow;
+        private Button dynamiteButton;
+        private Text dynamiteText;
         private RectTransform orderCard, confirmCard;
         private UiGlyph orderIcon;
         private Text orderTitle, orderInfo;
@@ -42,7 +44,8 @@ namespace Nubik
         private Text endingTitle, endingText, startHelp, startKicker, startSub, startAction, stationText, medkitText, scanText, healthText, fuelText;
         private Image depthFill, crosshair, bagFill, healthFill, fuelFill;
         private RawImage vignette;
-        private Image fade;
+        private Image fade, flash;
+        private float flashAt = -10, flashStrength;
         private float fadeStart = -10, fadeLength = 0.45f, hurtAt = -10, hurtStrength, bagFullAt = -10;
         private RectTransform announceCard;
         private CanvasGroup announceGroup;
@@ -84,6 +87,10 @@ namespace Nubik
             fade = Panel("Fade", root, Color.black, false).GetComponent<Image>();
             Stretch(fade.rectTransform);
             fade.enabled = false;
+            // A warm flash over the view when dynamite goes off nearby.
+            flash = Panel("Flash", root, new Color(1f, .75f, .4f, 0), false).GetComponent<Image>();
+            Stretch(flash.rectTransform);
+            flash.enabled = false;
 
             BuildScanMarks();
             BuildTouch();
@@ -134,6 +141,9 @@ namespace Nubik
             medkitButton = Action(touchControls, "", Inset, game.UseMedkit, Cream);
             medkitRect = (RectTransform)medkitButton.transform;
             medkitText = medkitButton.GetComponentInChildren<Text>();
+            dynamiteButton = Action(touchControls, "", Inset, game.ThrowDynamite, Cream);
+            dynamiteRect = (RectTransform)dynamiteButton.transform;
+            dynamiteText = dynamiteButton.GetComponentInChildren<Text>();
         }
 
         private void BuildStats()
@@ -378,12 +388,14 @@ namespace Nubik
                 BottomRight(jumpRect, 24, 174, 156, 64);
                 BottomRight(scanRect, 190, 110, 104, 56);
                 BottomRight(medkitRect, 190, 174, 104, 56);
+                BottomRight(dynamiteRect, 190, 238, 104, 56);
             }
             else
             {
                 BottomRight(jumpRect, 196, 28, 124, 88);
                 BottomRight(scanRect, 24, 174, 110, 58);
                 BottomRight(medkitRect, 144, 174, 124, 58);
+                BottomRight(dynamiteRect, 278, 174, 130, 58);
             }
             At((RectTransform)startButton.transform, 32, 236, 416, wideTouch ? 64 : 60);
             LayoutHouse(portrait, wideTouch);
@@ -426,7 +438,7 @@ namespace Nubik
             digRect.GetComponentInChildren<Text>().text = game.InBoss ? "СТРЕЛЯТЬ" : game.UsingDrill ? "БУРИТЬ" : "КОПАТЬ";
             toolKeys.text = (game.InBoss ? "ЛКМ стрелять" : game.UsingDrill ? "ЛКМ бурить" : "ЛКМ копать") + (game.FreeMouse ? " · ПКМ обзор" : "") + " · ПРОБЕЛ " +
                 (game.HasJetpack ? "прыжок / полёт" : "прыжок") + (progress.scanner ? " · F скан" : "") +
-                (progress.medkits > 0 ? " · Q аптечка" : "");
+                (progress.medkits > 0 ? " · Q аптечка" : "") + (progress.dynamite > 0 ? " · G динамит" : "");
 
             bool modal = PanelOpen, waiting = game.NeedsClick;
             UpdateStart(progress, config, waiting);
@@ -444,6 +456,8 @@ namespace Nubik
             scanText.text = game.ScanWait > 0 ? "СКАН " + Mathf.CeilToInt(game.ScanWait) : "СКАН";
             medkitButton.gameObject.SetActive(progress.medkits > 0);
             medkitText.text = "АПТЕЧКА ×" + progress.medkits;
+            dynamiteButton.gameObject.SetActive(progress.dynamite > 0 && !game.InBoss);
+            dynamiteText.text = "ДИНАМИТ ×" + progress.dynamite;
             toolCard.gameObject.SetActive(!game.TouchMode && !modal && !waiting);
             targetCard.gameObject.SetActive(game.Active && !string.IsNullOrEmpty(game.TargetText));
             target.text = game.TargetText;
@@ -454,6 +468,9 @@ namespace Nubik
             hint.text = modal || waiting ? "" : game.Hint;
             UpdateAnnouncement(modal || waiting);
             toastCard.gameObject.SetActive(Time.unscaledTime < toastUntil && !modal && !waiting && !announceCard.gameObject.activeSelf);
+            float flashLeft = flashStrength * (1 - (Time.unscaledTime - flashAt) / .45f);
+            flash.enabled = flashLeft > 0;
+            if (flash.enabled) flash.color = new Color(1f, .75f, .4f, flashLeft * .6f);
             float fadeAge = (Time.unscaledTime - fadeStart) / fadeLength;
             fade.enabled = fadeAge < 1;
             if (fade.enabled) fade.color = new Color(0.02f, 0.04f, 0.05f, 1 - Mathf.SmoothStep(0, 1, fadeAge));
@@ -530,7 +547,8 @@ namespace Nubik
                 (game.HasJetpack ? "Держи ПРЫЖОК в воздухе — джетпак\n" : "Копай ступеньки, чтобы вернуться наверх\n") + "Общий бензобак заправляется на базе"
                 : "WASD — идти · " + (game.FreeMouse ? "ПКМ — обзор" : "мышь — обзор") + "\nЛКМ — копать · пробел — прыжок" +
                   (game.HasJetpack ? " / полёт" : "") + "\nE — скупка и мастерская в доме · Esc — пауза" +
-                  (progress.scanner || progress.medkits > 0 ? "\n" + (progress.scanner ? "F — сканер  " : "") + (progress.medkits > 0 ? "Q — аптечка" : "") : "");
+                  (progress.scanner || progress.medkits > 0 || progress.dynamite > 0 ? "\n" + (progress.scanner ? "F — сканер  " : "") +
+                   (progress.medkits > 0 ? "Q — аптечка  " : "") + (progress.dynamite > 0 ? "G — динамит" : "") : "");
         }
 
         private void UpdateScanMarks()
@@ -580,6 +598,7 @@ namespace Nubik
         public void FadeIn(float seconds = 0.45f) { fadeStart = Time.unscaledTime; fadeLength = seconds; }
         public void Hurt(float share) { hurtAt = Time.unscaledTime; hurtStrength = Mathf.Clamp(share * 2.5f, 0.35f, 1f); }
         public void BagFull() => bagFullAt = Time.unscaledTime;
+        public void Flash(float strength) { if (strength <= 0) return; flashAt = Time.unscaledTime; flashStrength = strength; }
 
         public void Popup(Vector3 world, string text, Color color)
         {

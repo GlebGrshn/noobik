@@ -59,6 +59,7 @@ namespace Nubik
                 var data = JsonUtility.FromJson<GameProgress>(json);
                 if (data != null && version == 2) Migrate(data, JsonUtility.FromJson<LegacyV2>(json), config);
                 if (data != null && data.version == 3 && !ExpandWorld(data, config)) return null;
+                data?.Normalize(config);
                 return data != null && data.IsValid(config) ? data : null;
             }
             catch (ArgumentException) { return null; }

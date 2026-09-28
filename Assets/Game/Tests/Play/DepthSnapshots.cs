@@ -444,6 +444,77 @@ namespace Nubik.PlayTests
             Shot("cthulhu_gone", true);
         }
 
+        [UnityTest]
+        public IEnumerator DynamiteBlowsAHoleAndHurtsWhoeverStaysClose()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game); game.Engage();
+            game.DebugDig("45");
+            yield return Frames(5);
+            game.Progress.coins = 1000;
+            game.BuyDynamite(); game.BuyDynamite();
+            Assert.AreEqual(2, game.Progress.dynamite);
+            var terrain = Field<VoxelTerrain>(game, "terrain");
+            var floor = new Vector3(0.8f, -45 + .2f, -1.2f);
+
+            // Thrown at the shaft wall from the bottom; the player is far away when it goes off.
+            game.DebugPlace(floor, 90, 12);
+            yield return Frames(3);
+            game.ThrowDynamite();
+            Assert.AreEqual(1, game.Progress.dynamite);
+            Assert.AreEqual(1, game.ChargesInFlight);
+            game.DebugPlace(Yard.SurfaceSpawn, Yard.SurfaceYaw, 5);
+            float health = game.Health;
+            yield return new WaitForSeconds(game.config.dynamiteFuse + .15f);
+            Assert.AreEqual(0, game.ChargesInFlight);
+            Assert.IsTrue(game.LastBlast.HasValue);
+            var blast = game.LastBlast.Value;
+            Assert.IsTrue(terrain.IsAir(blast + Vector3.right * 1.4f) || terrain.IsAir(blast + Vector3.forward * 1.4f) || terrain.IsAir(blast + Vector3.back * 1.4f),
+                "The blast opens the rock around it.");
+            Assert.AreEqual(health, game.Health, .01f, "Far away is safe.");
+
+            // Standing right next to it hurts.
+            yield return new WaitForSeconds(1.8f);
+            game.DebugPlace(floor, 90, 12);
+            yield return new WaitForSeconds(.5f);
+            health = game.Health;
+            game.ThrowDynamite();
+            yield return new WaitForSeconds(game.config.dynamiteFuse + .06f);
+            Shot("dynamite_blast", true);
+            yield return new WaitForSeconds(.1f);
+            Assert.Less(game.Health, health, "A blast a metre away hurts.");
+            Assert.AreEqual(0, game.Progress.dynamite);
+            game.ThrowDynamite();
+            Assert.AreEqual(0, game.ChargesInFlight, "Nothing to throw.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheYardHasNoWayOutButTheHouseDoorIsOpen()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>();
+            yield return Frames(3);
+            // Rays from the middle of the yard in every direction and at every height hit a wall or a fence.
+            foreach (float height in new[] { .8f, 3f, 12f, 40f, 75f })
+                for (int i = 0; i < 24; i++)
+                {
+                    float angle = i * 15 * Mathf.Deg2Rad;
+                    var origin = new Vector3(0, height, 0);
+                    var direction = new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle));
+                    Assert.IsTrue(Physics.Raycast(origin, direction, out var hit, 40, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore),
+                        "Open at " + height + " m towards " + i * 15 + " degrees");
+                    Assert.Less(hit.distance, 26);
+                }
+            Assert.IsTrue(Physics.Raycast(new Vector3(0, 2, 0), Vector3.up, 90, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore), "No way out upwards");
+            // The doorway stays open: straight through it the first thing hit is the back wall of the house.
+            Assert.IsTrue(Physics.Raycast(new Vector3(-3, 1, 14), Vector3.forward, out var door, 20, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore));
+            Assert.Greater(door.point.z, 24);
+            game.DebugPlace(new Vector3(-15.5f, .05f, 14), -30, 0);
+            yield return Frames(4);
+            Shot("yard_north_west_fence");
+            game.DebugPlace(new Vector3(15.5f, .05f, 12), 20, 0);
+            yield return Frames(4);
+            Shot("yard_north_east_fence");
+        }
+
         private static void PlayByTouch(MineGame game)
         {
             // The batch editor cannot lock the mouse; touch mode lets the player move.

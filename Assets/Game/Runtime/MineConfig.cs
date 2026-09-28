@@ -106,9 +106,9 @@ namespace Nubik
         public float refillRate = 12f, drillFuelPerHit = .55f;
         public LevelDef[] fuelTank =
         {
-            new LevelDef { price = 0, value = 40 }, new LevelDef { price = 100, value = 65 },
-            new LevelDef { price = 280, value = 100 }, new LevelDef { price = 600, value = 150 },
-            new LevelDef { price = 1000, value = 220 }, new LevelDef { price = 1600, value = 320 }
+            new LevelDef { price = 0, value = 15 }, new LevelDef { price = 100, value = 28 },
+            new LevelDef { price = 280, value = 50 }, new LevelDef { price = 600, value = 85 },
+            new LevelDef { price = 1000, value = 140 }, new LevelDef { price = 1600, value = 220 }
         };
 
         public ToolDef[] tools =
@@ -146,6 +146,11 @@ namespace Nubik
 
         public ItemDef scanner = new ItemDef { nameRu = "Сканер руды", nameEn = "Ore scanner", price = 180, slots = 2, power = 14 };
         public ItemDef medkit = new ItemDef { nameRu = "Аптечка", nameEn = "Medkit", price = 25, slots = 1, power = 50 };
+        [Tooltip("Power: blast radius in metres.")]
+        public ItemDef dynamite = new ItemDef { nameRu = "Динамит", nameEn = "Dynamite", price = 35, slots = 1, power = 2.3f };
+        [Tooltip("Seconds from the throw to the blast.")] public float dynamiteFuse = 2.2f;
+        [Tooltip("Digging damage of the blast core: enough for any rock above the bedrock.")] public int dynamiteDamage = 40;
+        [Tooltip("Health lost right next to the blast; less further away.")] public float dynamiteHurt = 55;
 
         public OreDef[] ores =
         {

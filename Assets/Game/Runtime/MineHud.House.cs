@@ -40,7 +40,7 @@ namespace Nubik
         private static readonly string[] TrackNames = { "Инструмент", "Рюкзак", "Бензобак", "Джетпак", "Здоровье" };
 
         private sealed class OreLine { public RectTransform rect; public UiGlyph icon; public Text name, amount; }
-        private sealed class ShopRow { public RectTransform rect; public UiGlyph icon; public Text title, info, buttonText; public Button button; }
+        private sealed class ShopRow { public RectTransform rect; public UiGlyph icon; public Text title, info, buttonText; public Button button, free; }
 
         private void BuildHouse()
         {
@@ -114,12 +114,16 @@ namespace Nubik
             for (int i = 0; i < Tracks.Length; i++)
             {
                 var track = Tracks[i];
-                upgradeRows.Add(Row(pages[UpgradePage], TrackNames[i], icons[i], colors[i], () => game.Buy(track)));
+                var row = Row(pages[UpgradePage], TrackNames[i], icons[i], colors[i], () => game.Buy(track));
+                // Testing aid (MineGame.TestUpgrades): the next level for free.
+                if (MineGame.TestUpgrades) row.free = Action(row.rect, "Даром · тест", new Color(.3f, .22f, .38f), () => game.BuyFree(track), Cream);
+                upgradeRows.Add(row);
             }
 
             // Items page: they take backpack slots.
             itemRows.Add(Row(pages[ItemPage], game.config.scanner.nameRu, UiGlyph.Kind.Radar, Mint, game.BuyScanner));
             itemRows.Add(Row(pages[ItemPage], game.config.medkit.nameRu, UiGlyph.Kind.Cross, Red, game.BuyMedkit));
+            itemRows.Add(Row(pages[ItemPage], game.config.dynamite.nameRu, UiGlyph.Kind.Blast, new Color(.95f, .35f, .25f), game.BuyDynamite));
             itemsNote = Caption(pages[ItemPage], "", 15, Mint, 0, 0, 400, 50);
 
             // Collection page.
@@ -248,11 +252,14 @@ namespace Nubik
             {
                 var row = rows[i];
                 At(row.rect, 0, i * (rowHeight + gap), width, rowHeight);
-                float buttonWidth = portraitLayout ? width - 32 : 250;
-                At(row.title.rectTransform, 78, 8, portraitLayout ? width - 94 : width - 94 - buttonWidth - 16, 30);
-                At(row.info.rectTransform, 78, portraitLayout ? 31 : 34, portraitLayout ? width - 94 : width - 94 - buttonWidth - 16, 40);
-                if (portraitLayout) At((RectTransform)row.button.transform, 16, rowHeight - 66, buttonWidth, 60);
-                else At((RectTransform)row.button.transform, width - 16 - buttonWidth, (rowHeight - (wideTouch ? 64 : 56)) / 2, buttonWidth, wideTouch ? 64 : 56);
+                float buttonWidth = portraitLayout ? width - 32 : 250, freeWidth = row.free != null ? 118 : 0, spare = freeWidth > 0 ? freeWidth + 8 : 0;
+                At(row.title.rectTransform, 78, 8, portraitLayout ? width - 94 : width - 94 - buttonWidth - spare - 16, 30);
+                At(row.info.rectTransform, 78, portraitLayout ? 31 : 34, portraitLayout ? width - 94 : width - 94 - buttonWidth - spare - 16, 40);
+                float buttonHeight = portraitLayout ? 60 : wideTouch ? 64 : 56, buttonY = portraitLayout ? rowHeight - 66 : (rowHeight - buttonHeight) / 2;
+                if (portraitLayout) At((RectTransform)row.button.transform, 16, buttonY, buttonWidth - spare, buttonHeight);
+                else At((RectTransform)row.button.transform, width - 16 - buttonWidth, buttonY, buttonWidth, buttonHeight);
+                if (row.free != null)
+                    At((RectTransform)row.free.transform, portraitLayout ? width - 16 - freeWidth : width - 16 - buttonWidth - spare, buttonY, freeWidth, buttonHeight);
             }
         }
 
@@ -362,6 +369,7 @@ namespace Nubik
                 row.info.text = UpgradeInfo(track, level, max, config);
                 row.button.interactable = !max && progress.coins >= price;
                 row.buttonText.text = max ? "Максимум" : "Улучшить" + "  ·  " + price;
+                if (row.free != null) row.free.interactable = !max;
             }
         }
 
@@ -400,6 +408,13 @@ namespace Nubik
             medkit.info.text = "+" + config.medkit.power + " здоровья в шахте. Занимает " + config.medkit.slots + " слот. " + (game.TouchMode ? "Кнопка «Аптечка»" : "Клавиша Q");
             medkit.button.interactable = progress.coins >= config.medkit.price && capacity - used >= config.medkit.slots;
             medkit.buttonText.text = capacity - used < config.medkit.slots ? "Нет места" : "Купить  ·  " + config.medkit.price;
+            var dynamite = itemRows[2];
+            var blast = config.dynamite;
+            dynamite.title.text = blast.nameRu + (progress.dynamite > 0 ? "  ·  в рюкзаке " + progress.dynamite : "");
+            dynamite.info.text = "Взрывает любую породу в радиусе " + blast.power.ToString("0.#") + " м через " + config.dynamiteFuse.ToString("0.#") +
+                " с после броска. Отойди — взрыв ранит. " + blast.slots + " слот. " + (game.TouchMode ? "Кнопка «Динамит»" : "Клавиша G");
+            dynamite.button.interactable = progress.coins >= blast.price && capacity - used >= blast.slots;
+            dynamite.buttonText.text = capacity - used < blast.slots ? "Нет места" : "Купить  ·  " + blast.price;
             itemsNote.text = "Предметы едут в рюкзаке и занимают место для руды. Свободно: " + Mathf.Max(0, capacity - used) + " из " + capacity + ".";
         }
 

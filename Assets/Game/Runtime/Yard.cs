@@ -88,12 +88,20 @@ namespace Nubik
                 s.Box("Hedge", new Vector3(side * 17.2f, 0.45f, 2), new Vector3(1, 0.9f, 20), Hedge, root);
             }
             s.Box("Fence south", new Vector3(0, 0.8f, -16), new Vector3(36, 1.6f, 0.14f), Wood, root, true);
-            // Invisible fence behind the patio, with the house and garage closing the rest.
-            foreach (var span in new[] { new Vector2(-18, -10.5f), new Vector2(4.5f, 6), new Vector2(13, 18) })
-                s.Box("Fence north", new Vector3((span.x + span.y) / 2, 0.8f, 17.3f), new Vector3(span.y - span.x, 1.6f, 0.14f), Wood, root, true)
-                    .GetComponent<Renderer>().enabled = false;
+            // Behind the patio the fence runs between the house and the garage and on to the corners.
+            var northSpans = new[] { new Vector2(-18, -10.5f), new Vector2(4.5f, 6), new Vector2(13, 18) };
+            foreach (var span in northSpans)
+            {
+                s.Box("Fence north", new Vector3((span.x + span.y) / 2, 0.8f, 17.3f), new Vector3(span.y - span.x, 1.6f, 0.14f), Wood, root, true);
+                for (float x = span.x + 0.1f; x <= span.y; x += 2)
+                    s.Box("Fence post", new Vector3(x, 0.9f, 17.2f), new Vector3(0.18f, 1.8f, 0.18f), DarkWood, root);
+            }
             for (int i = -17; i <= 17; i += 2)
                 s.Box("Fence post", new Vector3(i, 0.9f, -15.9f), new Vector3(0.18f, 1.8f, 0.18f), DarkWood, root);
+            for (int side = -1; side <= 1; side += 2)
+                for (int z = -15; z <= 17; z += 2)
+                    s.Box("Fence post", new Vector3(side * 17.9f, 0.9f, z), new Vector3(0.18f, 1.8f, 0.18f), DarkWood, root);
+            BuildBoundary(s, root);
             Tree(s, root, new Vector3(-14, 0, 10), new Color(0.93f, 0.48f, 0.18f));
             Tree(s, root, new Vector3(14.5f, 0, -12), new Color(0.88f, 0.36f, 0.16f));
             Tree(s, root, new Vector3(-14.5f, 0, -12.5f), new Color(0.40f, 0.62f, 0.24f));
@@ -421,6 +429,32 @@ namespace Nubik
         }
 
         public void Dispose(){foreach(var mesh in combinedMeshes)Object.Destroy(mesh);}
+
+        /// <summary>
+        /// Invisible walls just outside the fence, far above jetpack reach, so the yard has no way out. Above the house and
+        /// the garage the north wall starts at their roofline: the front door stays open. Fields outside hide the void.
+        /// </summary>
+        private static void BuildBoundary(Shapes s, Transform root)
+        {
+            const float high = 300, north = 17.45f;
+            void Wall(Vector3 center, Vector3 size) => s.Box("Boundary", center, size, Lawn, root, true).GetComponent<Renderer>().enabled = false;
+            foreach (int side in new[] { -1, 1 })
+                Wall(new Vector3(side * 18.2f, high / 2 - 1, 0.65f), new Vector3(0.2f, high, 33.8f));
+            Wall(new Vector3(0, high / 2 - 1, -16.2f), new Vector3(36.6f, high, 0.2f));
+            foreach (var span in new[] { new Vector2(-18.3f, -10.5f), new Vector2(4.5f, 6), new Vector2(13, 18.3f) })
+                Wall(new Vector3((span.x + span.y) / 2, high / 2 - 1, north), new Vector3(span.y - span.x, high, 0.2f));
+            Wall(new Vector3(-3, 5.25f + (high - 5.25f) / 2, north), new Vector3(15, high - 5.25f, 0.2f));
+            Wall(new Vector3(9.5f, 4.05f + (high - 4.05f) / 2, north), new Vector3(7, high - 4.05f, 0.2f));
+            Wall(new Vector3(0, 80, 0.65f), new Vector3(36.6f, 0.5f, 33.8f));
+            // Fields beyond the fence: the same lawn, just out of reach.
+            var field = s.Mat(Yard.Lawn * 0.94f, 0, true, true);
+            void Field(float x0, float x1, float z0, float z1) =>
+                s.Box("Field", new Vector3((x0 + x1) / 2, -0.19f, (z0 + z1) / 2), new Vector3(x1 - x0, 0.3f, z1 - z0), field, root);
+            Field(-150, -18.1f, -150, 150);
+            Field(18.1f, 150, -150, 150);
+            Field(-18.1f, 18.1f, -150, -16.1f);
+            Field(-18.1f, 18.1f, 17.4f, 150);
+        }
 
         private static void Tree(Shapes s, Transform root, Vector3 at, Color leaves)
         {

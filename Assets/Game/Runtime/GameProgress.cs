@@ -54,7 +54,7 @@ namespace Nubik
         /// <summary>Current health; negative means full (older saves).</summary>
         public float health = -1;
         public bool scanner;
-        public int medkits;
+        public int medkits, dynamite;
         public int fuelLevel, keys;
         public float fuel = -1;
         public bool doorOpened, hasWeapon;
@@ -78,7 +78,7 @@ namespace Nubik
             if ((doorOpened || finished) && keys != 31) return false;
             if (tool < 0 || tool >= config.tools.Length || maxDepth < 0 || maxDepth > config.depth) return false;
             if (bagLevel < 0 || bagLevel >= config.backpack.Length || jetLevel < 0 || jetLevel >= config.jetpack.Length) return false;
-            if (healthLevel < 0 || healthLevel >= config.health.Length || float.IsNaN(health) || health > MaxHealth(config) || medkits < 0) return false;
+            if (healthLevel < 0 || healthLevel >= config.health.Length || float.IsNaN(health) || health > MaxHealth(config) || medkits < 0 || dynamite < 0) return false;
             if (ores == null || ores.Length > config.ores.Length) return false;
             foreach (int count in ores) if (count < 0) return false;
             if (digCredit < 0 || digCredit >= 100 || found == null || found.Length > config.LootChunkCount || terrain == null) return false;
@@ -115,7 +115,7 @@ namespace Nubik
 
         public int UsedSlots(MineConfig config)
         {
-            int used = (scanner ? config.scanner.slots : 0) + medkits * config.medkit.slots;
+            int used = (scanner ? config.scanner.slots : 0) + medkits * config.medkit.slots + dynamite * config.dynamite.slots;
             for (int i = 0; i < ores.Length; i++) used += ores[i] * Mathf.Max(1, config.ores[i].slots);
             return used;
         }
@@ -209,11 +209,12 @@ namespace Nubik
                 : track == Track.Jetpack ? config.jetpack[next].price : config.health[next].price;
         }
 
-        public bool Upgrade(Track track, MineConfig config)
+        /// <summary>Buys the next level; <paramref name="free"/> is the test button in the workshop.</summary>
+        public bool Upgrade(Track track, MineConfig config, bool free = false)
         {
             int price = NextPrice(track, config);
-            if (price < 0 || coins < price) return false;
-            coins -= price;
+            if (price < 0 || !free && coins < price) return false;
+            if (!free) coins -= price;
             switch (track)
             {
                 case Track.Tool: tool++; break;
@@ -236,6 +237,29 @@ namespace Nubik
             coins -= config.scanner.price;
             scanner = true;
             return true;
+        }
+
+        public bool BuyDynamite(MineConfig config)
+        {
+            if (coins < config.dynamite.price || FreeSlots(config) < config.dynamite.slots) return false;
+            coins -= config.dynamite.price;
+            dynamite++;
+            return true;
+        }
+
+        public bool UseDynamite()
+        {
+            if (dynamite <= 0) return false;
+            dynamite--;
+            return true;
+        }
+
+        /// <summary>
+        /// Repairs values that older balance made valid: a smaller fuel tank leaves saved petrol above the new capacity.
+        /// </summary>
+        public void Normalize(MineConfig config)
+        {
+            if (fuelLevel >= 0 && fuelLevel < config.fuelTank.Length && fuel > FuelCapacity(config)) fuel = FuelCapacity(config);
         }
 
         public bool BuyMedkit(MineConfig config)

@@ -133,6 +133,17 @@ def main():
     add(rumble, tone(55, 2.4, 0.9, attack=0.3), gain=0.8)
     write('door', rumble)
 
+    # Dynamite: a crackling fuse and a deep blast with a rolling tail. Appended last so earlier sounds keep their noise.
+    fuse = noise(0.7, 0.5, 5200, rng, attack=0.01, highpass=True)
+    for i in range(0, len(fuse), int(RATE * 0.045)):
+        add(fuse, noise(0.02, 0.006, 3000, rng), at=i / RATE, gain=1.5 * rng.random())
+    write('fuse', fuse, peak=0.5)
+    boom = noise(1.8, 0.35, 320, rng, attack=0.003)
+    add(boom, tone(58, 1.8, 0.45, ((1, 1.0), (2, 0.3)), attack=0.004, sweep=-0.45), gain=1.6)
+    add(boom, noise(0.25, 0.05, 2400, rng), gain=0.6)
+    add(boom, noise(1.4, 0.6, 120, rng, attack=0.2), at=0.3, gain=0.7)
+    write('boom', boom, peak=0.95)
+
 
 if __name__ == '__main__':
     main()

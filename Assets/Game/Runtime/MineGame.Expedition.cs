@@ -77,7 +77,8 @@ namespace Nubik
             if (Refuelling && Active) { Progress.Refill(config.refillRate * dt, config); saveDirty = true; }
             if (modelDrill != UsingDrill || modelWeapon != (InBoss && Progress.hasWeapon)) BuildTool();
             // Slams and roars shake the view.
-            head.localPosition = Vector3.up * EyeHeight + (InBoss ? (Vector3)Random.insideUnitCircle * boss.Shake * .07f : Vector3.zero);
+            float shake = Mathf.Max(InBoss ? boss.Shake : 0, blastShake);
+            head.localPosition = Vector3.up * EyeHeight + (Vector3)Random.insideUnitCircle * shake * .07f;
             if (!InBoss) return;
             // The monster animates behind menus too; the fight itself only runs while playing.
             float damage = boss.Tick(dt, body.transform.position, Active);

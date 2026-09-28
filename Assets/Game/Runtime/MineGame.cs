@@ -308,6 +308,7 @@ namespace Nubik
                 if (!keyUsed && Input.GetKeyDown(KeyCode.E)) Interact();
                 if (Input.GetKeyDown(KeyCode.F)) Scan();
                 if (Input.GetKeyDown(KeyCode.Q)) UseMedkit();
+                if (Input.GetKeyDown(KeyCode.G)) ThrowDynamite();
                 if (Input.GetKeyDown(KeyCode.M)) ToggleSound();
             }
             else
@@ -326,6 +327,7 @@ namespace Nubik
             UpdateHealth(Time.deltaTime);
             TrackTrips();
             if (!InBoss) { TrackDepth(); TrackSites(); }
+            UpdateCharges(Time.deltaTime);
             UpdateExpedition(Time.deltaTime);
             if (ScanActive) RefreshScan();
             if (Time.unscaledTime >= nextVisibility) UpdateVisibility();
@@ -998,7 +1000,7 @@ namespace Nubik
                 Hint = "Рюкзак полон — отнеси руду в дом, к скупщику";
             else if (Progress.OrePieces > 0 && !Underground)
                 Hint = "Продай руду в доме: вход за патио, скупщик слева";
-            else if (Underground && Fuel < Mathf.Max(8, Depth / config.jetMaxRise * Progress.JetConsumption(config)))
+            else if (Underground && Fuel < Mathf.Max(FuelMax * .25f, Depth / config.jetMaxRise * Progress.JetConsumption(config)))
                 Hint = Fuel <= 0 ? "Бак пуст · поднимайся по ступенькам или вызови спасателей через паузу" : "Мало бензина для подъёма · береги запас и возвращайся на базу";
             else if (CurrentSite >= 0 && !Progress.HasSpecial(MineSites.All[CurrentSite].CacheId))
                 Hint = "Тайник справа у дальней стены · нужно 2 места в рюкзаке";
@@ -1103,15 +1105,23 @@ namespace Nubik
             hud.Notify("Скупщик выдал другой заказ");
         }
 
-        public void Buy(Track track)
+        /// <summary>Testing aid: the workshop shows a free upgrade button on every track. Turn off before release.</summary>
+        public const bool TestUpgrades = true;
+
+        public void Buy(Track track) => Upgrade(track, false);
+
+        /// <summary>Test button: the next level without paying.</summary>
+        public void BuyFree(Track track) { if (TestUpgrades) Upgrade(track, true); }
+
+        private void Upgrade(Track track, bool free)
         {
-            if (!Progress.Upgrade(track, config)) return;
+            if (!Progress.Upgrade(track, config, free)) return;
             if (track == Track.Fuel) Fuel = FuelMax;
             SaveNow();
             sound.Play("buy", 1, 1, 0);
             if (track == Track.Tool) BuildTool();
-            hud.Notify(track == Track.Tool ? "Новый инструмент: " + Tool.nameRu : track == Track.Backpack ? "Рюкзак стал вместительнее"
-                : track == Track.Jetpack ? "Джетпак расходует меньше бензина" : track == Track.Fuel ? "Общий бензобак увеличен" : "Здоровье выросло");
+            hud.Notify((free ? "Тест · " : "") + (track == Track.Tool ? "Новый инструмент: " + Tool.nameRu : track == Track.Backpack ? "Рюкзак стал вместительнее"
+                : track == Track.Jetpack ? "Джетпак расходует меньше бензина" : track == Track.Fuel ? "Общий бензобак увеличен" : "Здоровье выросло"));
         }
 
         public void BuyScanner()
