@@ -14,9 +14,9 @@ namespace Nubik
         private MineGame game;
         private Font font;
         private RectTransform root, canvasRect;
-        private Text soundText, coins, depth, zone, backpack, target, hint, toast, shopInfo, upgradeText, sellText, albumTitle, endingText;
+        private Text soundText, coins, depth, zone, backpack, target, hint, toast, shopInfo, upgradeText, albumTitle, endingText;
         private GameObject touchControls, overlay, shop, confirmation, ending, shopButton, descendButton;
-        private Button upgrade, sell;
+        private Button upgrade;
         private Image crosshair;
         private readonly List<Image> albumTiles = new List<Image>();
         private readonly List<Text> albumNames = new List<Text>();
@@ -114,8 +114,7 @@ namespace Nubik
                 albumTiles.Add(slot.GetComponent<Image>());
                 albumNames.Add(Label(shop.transform, "", 13, Muted, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(x - 4, -292), new Vector2(x + tile + 4, -252)));
             }
-            sell = Button(shop.transform, "", Mint, game.Sell, new Vector2(0, 1), new Vector2(1, 1), new Vector2(24, -380), new Vector2(-24, -306));
-            sellText = sell.GetComponentInChildren<Text>();
+            Label(shop.transform, "Находки продаются автоматически\nпри выходе из шахты", 20, Mint, new Vector2(0, 1), new Vector2(1, 1), new Vector2(24, -380), new Vector2(-24, -306));
             upgrade = Button(shop.transform, "", Amber, game.Upgrade, new Vector2(0, 1), new Vector2(1, 1), new Vector2(24, -466), new Vector2(-24, -392));
             upgradeText = upgrade.GetComponentInChildren<Text>();
             descendButton = Button(shop.transform, "Спуститься к месту копания", Mint, game.Descend, new Vector2(0, 1), new Vector2(1, 1), new Vector2(24, -552), new Vector2(-24, -478)).gameObject;
@@ -170,8 +169,6 @@ namespace Nubik
                 albumTiles[i].color = found ? config.collection[i].color : new Color(0.2f, 0.25f, 0.3f);
                 albumNames[i].text = found ? config.collection[i].nameRu : "???";
             }
-            sell.interactable = data.backpack > 0;
-            sellText.text = data.backpack > 0 ? "Продать находки · +" + data.backpack : "Рюкзак пуст";
             if (next < config.tools.Length)
             {
                 var nextTool = config.tools[next];

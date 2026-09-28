@@ -1,5 +1,6 @@
 using System.Collections;
 using System.IO;
+using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -29,9 +30,13 @@ namespace Nubik.PlayTests
             yield return null;
         }
 
-        [TearDown]
-        public void RestoreSave()
+        [UnityTearDown]
+        public IEnumerator RestoreSave()
         {
+            // Remove the test game before restoring preferences so its quit/focus callbacks cannot overwrite them.
+            var scene = SceneManager.GetSceneByName("Mine");
+            SceneManager.CreateScene("Test cleanup");
+            if (scene.isLoaded) yield return SceneManager.UnloadSceneAsync(scene);
             Restore(Key, saved);
             Restore(Key + ".backup", savedBackup);
             PlayerPrefs.Save();
@@ -74,6 +79,91 @@ namespace Nubik.PlayTests
             Shot("99_surface_again");
             Assert.AreEqual(0, game.Depth);
         }
+
+        [UnityTest]
+        public IEnumerator RevealedOreStaysVisibleUntilHit()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>();
+            game.DebugDig("12");
+            yield return Frames(3);
+            var field = Field<LootField>(game, "loot");
+            int rendered = 0;
+            foreach (var item in field.Items)
+            {
+                if (item.Kind != LootKind.Find || item.View == null) continue;
+                Assert.IsFalse(item.Taken, "Revealing ore must not collect it.");
+                var renderers = item.View.GetComponentsInChildren<Renderer>();
+                Assert.AreEqual(3, renderers.Length);
+                foreach (var renderer in renderers)
+                    Assert.Less(Vector3.Distance(renderer.bounds.center, item.Position), 0.25f,
+                        "Nugget geometry must stay beside its hitbox (unsigned offset regression).");
+                rendered++;
+            }
+            Assert.Greater(rendered, 0);
+            Assert.AreEqual(0, game.Progress.backpack);
+
+            // Aim at the starter nugget from above and exercise the actual digging ray.
+            var first = field.Items.Find(item => item.Special == 0);
+            Invoke(game, "Teleport", first.Position + new Vector3(0, 0.6f, 0));
+            game.SetView(0, 85);
+            Physics.SyncTransforms();
+            Shot("ore_before_pickup");
+            Invoke(game, "Swing");
+            Assert.IsTrue(first.Taken);
+            Assert.AreEqual(first.Value, game.Progress.backpack);
+            int amount = game.Progress.backpack;
+            Invoke(game, "Swing");
+            Assert.AreEqual(amount, game.Progress.backpack, "An ore hit must pay only once.");
+        }
+
+        [UnityTest]
+        public IEnumerator ReturningSellsOnceAndKeepsDivePosition()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>();
+            game.DebugDig("12");
+            yield return Frames(3);
+            int coins = game.Progress.coins, trips = game.Progress.expeditions;
+            game.Progress.backpack = 47;
+            game.ReturnToSurface();
+            Assert.AreEqual(0, game.Progress.backpack);
+            Assert.AreEqual(coins + 47, game.Progress.coins);
+            Assert.AreEqual(trips + 1, game.Progress.expeditions);
+            Assert.IsTrue(game.Progress.hasDive);
+            Assert.Less(game.Progress.dive.y, -10);
+            game.ReturnToSurface();
+            Assert.AreEqual(coins + 47, game.Progress.coins);
+            Assert.AreEqual(trips + 1, game.Progress.expeditions);
+        }
+
+        [UnityTest]
+        public IEnumerator WalkingOutSellsWithoutOpeningShop()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>();
+            game.DebugDig("3");
+            yield return Frames(3);
+            var body = Field<CharacterController>(game, "body");
+            game.Progress.backpack = 31;
+            int coins = game.Progress.coins;
+            yield return Frames(3);
+            Assert.AreEqual(31, game.Progress.backpack, "No sale while underground.");
+            Invoke(game, "Teleport", Yard.SurfaceSpawn + Vector3.up * 2);
+            yield return Frames(3);
+            Assert.AreEqual(31, game.Progress.backpack, "Do not sell during a jump.");
+            Invoke(game, "Teleport", Yard.SurfaceSpawn);
+            body.Move(Vector3.down * 0.2f);
+            yield return Frames(3);
+            Assert.AreEqual(0, game.Progress.backpack);
+            Assert.AreEqual(coins + 31, game.Progress.coins);
+            Assert.IsFalse(game.GetComponent<MineHud>().PanelOpen);
+            yield return Frames(3);
+            Assert.AreEqual(coins + 31, game.Progress.coins);
+        }
+
+        private static T Field<T>(MineGame game, string name) =>
+            (T)typeof(MineGame).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+
+        private static void Invoke(MineGame game, string name, params object[] args) =>
+            typeof(MineGame).GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(game, args);
 
         private static IEnumerator Frames(int count)
         {

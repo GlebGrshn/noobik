@@ -60,6 +60,9 @@ namespace Nubik
         private float yaw, pitch, verticalSpeed, nextHit, swing = 1, nextVisibility, nextAutosave, walkCycle, lastDig = -10;
         private bool saveDirty, endingShown, wasActive, engaged, wantLock;
         private int engagedFrame = -10;
+        private bool underground;
+        private Vector3 lastUndergroundPosition;
+        private float lastUndergroundYaw;
 
         private sealed class ChunkView { public GameObject obj; public Mesh mesh; public MeshCollider collider; }
         private sealed class Flight { public Transform obj; public Vector3 from; public float t; }
@@ -236,6 +239,7 @@ namespace Nubik
             AnimateTool();
             var feet = body.transform.position;
             NearShop = feet.y > -0.5f && Vector2.Distance(new Vector2(feet.x, feet.z), new Vector2(yard.ShopPoint.x, yard.ShopPoint.z)) < 2.8f;
+            TrackSurfaceExit();
             TrackDepth();
             if (Time.unscaledTime >= nextVisibility) UpdateVisibility();
             if (saveDirty && Time.unscaledTime >= nextAutosave) SaveNow();
@@ -356,15 +360,15 @@ namespace Nubik
             RevealLoot(center, Tool.radius);
         }
 
-        private void RevealLoot(Vector3 center, float radius, bool collect = true)
+        private void RevealLoot(Vector3 center, float radius)
         {
             loot.Near(center, radius + 1.2f, nearby);
             foreach (var item in nearby)
             {
                 item.Exposed = loot.IsExposed(item);
                 if (!item.Exposed) continue;
-                if (collect && (item.Position - center).magnitude <= radius + item.Size * 0.5f) Collect(item);
-                else if (item.View == null) ShowItem(item);
+                // Uncovering a find must leave something to see and aim at. A later direct hit collects it.
+                if (item.View == null) ShowItem(item);
             }
         }
 
@@ -429,7 +433,8 @@ namespace Nubik
                     for (int i = 0; i < 3; i++)
                     {
                         uint k = h >> (i * 5);
-                        var offset = new Vector3((k % 7 - 3) * 0.03f, (k / 7 % 5 - 2) * 0.03f, (k / 35 % 7 - 3) * 0.03f);
+                        // Cast before subtraction: unsigned underflow sent nuggets millions of metres away.
+                        var offset = new Vector3(((int)(k % 7) - 3) * 0.03f, ((int)(k / 7 % 5) - 2) * 0.03f, ((int)(k / 35 % 7) - 3) * 0.03f);
                         shapes.Box("Nugget", offset, Vector3.one * s * (1 - i * 0.22f), Quaternion.Euler(k % 90, k / 3 % 90, k / 11 % 90), item.Color, root, false, 0.35f);
                     }
                     break;
@@ -620,7 +625,7 @@ namespace Nubik
                 Hint = TouchMode ? "Наведи прицел на землю и держи КОПАТЬ"
                     : FreeMouse ? "ЛКМ — копать, зажатая ПКМ — осмотреться" : "Наведи прицел на землю и держи ЛКМ";
             else if (Progress.backpack > 0 && Progress.expeditions == 0)
-                Hint = "Находки продаются в лавке — " + (TouchMode ? "кнопка «Наверх»" : "клавиша R");
+                Hint = "Выйди из шахты — находки продадутся автоматически";
             else if (NearShop)
                 Hint = TouchMode ? "Нажми «Лавка»" : "E — открыть лавку";
             else if (next < config.tools.Length && Progress.coins + Progress.backpack >= config.tools[next].price)
@@ -664,13 +669,48 @@ namespace Nubik
                 Progress.hasDive = true;
                 Progress.dive = feet;
                 Progress.diveYaw = yaw;
-                Progress.expeditions++;
             }
+            bool completedExpedition = underground || feet.y < -0.8f;
             Teleport(Yard.SurfaceSpawn);
             yaw = Yard.SurfaceYaw; pitch = 8;
             ApplyView();
-            SaveNow();
+            FinishSurfaceExit(completedExpedition);
             OpenShop();
+        }
+
+        private void TrackSurfaceExit()
+        {
+            var feet = body.transform.position;
+            if (feet.y < -0.8f)
+            {
+                underground = true;
+                lastUndergroundPosition = feet;
+                lastUndergroundYaw = yaw;
+                return;
+            }
+            // Require a landing at lawn level: jumping inside the shaft is not an exit.
+            bool onSurface = feet.y >= -0.1f && body.isGrounded;
+            float edge = config.width / 2f;
+            bool outsidePatch = Mathf.Abs(feet.x) >= edge || Mathf.Abs(feet.z) >= edge;
+            if (!onSurface || (!underground && !(outsidePatch && Progress.backpack > 0))) return;
+            if (underground)
+            {
+                Progress.hasDive = true;
+                Progress.dive = lastUndergroundPosition;
+                Progress.diveYaw = lastUndergroundYaw;
+            }
+            FinishSurfaceExit(underground);
+        }
+
+        private void FinishSurfaceExit(bool completedExpedition)
+        {
+            underground = false;
+            if (completedExpedition) Progress.expeditions++;
+            int amount = Progress.Sell();
+            SaveNow();
+            if (amount <= 0) return;
+            sound.Play("sell", 1, 1, 0);
+            hud.Notify("Находки проданы при выходе: +" + amount + " монет");
         }
 
         public void OpenShop()
@@ -691,15 +731,6 @@ namespace Nubik
             ApplyView();
         }
 
-        public void Sell()
-        {
-            int amount = Progress.Sell();
-            if (amount <= 0) return;
-            SaveNow();
-            sound.Play("sell", 1, 1, 0);
-            hud.Notify("Продано на " + amount + " монет");
-        }
-
         public void Upgrade()
         {
             if (!Progress.Upgrade(config)) return;
@@ -718,7 +749,7 @@ namespace Nubik
             for (float y = 0; y > -metres - 1.5f; y -= 0.5f)
             {
                 terrain.Dig(new Vector3(shaft.x, y, shaft.z), 1.3f, 999);
-                RevealLoot(new Vector3(shaft.x, y, shaft.z), 1.3f, false);
+                RevealLoot(new Vector3(shaft.x, y, shaft.z), 1.3f);
             }
             RebuildDirty();
             Teleport(new Vector3(shaft.x, -metres + 0.2f, shaft.z));
