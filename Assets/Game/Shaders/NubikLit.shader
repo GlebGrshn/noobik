@@ -1,5 +1,5 @@
 // Small URP forward shader for the whole prototype: vertex-coloured terrain,
-// flat-coloured props, main light shadows, extra lights (headlamp) and a depth fog.
+// textured props, main light shadows, extra lights (headlamp) and a depth fog.
 // Fog and ambient come from globals set by MineGame, so no fog keywords can be stripped.
 Shader "Nubik/Lit"
 {
@@ -12,7 +12,9 @@ Shader "Nubik/Lit"
         _ExtraLights("Lit by extra lights", Range(0, 1)) = 1
         _GrassColor("Grass on flat ground (vertex colour mode)", Color) = (0.42, 0.55, 0.30, 1)
         _Lawn("Lawn pattern", Range(0, 1)) = 0
-        _Surface("Detail: wood / masonry / metal / cloth / crystal / skin / plaster / tile", Float) = 0
+        _Surface("Surface layer + 1 (0: plain); see Shapes", Float) = 0
+        _Surfaces("Surface set (normal xy, albedo, mask)", 2DArray) = "" {}
+        _SurfaceScale("Surface texture density", Float) = 1
         _Detail("Rock detail (normal xy, height, cracks)", 2D) = "gray" {}
         _DetailStrength("Rock detail strength", Range(0, 1)) = 0
         _DetailScale("Rock detail tiles per metre", Float) = 0.6
@@ -32,11 +34,14 @@ Shader "Nubik/Lit"
             half4 _GrassColor;
             half _Lawn;
             half _Surface;
+            half _SurfaceScale;
             half _DetailStrength;
             float _DetailScale;
         CBUFFER_END
         TEXTURE2D(_Detail);
         SAMPLER(sampler_Detail);
+        TEXTURE2D_ARRAY(_Surfaces);
+        SAMPLER(sampler_Surfaces);
         ENDHLSL
 
         Pass
@@ -48,6 +53,7 @@ Shader "Nubik/Lit"
             #pragma fragment Frag
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE
             #pragma multi_compile _ _ADDITIONAL_LIGHTS
+            #pragma require 2darray
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
             float Hash2(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
@@ -60,54 +66,57 @@ Shader "Nubik/Lit"
                 return lerp(lerp(Hash2(i), Hash2(i + float2(1, 0)), f.x), lerp(Hash2(i + float2(0, 1)), Hash2(i + 1), f.x), f.y);
             }
 
-            half3 SurfaceDetail(float3 p, half3 n, half3 color)
+            // Per layer (surface - 1): texture tiles per metre, bump strength, highlight tightness and strength.
+            // Wood, masonry, metal, cloth, crystal, skin, plaster, roof, planks, painted, rubber, wallpaper, rug, leather, bark, brick.
+            static const float SurfaceTiles[16] = { 2, .8, 2, 4, 1.6, 1.2, .66, 1, 1, 2, 10, 1.66, .7, 3, 1.2, 1.1 };
+            static const half SurfaceBump[16] = { .7, 1, .55, .7, 1, .9, .55, .9, .85, .7, .8, .5, .6, .8, 1, .9 };
+            static const half SurfaceGloss[16] = { 24, 12, 48, 6, 90, 30, 8, 20, 18, 56, 10, 12, 4, 24, 6, 10 };
+            static const half SurfaceShine[16] = { .05, .03, .45, 0, .6, .25, .02, .08, .05, .3, .06, .04, 0, .12, 0, .03 };
+
+            half4 SampleSurface(float2 uv, int layer) { return SAMPLE_TEXTURE2D_ARRAY(_Surfaces, sampler_Surfaces, uv, layer); }
+
+            /// Boxes carry UVs in metres and tangents (uv.z = 1); spheres and custom meshes are mapped by their
+            /// scaled object-space position. Either way the texture sticks to the object.
+            void SurfaceTexture(float3 uv, half4 tangentWS, float3 positionOS, half3 normalOS, int layer, inout half3 normal, inout half3 albedo, out half mask)
             {
-                if (_Surface < .5) return color;
-                float3 an = abs(n);
-                float2 uv = an.y > max(an.x, an.z) ? p.xz : an.x > an.z ? p.zy : p.xy;
-                float noise = ValueNoise(uv * 3.7);
-                float detail = 1;
-                if (_Surface > .5 && _Surface < 1.5)
+                float tiles = SurfaceTiles[layer] * _SurfaceScale;
+                half bump = SurfaceBump[layer];
+                half4 s;
+                if (uv.z > .5)
                 {
-                    float grain = sin(uv.y * 75 + ValueNoise(uv * float2(2, 7)) * 12 + sin(uv.x * 3) * 4);
-                    float knot = sin(length((frac(uv * .7) - .5) * float2(2.2, .7)) * 60);
-                    float aa = saturate(1 - length(fwidth(uv)) * 22);
-                    detail = 1 + noise * .12 - .08 + (grain * .08 + knot * .035) * aa;
+                    s = SampleSurface(uv.xy * tiles, layer);
+                    half2 t = (s.xy * 2 - 1) * bump;
+                    half3 tangent = normalize(tangentWS.xyz - normal * dot(normal, tangentWS.xyz));
+                    half3 bitangent = cross(normal, tangent) * (tangentWS.w < 0 ? -1 : 1);
+                    normal = normalize(tangent * t.x + bitangent * t.y + normal);
                 }
-                else if (_Surface > 1.5 && _Surface < 2.5 || _Surface > 7.5)
+                else
                 {
-                    float2 bricks = uv * (_Surface > 7.5 ? float2(3, 4) : float2(1.7, 2.8));
-                    bricks.x += fmod(floor(bricks.y), 2) * .5;
-                    float2 edge = min(frac(bricks), 1 - frac(bricks));
-                    float seam = 1 - smoothstep(.025, .055 + length(fwidth(bricks)), min(edge.x, edge.y));
-                    detail = .92 + Hash2(floor(bricks)) * .17 - seam * .22 + (noise - .5) * .1;
+                    float3 p = positionOS * tiles;
+                    half3 n = normalize(normalOS);
+                    half3 blend = pow(abs(n), 4);
+                    blend /= blend.x + blend.y + blend.z;
+                    half4 sx = SampleSurface(p.zy, layer), sy = SampleSurface(p.xz, layer), sz = SampleSurface(p.xy, layer);
+                    s = sx * blend.x + sy * blend.y + sz * blend.z;
+                    half3 nx = half3((sx.xy * 2 - 1) * bump + n.zy, n.x);
+                    half3 ny = half3((sy.xy * 2 - 1) * bump + n.xz, n.y);
+                    half3 nz = half3((sz.xy * 2 - 1) * bump + n.xy, n.z);
+                    normal = normalize(TransformObjectToWorldNormal(nx.zyx * blend.x + ny.xzy * blend.y + nz * blend.z));
                 }
-                else if (_Surface > 2.5 && _Surface < 3.5)
-                {
-                    float brushed = sin(uv.y * 170) * saturate(1 - length(fwidth(uv)) * 45);
-                    detail = .94 + noise * .09 + brushed * .035;
-                    float polish = pow(saturate(dot(reflect(normalize(_WorldSpaceCameraPos - p), n), normalize(float3(-.4, .8, .3)))), 18);
-                    color += polish * .1;
-                }
-                else if (_Surface > 3.5 && _Surface < 4.5)
-                {
-                    float weave = sin(uv.x * 130) * sin(uv.y * 130);
-                    detail = .96 + noise * .07 + weave * .045 * saturate(1 - length(fwidth(uv)) * 40);
-                }
-                else if (_Surface > 4.5 && _Surface < 5.5)
-                {
-                    float facet = pow(saturate(dot(n, normalize(_WorldSpaceCameraPos - p))), 8);
-                    detail = .88 + noise * .12 + facet * .23;
-                }
-                else if (_Surface > 5.5 && _Surface < 6.5)
-                {
-                    float pores = ValueNoise(uv * 19), veins = abs(noise - .5);
-                    detail = .85 + pores * .2 - (1 - smoothstep(.01, .045, veins)) * .17;
-                    color = lerp(color, color * half3(.72, 1.14, 1.08), noise * .35);
-                }
-                else if (_Surface > 6.5 && _Surface < 7.5)
-                    detail = .95 + (noise - .5) * .08 + (ValueNoise(uv * 35) - .5) * .055;
-                return color * detail;
+                albedo *= s.b * 2;
+                mask = s.a;
+                // What the mask means depends on the material.
+                if (layer == 0) albedo *= 1 - mask * .25;                                        // wood pores
+                else if (layer == 1) albedo = lerp(albedo, albedo * .45 + .2, mask);             // mortar
+                else if (layer == 2) albedo += mask * .12;                                       // scratches
+                else if (layer == 4) albedo += mask * .25;                                       // facet edges
+                else if (layer == 5) albedo = lerp(albedo, albedo * half3(.6, 1.05, .95), mask);  // skin spots
+                else if (layer == 7) albedo *= 1 - mask * .45;                                   // roof overlap
+                else if (layer == 8) albedo *= 1 - mask * .7;                                    // board gaps
+                else if (layer == 9) albedo = lerp(albedo, half3(.34, .35, .37), mask);          // chipped paint
+                else if (layer == 11) albedo = lerp(albedo, albedo * 1.12 + .07, mask);          // wallpaper motif
+                else if (layer == 12) albedo = lerp(albedo, half3(.88, .72, .44), mask);         // rug ornament
+                else if (layer == 15) albedo = lerp(albedo, half3(.56, .54, .5), mask);          // brick mortar
             }
 
             /// Triplanar rock relief: bends the normal, darkens hollows and fractures. Three samples, only where needed.
@@ -139,6 +148,8 @@ Shader "Nubik/Lit"
             {
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
+                float4 tangentOS : TANGENT;
+                float3 uv : TEXCOORD0;
                 half4 color : COLOR;
             };
 
@@ -147,6 +158,11 @@ Shader "Nubik/Lit"
                 float4 positionCS : SV_POSITION;
                 float3 positionWS : TEXCOORD0;
                 half3 normalWS : TEXCOORD1;
+                float3 uv : TEXCOORD2;
+                half4 tangentWS : TEXCOORD3;
+                // Object-space position in metres (object scale applied) and normal, for position-mapped textures.
+                float3 positionOS : TEXCOORD4;
+                half3 normalOS : TEXCOORD5;
                 half4 color : COLOR;
             };
 
@@ -158,6 +174,12 @@ Shader "Nubik/Lit"
                 output.positionWS = position.positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.color = input.color;
+                output.uv = input.uv;
+                output.tangentWS = half4(TransformObjectToWorldDir(input.tangentOS.xyz), input.tangentOS.w * GetOddNegativeScale());
+                float4x4 world = GetObjectToWorldMatrix();
+                float3 scale = float3(length(world._m00_m10_m20), length(world._m01_m11_m21), length(world._m02_m12_m22));
+                output.positionOS = input.positionOS.xyz * scale;
+                output.normalOS = input.normalOS;
                 return output;
             }
 
@@ -165,7 +187,13 @@ Shader "Nubik/Lit"
             {
                 half3 normal = normalize(input.normalWS);
                 half3 albedo = _BaseColor.rgb * lerp(half3(1, 1, 1), input.color.rgb, _VertexColor);
-                albedo = SurfaceDetail(input.positionWS, normal, albedo);
+                int layer = -1;
+                half mask = 0;
+                if (_Surface > .5)
+                {
+                    layer = clamp((int)round(_Surface) - 1, 0, 15);
+                    SurfaceTexture(input.uv, input.tangentWS, input.positionOS, input.normalOS, layer, normal, albedo, mask);
+                }
                 // Per-pixel grass keeps a crisp lawn edge around holes instead of a vertex-colour smear.
                 half grass = _VertexColor * step(0.8, normal.y) * step(-0.12, input.positionWS.y);
                 albedo = lerp(albedo, _GrassColor.rgb, grass);
@@ -184,11 +212,8 @@ Shader "Nubik/Lit"
                 float strataNoise = ValueNoise(input.positionWS.xz * .8);
                 float sediment = sin(input.positionWS.y * 17 + strataNoise * 6);
                 albedo *= 1 + rock * (sediment * .045 + (ValueNoise(input.positionWS.xy * 6) - .5) * .12);
-                // Relief: dug rock by its hardness (vertex alpha), stone masonry, creature skin and plaster.
+                // Relief of dug rock by its hardness (vertex alpha); props have their own surface textures.
                 half relief = _DetailStrength * lerp(1, input.color.a, _VertexColor) * (1 - grass);
-                if (_Surface > 1.5 && _Surface < 2.5) relief = max(relief, 0.7);
-                else if (_Surface > 5.5 && _Surface < 6.5) relief = max(relief, 0.45);
-                else if (_Surface > 6.5 && _Surface < 7.5) relief = max(relief, 0.2);
                 if (relief > 0.01) RockRelief(input.positionWS, normal, albedo, relief);
                 // Lawn: soft patches, fine blades and mowing stripes in world space, so the dig patch
                 // and the surrounding lawn slabs share one pattern without a seam.
@@ -201,20 +226,34 @@ Shader "Nubik/Lit"
                 albedo = lerp(albedo, albedo * half3(1.14, 1.08, 0.78), lawn * saturate(patches * 2.2));
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
-                half3 light = mainLight.color * saturate(dot(normal, mainLight.direction) * .8 + .2) * lerp(.25,1,mainLight.shadowAttenuation);
+                half shadow = lerp(.25, 1, mainLight.shadowAttenuation);
+                half3 light = mainLight.color * saturate(dot(normal, mainLight.direction) * .8 + .2) * shadow;
                 light += _NubikAmbient.rgb * (0.7 + 0.3 * normal.y);
+                // Highlights: metal, fresh paint, crystal and wet skin catch the sun and the headlamp.
+                half3 shine = 0;
+                half3 view = normalize(_WorldSpaceCameraPos - input.positionWS);
+                half gloss = 0, strength = 0;
+                if (layer >= 0)
+                {
+                    gloss = SurfaceGloss[layer];
+                    strength = SurfaceShine[layer] * (layer == 9 ? lerp(1, 1.4, mask) : 1);
+                    if (strength > 0) shine = mainLight.color * pow(saturate(dot(normal, normalize(mainLight.direction + view))), gloss) * strength * shadow;
+                }
                 #if defined(_ADDITIONAL_LIGHTS)
                 int count = GetAdditionalLightsCount();
                 for (int index = 0; index < count; index++)
                 {
                     Light extra = GetAdditionalLight(index, input.positionWS);
-                    light += extra.color * (extra.distanceAttenuation * _ExtraLights) * saturate(dot(normal, extra.direction) * 0.8 + 0.2);
+                    half3 reach = extra.color * (extra.distanceAttenuation * _ExtraLights);
+                    light += reach * saturate(dot(normal, extra.direction) * 0.8 + 0.2);
+                    if (strength > 0) shine += reach * pow(saturate(dot(normal, normalize(extra.direction + view))), gloss) * strength;
                 }
                 #endif
 
                 // Glowing finds, runes and lanterns glint now and then; the phase varies with position.
                 half glint = pow(saturate(sin(_Time.y * 2.6 + dot(input.positionWS, float3(4.1, 6.3, 5.2)))), 8);
-                half3 color = albedo * light + _Emission.rgb * (0.8 + 0.9 * glint);
+                // Metal highlights take the metal's colour; others stay white.
+                half3 color = albedo * light + shine * (layer == 2 ? albedo * 1.6 : 1) + _Emission.rgb * (0.8 + 0.9 * glint);
                 float distance = length(input.positionWS - _WorldSpaceCameraPos);
                 half fog = saturate((distance - _NubikFog.x) / max(0.01, _NubikFog.y - _NubikFog.x));
                 return half4(lerp(color, _NubikFogColor.rgb, fog), 1);

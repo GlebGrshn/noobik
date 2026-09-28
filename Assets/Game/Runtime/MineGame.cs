@@ -232,6 +232,11 @@ namespace Nubik
             Part("Blade tip", new Vector3(0, 0, 0.1f), new Vector3(0.071f, 0.007f, 0.071f), Tool.color, 45);
             Part("Blade ridge", new Vector3(0, .006f, .05f), new Vector3(.012f,.008f,.09f), Tool.color * 1.2f);
             Part("Blade edge", new Vector3(0, .004f, .105f), new Vector3(.062f,.008f,.015f), new Color(.8f,.85f,.83f));
+            // Folded tread for the boot, rivets through the socket and a ferrule on the shaft.
+            Part("Blade step metal", new Vector3(0, .005f, .013f), new Vector3(.1f, .007f, .012f), Tool.color * .82f);
+            foreach (float x in new[] { -.008f, .008f })
+                Part("Collar rivet metal", new Vector3(x, .0135f, -.006f), new Vector3(.005f, .004f, .005f), new Color(.72f, .72f, .7f));
+            Part("Shaft ferrule metal", new Vector3(0, 0, -.25f), new Vector3(.021f, .021f, .012f), new Color(.45f, .47f, .5f));
             Part("Grip", new Vector3(0,0,-.30f), new Vector3(.026f,.026f,.09f), new Color(.14f,.25f,.25f));
             Part("Glove", new Vector3(.025f,-.018f,-.20f), new Vector3(.063f,.052f,.075f), new Color(.18f,.42f,.37f));
             Part("Cuff", new Vector3(.025f,-.021f,-.248f), new Vector3(.067f,.054f,.023f), new Color(.89f,.65f,.31f));

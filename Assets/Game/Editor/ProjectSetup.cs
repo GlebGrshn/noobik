@@ -40,6 +40,7 @@ public static class ProjectSetup
             AssetDatabase.CreateAsset(terrainMaterial, "Assets/Game/Config/Terrain.mat");
         }
         AssignRockDetail(material, terrainMaterial);
+        AssignSurfaces(material);
         var cube = PrimitivePrefab("Cube", PrimitiveType.Cube, material);
         var skyMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Config/Sky.mat");
         if (skyMaterial == null)
@@ -128,6 +129,39 @@ public static class ProjectSetup
             terrain.SetFloat("_DetailScale", 0.55f);
             EditorUtility.SetDirty(terrain);
         }
+    }
+
+    /// <summary>
+    /// Surface set made by Tools/make_surfaces.py: a 4 x 4 grid of 256 px tiles imported as a 16-layer
+    /// Texture2DArray of linear data (normal xy, albedo, mask). Every prop material copies it from Prototype.mat.
+    /// </summary>
+    private static void AssignSurfaces(Material props)
+    {
+        const string path = "Assets/Game/Textures/Surfaces.png";
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer &&
+            (importer.textureShape != TextureImporterShape.Texture2DArray || importer.sRGBTexture || importer.textureCompression != TextureImporterCompression.Uncompressed))
+        {
+            var settings = new TextureImporterSettings();
+            importer.ReadTextureSettings(settings);
+            settings.textureShape = TextureImporterShape.Texture2DArray;
+            settings.flipbookRows = 4;
+            settings.flipbookColumns = 4;
+            settings.sRGBTexture = false;
+            settings.alphaIsTransparency = false;
+            settings.mipmapEnabled = true;
+            settings.wrapMode = TextureWrapMode.Repeat;
+            settings.filterMode = FilterMode.Trilinear;
+            settings.aniso = 4;
+            importer.SetTextureSettings(settings);
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.maxTextureSize = 1024;
+            importer.SaveAndReimport();
+        }
+        var surfaces = AssetDatabase.LoadAssetAtPath<Texture2DArray>(path);
+        if (surfaces == null) { Debug.LogWarning("Surface set missing: run py -3 Tools/make_surfaces.py"); return; }
+        if (props.GetTexture("_Surfaces") == surfaces) return;
+        props.SetTexture("_Surfaces", surfaces);
+        EditorUtility.SetDirty(props);
     }
 
     private static GameObject PrimitivePrefab(string name, PrimitiveType type, Material material)

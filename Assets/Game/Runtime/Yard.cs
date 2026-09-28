@@ -243,6 +243,29 @@ namespace Nubik
                 s.Box("Window light", new Vector3(x, 1.6f, 17.33f), new Vector3(1.4f, 1.1f, 0.04f), new Color(0.78f, 0.90f, 1f), root, false, 0.6f);
             s.Box("Rug", new Vector3(-3, 0.11f, 20.6f), new Vector3(4.2f, 0.02f, 2.6f), new Color(0.62f, 0.26f, 0.22f), root);
             s.Box("Rug border", new Vector3(-3, 0.105f, 20.6f), new Vector3(4.5f, 0.02f, 2.9f), new Color(0.90f, 0.72f, 0.40f), root);
+            // Skirting boards, beams under the ceiling, window frames seen from inside and a picture over the rug.
+            s.Box("Baseboard wood", new Vector3(-3, 0.17f, 24.64f), new Vector3(14.6f, 0.14f, 0.04f), DarkWood, root);
+            foreach (float x in new[] { -10.24f, 4.24f })
+                s.Box("Baseboard wood", new Vector3(x, 0.17f, 21), new Vector3(0.04f, 0.14f, 7.4f), DarkWood, root);
+            foreach (float x in new[] { -7.1f, 1.1f })
+                s.Box("Baseboard wood", new Vector3(x, 0.17f, 17.34f), new Vector3(6.8f, 0.14f, 0.04f), DarkWood, root);
+            for (int i = 0; i < 4; i++)
+                s.Box("Overhead beam", new Vector3(-8.6f + i * 3.8f, 3.1f, 21), new Vector3(0.22f, 0.2f, 7.4f), DarkWood, root);
+            foreach (float x in new[] { -8f, 2f })
+            {
+                var frame = new Color(0.93f, 0.91f, 0.86f);
+                foreach (float y in new[] { 1.02f, 2.18f })
+                    s.Box("Window frame", new Vector3(x, y, 17.3f), new Vector3(1.6f, 0.1f, 0.08f), frame, root);
+                foreach (float dx in new[] { -0.75f, 0.75f })
+                    s.Box("Window frame", new Vector3(x + dx, 1.6f, 17.3f), new Vector3(0.1f, 1.26f, 0.08f), frame, root);
+                s.Box("Window sill wood", new Vector3(x, 0.99f, 17.4f), new Vector3(1.75f, 0.05f, 0.22f), DarkWood, root);
+            }
+            var picture = new Vector3(-3, 2.05f, 24.62f);
+            s.Box("Picture frame wood", picture, new Vector3(1.5f, 0.95f, 0.05f), DarkWood, root);
+            s.Box("Picture sky", picture + new Vector3(0, 0.12f, -0.03f), new Vector3(1.3f, 0.55f, 0.02f), new Color(0.55f, 0.75f, 0.9f), root);
+            s.Box("Picture field", picture + new Vector3(0, -0.24f, -0.03f), new Vector3(1.3f, 0.3f, 0.02f), new Color(0.38f, 0.6f, 0.3f), root);
+            s.Box("Picture hole", picture + new Vector3(0.25f, -0.24f, -0.04f), new Vector3(0.3f, 0.1f, 0.02f), new Color(0.35f, 0.22f, 0.14f), root);
+            s.Box("Picture sun", picture + new Vector3(-0.4f, 0.25f, -0.04f), new Vector3(0.14f, 0.14f, 0.02f), new Color(1f, 0.85f, 0.35f), root, false, 0.4f);
 
             // Ore buyer: counter, scales, crates of ore and a sign.
             var wood = new Color(0.55f, 0.36f, 0.22f);
@@ -275,10 +298,13 @@ namespace Nubik
                 s.Box("Jetpack nozzle", pack + new Vector3(side * 0.15f, -0.42f, 0), new Vector3(0.14f, 0.14f, 0.14f), new Color(0.30f, 0.30f, 0.34f), root);
             }
             s.Box("Jetpack frame", pack + new Vector3(0, 0.1f, 0.14f), new Vector3(0.5f, 0.5f, 0.06f), new Color(0.30f, 0.30f, 0.34f), root);
+            foreach (float y in new[] { -0.15f, 0.25f })
+                s.Box("Jetpack belt", pack + new Vector3(0, y, -0.1f), new Vector3(0.56f, 0.06f, 0.05f), new Color(0.36f, 0.24f, 0.16f), root);
             WorldSign(root, new Vector3(1.8f, 2.75f, 24.6f), 0, "МАСТЕРСКАЯ", new Color(.43f, .86f, .72f), 3f, .45f);
 
             // Bed, shelves and lamps make it a home to come back to.
             s.Box("Bed", new Vector3(-9.3f, 0.35f, 19.3f), new Vector3(1.5f, 0.5f, 2.3f), wood, root, true);
+            s.Box("Bed headboard wood", new Vector3(-9.3f, 0.75f, 20.47f), new Vector3(1.6f, 1.1f, 0.08f), DarkWood, root);
             s.Box("Blanket", new Vector3(-9.3f, 0.64f, 19.0f), new Vector3(1.45f, 0.1f, 1.7f), new Color(0.25f, 0.45f, 0.42f), root);
             s.Box("Pillow", new Vector3(-9.3f, 0.68f, 20.1f), new Vector3(1.1f, 0.14f, 0.45f), new Color(0.95f, 0.93f, 0.86f), root);
             var jars = new[] { new Color(0.75f, 0.85f, 0.95f), new Color(0.90f, 0.70f, 0.40f), new Color(0.60f, 0.80f, 0.55f) };

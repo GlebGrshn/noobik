@@ -145,6 +145,8 @@ namespace Nubik
             Part("Metal barrel", new Vector3(0, 0, .14f), new Vector3(modelWeapon ? .06f : .02f, modelWeapon ? .06f : .02f, .34f), metal);
             if (modelWeapon)
             {
+                Part("Harpoon grip", new Vector3(.07f, -.075f, -.12f), new Vector3(.03f, .09f, .045f), new Color(.12f, .15f, .15f));
+                Part("Harpoon sight metal", new Vector3(0, .075f, -.03f), new Vector3(.018f, .025f, .05f), metal);
                 Part("Harpoon rail", new Vector3(0, .053f, .07f), new Vector3(.02f, .016f, .46f), new Color(.5f, 1, .9f));
                 foreach (float x in new[] { -.06f, .06f }) Part("Harpoon prong", new Vector3(x, .03f, .23f), new Vector3(.015f, .05f, .16f), metal);
             }
@@ -157,6 +159,11 @@ namespace Nubik
                     Part("Drill spiral", new Vector3(0, 0, z), new Vector3(width, .023f, .025f), new Color(.63f, .7f, .72f), drillRotor, i * 47);
                 }
                 for (int i = 0; i < 4; i++) Part("Motor vent", new Vector3(.073f, .015f, -.14f + i * .032f), new Vector3(.005f, .055f, .014f), metal);
+                // Petrol tank with its cap on top, a chuck holding the bit and the pull-start grip.
+                Part("Fuel tank painted", new Vector3(0, .066f, -.11f), new Vector3(.06f, .026f, .07f), new Color(.6f, .16f, .12f));
+                Part("Tank cap metal", new Vector3(.016f, .082f, -.125f), new Vector3(.016f, .008f, .016f), new Color(.55f, .57f, .58f));
+                Part("Drill chuck metal", new Vector3(0, 0, .045f), new Vector3(.045f, .045f, .035f), new Color(.5f, .53f, .55f));
+                Part("Pull grip", new Vector3(-.075f, .04f, -.1f), new Vector3(.016f, .022f, .05f), new Color(.1f, .1f, .1f));
                 Part("Fuel hose", new Vector3(-.077f, -.016f, -.16f), new Vector3(.018f, .025f, .25f), new Color(.15f, .2f, .19f));
             }
             return true;
