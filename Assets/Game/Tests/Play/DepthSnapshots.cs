@@ -197,6 +197,42 @@ namespace Nubik.PlayTests
             Assert.Less(game.Fuel, game.FuelMax);
         }
 
+        [UnityTest]
+        public IEnumerator AbandonedSitesHaveWalkableFloorsAndPersistentDiscoveries()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>();
+            PlayByTouch(game);
+            game.Progress.jetLevel = 1;
+            game.Engage();
+            for (int i = 0; i < MineSites.All.Length; i++)
+            {
+                var site = MineSites.All[i];
+                game.DebugPlace(site.Origin + new Vector3(0, .3f, .4f), 0, 10);
+                yield return new WaitForSeconds(.5f);
+                Assert.IsTrue(game.Progress.HasSite(i));
+                Assert.AreEqual(i, game.CurrentSite);
+                Assert.AreEqual(site.Depth, game.Depth);
+                Assert.IsTrue(Body(game).isGrounded, "The old walkway must support the player.");
+                Assert.Greater(game.Health, 0);
+                yield return new WaitForSeconds(3.5f);
+                game.DebugPlace(site.Origin + new Vector3(0, .15f, -.8f), 0, 8);
+                yield return Frames(5);
+                Shot("site_" + site.Depth, true);
+                var cache = Field<LootField>(game, "loot").Items.Find(item => item.Special == site.CacheId);
+                Assert.NotNull(cache.View, "The cache should be visible inside the room.");
+                Assert.IsFalse(cache.Taken);
+            }
+            game.SaveNow();
+            Assert.AreEqual(7, ProgressStore.Load(game.config).sites);
+            game.DebugGoto("counter");
+            yield return Frames(5);
+            game.OpenHouse();
+            var hud = game.GetComponent<MineHud>();
+            typeof(MineHud).GetMethod("SelectTab", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(hud, new object[] { 3 });
+            yield return Frames(5);
+            Shot("ui_exploration_journal", true);
+        }
+
         private static void PlayByTouch(MineGame game)
         {
             // The batch editor cannot lock the mouse; touch mode lets the player move.

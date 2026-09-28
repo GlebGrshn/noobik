@@ -372,17 +372,16 @@ namespace Nubik
             coins.color = Time.unscaledTime < pulseUntil ? Amber : Cream;
             depth.text = metres + " м";
             zone.text = config.zones[zoneIndex].nameRu.ToUpperInvariant();
-            bool lastZone = zoneIndex + 1 >= config.zones.Length;
-            int next = lastZone ? config.depth : config.zones[zoneIndex + 1].startDepth;
-            record.text = "Рекорд " + progress.maxDepth + " м  ·  " + (lastZone ? "дверь" : "зона «" + config.zones[zoneIndex + 1].nameRu + "»") + " " + next + " м";
+            record.text = game.ExpeditionGoal;
             depthFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(metres / (float)config.depth), 1);
             for (int i = 0; i < zoneTicks.Count; i++)
                 zoneTicks[i].color = progress.maxDepth >= config.zones[i + 1].startDepth ? Mint : Cream;
             UpdateVitals();
             UpdateBag(progress, config);
             toolName.text = game.Tool.nameRu;
-            toolKeys.text = (game.FreeMouse ? "ЛКМ копать  ·  ПКМ обзор" : "ЛКМ копать") + "  ·  ПРОБЕЛ прыжок" + (game.HasJetpack ? ", держи — джетпак" : "") +
-                (progress.scanner ? "  ·  F скан" : "") + (progress.medkits > 0 ? "  ·  Q аптечка" : "") + "  ·  E дом";
+            toolKeys.text = (game.FreeMouse ? "ЛКМ копать · ПКМ обзор" : "ЛКМ копать") + " · ПРОБЕЛ " +
+                (game.HasJetpack ? "прыжок / полёт" : "прыжок") + (progress.scanner ? " · F скан" : "") +
+                (progress.medkits > 0 ? " · Q аптечка" : "");
 
             bool modal = PanelOpen, waiting = game.NeedsClick;
             UpdateStart(progress, config, waiting);
@@ -460,9 +459,11 @@ namespace Nubik
                 : "Копай глубже. Находи сокровища.";
             startAction.text = game.MenuOpen || returning ? "Продолжить" : "Начать вылазку";
             rescueButton.gameObject.SetActive(game.CanRescue);
-            startHelp.text = game.TouchMode ? "Стик — идти, справа — осмотр\nДержи ПРЫЖОК в воздухе — джетпак\nРуду продают и прокачивают снаряжение дома"
-                : (game.FreeMouse ? "ЛКМ — копать · ПКМ — осмотреться" : "Мышь — обзор · ЛКМ — копать") +
-                  "\nПробел — прыжок, держи в воздухе — джетпак\nРуду продают и прокачивают снаряжение дома (E)";
+            startHelp.text = game.TouchMode ? "Стик — идти, справа — осмотр\n" +
+                (game.HasJetpack ? "Держи ПРЫЖОК в воздухе — джетпак\n" : "Копай ступеньки, чтобы вернуться наверх\n") + "Скупка и мастерская — в доме"
+                : "WASD — идти · " + (game.FreeMouse ? "ПКМ — обзор" : "мышь — обзор") + "\nЛКМ — копать · пробел — прыжок" +
+                  (game.HasJetpack ? " / полёт" : "") + "\nE — скупка и мастерская в доме · Esc — пауза" +
+                  (progress.scanner || progress.medkits > 0 ? "\n" + (progress.scanner ? "F — сканер  " : "") + (progress.medkits > 0 ? "Q — аптечка" : "") : "");
         }
 
         private void UpdateScanMarks()

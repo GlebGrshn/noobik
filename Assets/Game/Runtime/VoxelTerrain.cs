@@ -70,15 +70,16 @@ namespace Nubik
         public Vector3 ToGrid(Vector3 world) => (world - Config.Origin) / Config.voxel;
 
         /// <summary>Trilinear density at a world position, 0..255; outside the grid counts as solid below ground.</summary>
-        public float Sample(Vector3 world)
+        public float Sample(Vector3 world, bool initial = false)
         {
             var g = ToGrid(world);
             if (g.x < 0 || g.z < 0 || g.x > SizeX || g.z > SizeZ || g.y < 0) return world.y <= 0 ? 255 : 0;
             if (g.y > SizeY) return 0;
             int x = Mathf.Min((int)g.x, SizeX - 1), y = Mathf.Min((int)g.y, SizeY - 1), z = Mathf.Min((int)g.z, SizeZ - 1);
             float fx = g.x - x, fy = g.y - y, fz = g.z - z;
-            float c00 = Mathf.Lerp(this[x, y, z], this[x + 1, y, z], fx), c10 = Mathf.Lerp(this[x, y + 1, z], this[x + 1, y + 1, z], fx);
-            float c01 = Mathf.Lerp(this[x, y, z + 1], this[x + 1, y, z + 1], fx), c11 = Mathf.Lerp(this[x, y + 1, z + 1], this[x + 1, y + 1, z + 1], fx);
+            byte At(int px, int py, int pz) => initial ? Initial(px, py, pz) : this[px, py, pz];
+            float c00 = Mathf.Lerp(At(x, y, z), At(x + 1, y, z), fx), c10 = Mathf.Lerp(At(x, y + 1, z), At(x + 1, y + 1, z), fx);
+            float c01 = Mathf.Lerp(At(x, y, z + 1), At(x + 1, y, z + 1), fx), c11 = Mathf.Lerp(At(x, y + 1, z + 1), At(x + 1, y + 1, z + 1), fx);
             return Mathf.Lerp(Mathf.Lerp(c00, c10, fy), Mathf.Lerp(c01, c11, fy), fz);
         }
 
@@ -129,6 +130,28 @@ namespace Nubik
                         MarkChanged(x, y, z);
                     }
             return result;
+        }
+
+        /// <summary>Authored rooms are subtractive edits applied after loading, never changes to the save baseline.
+        /// Taking the minimum makes this operation idempotent, including the soft edge.</summary>
+        public void CarveRoom(Vector3 center, Vector3 halfSize)
+        {
+            var lo = ToGrid(center - halfSize - Vector3.one * Config.voxel);
+            var hi = ToGrid(center + halfSize + Vector3.one * Config.voxel);
+            for (int y = Mathf.Max(0, Mathf.FloorToInt(lo.y)); y <= Mathf.Min(SizeY, Mathf.CeilToInt(hi.y)); y++)
+                for (int z = Mathf.Max(0, Mathf.FloorToInt(lo.z)); z <= Mathf.Min(SizeZ, Mathf.CeilToInt(hi.z)); z++)
+                    for (int x = Mathf.Max(0, Mathf.FloorToInt(lo.x)); x <= Mathf.Min(SizeX, Mathf.CeilToInt(hi.x)); x++)
+                    {
+                        if (Fixed(x, y, z)) continue;
+                        var p = Config.PointPosition(x, y, z) - center;
+                        var q = new Vector3(Mathf.Abs(p.x), Mathf.Abs(p.y), Mathf.Abs(p.z)) - halfSize;
+                        float distance = Vector3.Max(q, Vector3.zero).magnitude + Mathf.Min(0, Mathf.Max(q.x, Mathf.Max(q.y, q.z)));
+                        byte target = (byte)Mathf.RoundToInt(Mathf.Clamp01(distance / Config.voxel + 0.5f) * 255);
+                        int index = Index(x, y, z);
+                        if (target >= density[index]) continue;
+                        density[index] = target;
+                        MarkChanged(x, y, z);
+                    }
         }
 
         private void MarkChanged(int x, int y, int z)

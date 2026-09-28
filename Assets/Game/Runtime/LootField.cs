@@ -53,6 +53,9 @@ namespace Nubik
                 var spot = item.spot + Spread(item.depth, 401 + i, item.spread);
                 Add(new LootItem { Kind = LootKind.Collectible, Collectible = i, Position = new Vector3(spot.x, -item.depth - 0.5f, spot.y), Size = 0.4f, Color = item.color });
             }
+            // Reserved IDs do not shift the original seven special finds or random chunk slots.
+            foreach (var site in MineSites.All)
+                Add(WithOre(new LootItem { Special = site.CacheId, Position = site.Cache, Size = 0.45f }, config.Zone(site.Depth).chestOre));
 
             float edge = config.width / 2f - 0.8f, extent = config.chunk * config.voxel;
             for (int chunk = 0; chunk < config.ChunkCount; chunk++)
@@ -68,7 +71,7 @@ namespace Nubik
                     float size = 0.2f + Next(ref state) * 0.12f;
                     if (position.y > -0.6f || position.y < config.FloorY + 0.8f || Mathf.Abs(position.x) > edge || Mathf.Abs(position.z) > edge) continue;
                     int ore = config.PickOre(config.Zone(-position.y), state);
-                    Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = position, Size = size }, ore));
+                    Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = MineSites.AnchorOre(position, terrain), Size = size }, ore));
                 }
             }
         }

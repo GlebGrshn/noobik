@@ -158,7 +158,7 @@ namespace Nubik
         {
             new ZoneDef
             {
-                nameRu = "Земля", nameEn = "Topsoil", noteRu = "Мягкая земля: копай быстро и собирай первую руду.", noteEn = "Soft dirt: dig fast and grab the first ore.", startDepth = 0,
+                nameRu = "Корни", nameEn = "Rootlands", noteRu = "Мягкая земля и переплетённые корни. На 18 м остался лагерь.", noteEn = "Soft soil and tangled roots. A camp remains at 18 m.", startDepth = 0,
                 rock = new RockDef { nameRu = "Земля", nameEn = "Dirt", hardness = 2, color = new Color(0.55f, 0.34f, 0.20f) },
                 vein = new RockDef { nameRu = "Глина", nameEn = "Clay", hardness = 2, color = new Color(0.72f, 0.45f, 0.28f) },
                 veinShare = 0.2f, volumePerFind = 12, chestDepths = new[] { 12, 24 }, chestOre = 8,
@@ -167,8 +167,8 @@ namespace Nubik
             },
             new ZoneDef
             {
-                nameRu = "Камень", nameEn = "Stone", noteRu = "Порода твёрже — пригодится лопата покрепче. Зато руда дороже.", noteEn = "Harder rock: a stronger shovel helps, and ore pays more.", startDepth = 30,
-                rock = new RockDef { nameRu = "Камень", nameEn = "Stone", hardness = 6, color = new Color(0.46f, 0.47f, 0.50f) },
+                nameRu = "Сланец", nameEn = "Slate", noteRu = "Холодный камень, серебро и старые рельсы. Ищи штольню на 48 м.", noteEn = "Cold stone, silver and old rails. Look for the gallery at 48 m.", startDepth = 30,
+                rock = new RockDef { nameRu = "Камень", nameEn = "Stone", hardness = 6, color = new Color(0.37f, 0.45f, 0.47f) },
                 vein = new RockDef { nameRu = "Прочная жила", nameEn = "Hard vein", hardness = 10, color = new Color(0.34f, 0.40f, 0.55f) },
                 veinShare = 0.16f, volumePerFind = 12, chestDepths = new[] { 38, 56 }, chestOre = 9,
                 ores = new[] { new OreChance { ore = 2, weight = 40 }, new OreChance { ore = 3, weight = 40 }, new OreChance { ore = 4, weight = 20 } },
@@ -176,7 +176,7 @@ namespace Nubik
             },
             new ZoneDef
             {
-                nameRu = "Пещера", nameEn = "Cavern", noteRu = "Плотная порода, самоцветы и пустоты. Где-то внизу ждёт дверь.", noteEn = "Dense rock, gems and hollows. A door waits below.", startDepth = 70,
+                nameRu = "Кристаллы", nameEn = "Crystals", noteRu = "Светящиеся кристаллы и природные пустоты. Грот ждёт на 88 м.", noteEn = "Glowing crystals and natural hollows. A grotto waits at 88 m.", startDepth = 70,
                 rock = new RockDef { nameRu = "Плотная порода", nameEn = "Dense rock", hardness = 24, color = new Color(0.29f, 0.25f, 0.37f) },
                 vein = new RockDef { nameRu = "Кристаллическая жила", nameEn = "Crystal vein", hardness = 32, color = new Color(0.45f, 0.33f, 0.72f) },
                 veinShare = 0.15f, volumePerFind = 11, chestDepths = new[] { 84, 106 }, chestOre = 10,

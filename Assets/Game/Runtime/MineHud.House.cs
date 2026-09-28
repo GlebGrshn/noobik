@@ -7,7 +7,7 @@ namespace Nubik
     /// <summary>The house window: sell ore, upgrade gear, buy items that ride in the backpack, see the collection.</summary>
     public sealed partial class MineHud
     {
-        private static readonly string[] TabNames = { "Скупка", "Улучшения", "Предметы", "Коллекция" };
+        private static readonly string[] TabNames = { "Скупка", "Улучшения", "Предметы", "Дневник" };
         private GameObject house;
         private RectTransform houseCard, houseTitle, houseSub;
         private Text houseWallet, houseFooter;
@@ -24,6 +24,8 @@ namespace Nubik
         private readonly List<ShopRow> upgradeRows = new List<ShopRow>();
         private readonly List<ShopRow> itemRows = new List<ShopRow>();
         private Text itemsNote, albumTitle, albumNote;
+        private Text sitesTitle;
+        private readonly List<Text> siteNotes = new List<Text>();
         private readonly List<Image> albumTiles = new List<Image>();
         private readonly List<UiGlyph> albumIcons = new List<UiGlyph>();
         private readonly List<Text> albumNames = new List<Text>();
@@ -99,6 +101,8 @@ namespace Nubik
                 albumNames.Add(name);
             }
             albumNote = Caption(album, "Предметы коллекции не занимают места в рюкзаке и остаются с тобой навсегда.", 15, Mint, 0, 0, 500, 50);
+            sitesTitle = Caption(album, "ЗАБРОШЕННЫЕ МЕСТА", 15, Muted, 0, 0, 500, 26, true);
+            foreach (var site in MineSites.All) siteNotes.Add(Caption(album, "", 15, Cream, 0, 0, 500, 30));
             house.SetActive(false);
         }
 
@@ -156,6 +160,10 @@ namespace Nubik
                 At(albumNames[i].rectTransform, i * (tile + tileGap) - 8, 52 + tile, tile + 16, 54);
             }
             At(albumNote.rectTransform, 0, 120 + tile, contentWidth, 60);
+            At(sitesTitle.rectTransform, 0, portrait ? 308 : 284, contentWidth, 26);
+            for (int i = 0; i < siteNotes.Count; i++)
+                At(siteNotes[i].rectTransform, portrait ? 0 : i * contentWidth / 3, (portrait ? 348 + i * 52 : 316),
+                    portrait ? contentWidth : contentWidth / 3 - 8, portrait ? 44 : 48);
         }
 
         private void LayoutRows(List<ShopRow> rows, float width, float rowHeight, float gap, bool portraitLayout, bool wideTouch)
@@ -289,6 +297,14 @@ namespace Nubik
         private void UpdateAlbum(GameProgress progress, MineConfig config)
         {
             albumTitle.text = "ТВОЯ КОЛЛЕКЦИЯ  ·  " + progress.CollectionCount + " / " + config.collection.Length;
+            for (int i = 0; i < siteNotes.Count; i++)
+            {
+                var site = MineSites.All[i];
+                bool visited = progress.HasSite(i), taken = progress.HasSpecial(site.CacheId);
+                siteNotes[i].color = visited ? site.Accent : Muted;
+                siteNotes[i].text = site.Depth + " м · " + (visited ? site.Name : "Неизвестный проход") + "\n" +
+                    (taken ? "Тайник собран" : visited ? "Тайник ещё здесь" : "Найди вход в стене шахты");
+            }
             for (int i = 0; i < albumTiles.Count; i++)
             {
                 bool found = progress.HasCollectible(i);

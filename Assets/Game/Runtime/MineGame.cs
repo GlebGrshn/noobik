@@ -62,6 +62,14 @@ namespace Nubik
         private LootField loot;
         private Shapes shapes;
         private Yard yard;
+        private MineSites sites;
+        public int CurrentSite { get; private set; } = -1;
+        public int NextSite
+        {
+            get { for (int i = 0; i < MineSites.All.Length; i++) if (!Progress.HasSite(i)) return i; return -1; }
+        }
+        public string ExpeditionGoal => NextSite >= 0 ? MineSites.All[NextSite].Name + " · " + MineSites.All[NextSite].Depth + " м"
+            : Progress.finished ? "Все места исследованы" : "Загадочная дверь · " + config.depth + " м";
         private MineHud hud;
         private YandexBridge platform;
         private GameAudio sound;
@@ -105,12 +113,14 @@ namespace Nubik
             terrain = new VoxelTerrain(config);
             foreach (var entry in Progress.terrain)
                 if (!terrain.Decode(entry.chunk, entry.data)) Debug.LogWarning("Skipped damaged terrain chunk " + entry.chunk);
+            MineSites.Carve(terrain);
             terrain.ClearDirty();
             mesher = new TerrainMesher(terrain);
             loot = new LootField(terrain);
             loot.MarkTaken(Progress);
             foreach (var item in loot.Items) item.Exposed = !item.Taken && loot.IsExposed(item);
             yard = new Yard(shapes, config);
+            sites = new MineSites(shapes);
             BuildTerrain();
             BuildPlayer();
             hud = gameObject.AddComponent<MineHud>();
@@ -303,6 +313,7 @@ namespace Nubik
             UpdateHealth(Time.deltaTime);
             TrackTrips();
             TrackDepth();
+            TrackSites();
             if (ScanActive) RefreshScan();
             if (Time.unscaledTime >= nextVisibility) UpdateVisibility();
             if (saveDirty && Time.unscaledTime >= nextAutosave) SaveNow();
@@ -382,12 +393,17 @@ namespace Nubik
             if (!Physics.Raycast(view.transform.position, view.transform.forward, out var hit, config.reach + 5, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide)) return;
             if (hit.distance > config.reach)
             {
-                if (terrainColliders.Contains(hit.collider) || itemColliders.ContainsKey(hit.collider)) TargetText = "Подойди ближе";
+                if (itemColliders.ContainsKey(hit.collider)) TargetText = "Находка · подойди ближе";
                 return;
             }
             InReach = true;
             if (itemColliders.TryGetValue(hit.collider, out var item)) { TargetText = ItemLabel(item); return; }
-            if (!terrainColliders.Contains(hit.collider)) { TargetText = hit.point.y < 0.3f && !Yard.InsideHouse(hit.point) ? "Копать можно в рамке участка" : ""; return; }
+            if (!terrainColliders.Contains(hit.collider))
+            {
+                InReach = false;
+                TargetText = Underground ? "Деревянный настил" : hit.point.y < 0.3f && !Yard.InsideHouse(hit.point) ? "Копать можно в рамке участка" : "";
+                return;
+            }
             float edge = config.width / 2f - 0.55f;
             if (hit.point.y < config.FloorY + 0.8f) TargetText = "Коренная порода — глубже не пройти";
             else if (Mathf.Abs(hit.point.x) > edge || Mathf.Abs(hit.point.z) > edge) TargetText = "Край участка";
@@ -513,6 +529,8 @@ namespace Nubik
             root.position = item.Position;
             uint h = config.Hash(Mathf.RoundToInt(item.Position.x * 97), Mathf.RoundToInt(item.Position.y * 97), Mathf.RoundToInt(item.Position.z * 97), 5);
             root.rotation = Quaternion.Euler(h % 40, h % 360, h / 7 % 40);
+            foreach (var site in MineSites.All)
+                if (item.Special == site.CacheId) { root.rotation = Quaternion.identity; break; }
             var collider = root.gameObject.AddComponent<BoxCollider>();
             collider.isTrigger = true;
             collider.size = Vector3.one * item.Size * 2.2f;
@@ -793,6 +811,23 @@ namespace Nubik
             }
         }
 
+        private void TrackSites()
+        {
+            sites.UpdateVisibility(Depth);
+            CurrentSite = -1;
+            for (int i = 0; i < MineSites.All.Length; i++)
+            {
+                var site = MineSites.All[i];
+                if (!site.Contains(body.transform.position)) continue;
+                CurrentSite = i;
+                if (!Active || !Progress.DiscoverSite(i)) break;
+                hud.Announce(UiGlyph.Kind.Helmet, site.Accent, "МЕСТО ОТКРЫТО · " + site.Depth + " м", site.Name, site.Note);
+                sound.Play("zone", 1, 1, 0);
+                SaveNow();
+                break;
+            }
+        }
+
         private void UpdateHint()
         {
             int free = Progress.FreeSlots(config);
@@ -809,8 +844,12 @@ namespace Nubik
                 Hint = "Рюкзак полон — отнеси руду в дом, к скупщику";
             else if (Progress.OrePieces > 0 && !Underground)
                 Hint = "Продай руду в доме: вход за патио, скупщик слева";
-            else if (!HasJetpack && Depth > 6)
-                Hint = "Выбираться придётся по уступам — копай ступеньки. Джетпак — в мастерской";
+            else if (CurrentSite >= 0 && !Progress.HasSpecial(MineSites.All[CurrentSite].CacheId))
+                Hint = "Тайник справа у дальней стены · нужно 2 места в рюкзаке";
+            else if (NextSite >= 0 && Mathf.Abs(Depth - MineSites.All[NextSite].Depth) <= 3)
+                Hint = "Здесь есть старый проход — ищи свет фонарей";
+            else if (!HasJetpack && Depth > 6 && Depth < 10)
+                Hint = "Оставляй ступеньки для возвращения";
             else Hint = "";
         }
 
@@ -933,6 +972,8 @@ namespace Nubik
         public void DebugGoto(string spot)
         {
             if (terrain == null) { pendingGoto = spot; return; }
+            foreach (var site in MineSites.All)
+                if (spot == "site" + site.Depth) { DebugPlace(site.Origin + new Vector3(0, .2f, .4f), 0, 8); return; }
             if (spot == "counter") DebugPlace(Yard.CounterPoint + Vector3.up * 0.15f, 0, 5);
             else if (spot == "workbench") DebugPlace(Yard.WorkbenchPoint + Vector3.up * 0.15f, 0, 5);
             else DebugPlace(Yard.SurfaceSpawn, Yard.SurfaceYaw, 8);
@@ -976,6 +1017,6 @@ namespace Nubik
         private void OnApplicationPause(bool paused) { if (paused && body != null) SaveNow(); }
         private void OnApplicationFocus(bool focused) { if (!focused && body != null) SaveNow(); }
         private void OnApplicationQuit() { if (body != null) SaveNow(); }
-        private void OnDestroy() { yard?.Dispose(); shapes?.Dispose(); }
+        private void OnDestroy() { sites?.Dispose(); yard?.Dispose(); shapes?.Dispose(); }
     }
 }

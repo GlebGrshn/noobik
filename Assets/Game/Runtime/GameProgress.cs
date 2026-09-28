@@ -34,6 +34,8 @@ namespace Nubik
         public int digCredit;
         public int collection;
         public int specials;
+        /// <summary>Visited landmarks; absent in earlier v3 saves, which start with no discoveries.</summary>
+        public int sites;
         public bool finished;
         public bool muted;
         /// <summary>Where the next session starts.</summary>
@@ -66,6 +68,7 @@ namespace Nubik
             foreach (int count in ores) if (count < 0) return false;
             if (digCredit < 0 || digCredit >= 100 || found == null || found.Length > config.ChunkCount || terrain == null) return false;
             if (collection < 0 || collection >= 1 << config.collection.Length || specials < 0) return false;
+            if (sites < 0 || sites >= 1 << MineSites.All.Length) return false;
             if (hasResume && !(IsFinite(resume) && resume.y > config.FloorY - 1)) return false;
             if (hasDive && !(IsFinite(dive) && dive.y > config.FloorY - 1)) return false;
             var chunks = new HashSet<int>();
@@ -79,6 +82,13 @@ namespace Nubik
         public bool IsFound(int chunk, int slot) => chunk >= 0 && chunk < found.Length && (found[chunk] & 1L << slot) != 0;
         public bool HasSpecial(int index) => (specials & 1 << index) != 0;
         public bool HasCollectible(int index) => (collection & 1 << index) != 0;
+        public bool HasSite(int index) => index >= 0 && index < MineSites.All.Length && (sites & 1 << index) != 0;
+        public bool DiscoverSite(int index)
+        {
+            if (index < 0 || index >= MineSites.All.Length || HasSite(index)) return false;
+            sites |= 1 << index;
+            return true;
+        }
         public int CollectionCount { get { int n = 0; for (int bits = collection; bits != 0; bits &= bits - 1) n++; return n; } }
 
         // ---------- Backpack ----------
