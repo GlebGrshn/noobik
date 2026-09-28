@@ -68,6 +68,8 @@
       codeUrl: 'Build/{{{ CODE_FILENAME }}}',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: 'GlebGrshn', productName: 'Nubik Miner', productVersion: '0.1.0',
+      // Saves (PlayerPrefs) live in persistentDataPath; let Unity sync it to IndexedDB on every change.
+      autoSyncPersistentDataPath: true,
       devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5)
     }, value => document.getElementById('progress').value = value).then(instance => {
       window.unityInstance = instance;

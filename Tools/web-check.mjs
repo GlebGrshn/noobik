@@ -120,9 +120,10 @@ try {
   // Drop to the stone zone (localhost test helper), start, and catch the zone announcement.
   step = 'loading at depth';
   await load(1280, 720, false, url + (url.includes('?') ? '&' : '?') + 'depth=35');
+  await shot('desktop_05_welcome_back');
   await click(640, 415);
   await sleep(700);
-  await shot('desktop_05_zone');
+  await shot('desktop_06_zone');
 
   await load(390, 844, true);
   await shot('phone_01_start');

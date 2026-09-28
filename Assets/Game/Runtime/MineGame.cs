@@ -718,6 +718,7 @@ namespace Nubik
             }
             bool completedExpedition = underground || feet.y < -0.8f;
             Teleport(Yard.SurfaceSpawn);
+            hud.FadeIn();
             yaw = Yard.SurfaceYaw; pitch = 8;
             ApplyView();
             FinishSurfaceExit(completedExpedition);
@@ -773,6 +774,7 @@ namespace Nubik
             if (!Progress.hasDive) return;
             CloseShop();
             if (Standable(Progress.dive)) Teleport(Progress.dive);
+            hud.FadeIn();
             yaw = Progress.diveYaw; pitch = 20;
             ApplyView();
         }

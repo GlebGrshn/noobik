@@ -93,6 +93,13 @@ Shader "Nubik/Lit"
                 half grain = frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
                 half strata = sin(input.positionWS.y * 13 + sin(input.positionWS.x * 1.3 + input.positionWS.z * 1.8));
                 albedo *= 1.0 + (grain - 0.5) * _Noise * .45 + strata * _VertexColor * (1-grass) * .035;
+                // Pebbles in dug ground: round light and dark specks, one possible per 20 cm cell.
+                half rock = _VertexColor * (1 - grass);
+                float3 pebbleSpace = input.positionWS * 5.0;
+                float pebble = frac(sin(dot(floor(pebbleSpace), float3(17.1, 31.7, 47.3))) * 43758.5453);
+                float3 pebbleCenter = 0.3 + 0.4 * frac(pebble * float3(13.7, 71.3, 37.9));
+                half spot = 1 - smoothstep(0.15, 0.21, length(frac(pebbleSpace) - pebbleCenter));
+                albedo *= 1 + rock * spot * (step(0.8, pebble) * 0.45 - step(pebble, 0.16) * 0.3);
                 // Lawn: soft patches, fine blades and mowing stripes in world space, so the dig patch
                 // and the surrounding lawn slabs share one pattern without a seam.
                 half lawn = max(grass, _Lawn);

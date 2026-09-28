@@ -36,6 +36,9 @@ namespace Nubik
         private Text shopWallet, bagCaption, record;
         private Image depthFill, crosshair;
         private RawImage vignette;
+        private Image fade;
+        private float fadeStart = -10;
+        private Text startKicker, startSub, startAction;
         private RectTransform announceCard;
         private CanvasGroup announceGroup;
         private UiGlyph announceIcon;
@@ -73,6 +76,10 @@ namespace Nubik
             vignette.texture = MakeVignette();
             vignette.raycastTarget = false;
             Stretch(vignette.rectTransform);
+            // Short fade from dark after teleports; under the cards and windows so they stay crisp.
+            fade = Panel("Fade", root, Color.black, false).GetComponent<Image>();
+            Stretch(fade.rectTransform);
+            fade.enabled = false;
 
             BuildTouch();
             BuildStats();
@@ -223,13 +230,14 @@ namespace Nubik
             startCard = Panel("Start card", overlay.transform, Ink);
             Center(startCard, 0, 0, 480, 438);
             Icon(startCard, UiGlyph.Kind.Shovel, Amber, 210, 24, 60);
-            var kicker = Caption(startCard, "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.", 12, Mint, 20, 94, 440, 24);
-            kicker.alignment = TextAnchor.MiddleCenter;
+            startKicker = Caption(startCard, "", 12, Mint, 20, 94, 440, 24);
+            startKicker.alignment = TextAnchor.MiddleCenter;
             var title = Caption(startCard, "НУБИК ШАХТЁР", 37, Cream, 20, 124, 440, 55, true);
             title.alignment = TextAnchor.MiddleCenter;
-            var sub = Caption(startCard, "Копай глубже. Находи сокровища.", 19, Muted, 24, 185, 432, 34);
-            sub.alignment = TextAnchor.MiddleCenter;
-            var start = Action(startCard, "Начать вылазку", Amber, game.Engage);
+            startSub = Caption(startCard, "", 19, Muted, 24, 185, 432, 34);
+            startSub.alignment = TextAnchor.MiddleCenter;
+            var start = Action(startCard, "", Amber, game.Engage);
+            startAction = start.GetComponentInChildren<Text>();
             At((RectTransform)start.transform, 32, 244, 416, 60);
             startHelp = Caption(startCard, "", 15, Muted, 32, 324, 416, 82);
             startHelp.alignment = TextAnchor.MiddleCenter;
@@ -401,6 +409,12 @@ namespace Nubik
             toolName.text = game.Tool.nameRu;
             toolKeys.text = game.FreeMouse ? "ЛКМ копать  ·  ПКМ обзор  ·  WASD идти  ·  R наверх"
                 : "ЛКМ копать  ·  ПРОБЕЛ прыжок  ·  WASD идти  ·  R наверх";
+            // Returning players see their progress instead of the tagline.
+            bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
+            startKicker.text = returning ? "С ВОЗВРАЩЕНИЕМ" : "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.";
+            startSub.text = returning ? "Рекорд " + progress.maxDepth + " м  ·  коллекция " + progress.CollectionCount + " / " + config.collection.Length
+                : "Копай глубже. Находи сокровища.";
+            startAction.text = returning ? "Продолжить вылазку" : "Начать вылазку";
             startHelp.text = game.FreeMouse ? "ЛКМ — копать · ПКМ — осмотреться\nWASD — идти · R — наверх"
                 : "Мышь — обзор · ЛКМ — копать\nWASD — идти · R — наверх";
 
@@ -422,6 +436,9 @@ namespace Nubik
             hint.text = modal || waiting ? "" : game.Hint;
             UpdateAnnouncement(modal || waiting);
             toastCard.gameObject.SetActive(Time.unscaledTime < toastUntil && !modal && !announceCard.gameObject.activeSelf);
+            float fadeAge = (Time.unscaledTime - fadeStart) / 0.45f;
+            fade.enabled = fadeAge < 1;
+            if (fade.enabled) fade.color = new Color(0.02f, 0.04f, 0.05f, 1 - Mathf.SmoothStep(0, 1, fadeAge));
             vignette.color = new Color(0, 0, 0, modal || waiting ? 0.35f : Mathf.Lerp(0.3f, 0.82f, Mathf.Clamp01(metres / 12f)));
             UpdatePopups();
             if (shop.activeSelf) UpdateShop();
@@ -502,6 +519,7 @@ namespace Nubik
         public bool ConsumeJump() { bool value = jumpQueued; jumpQueued = false; return value; }
         public void Notify(string message) { toast.text = message; toastUntil = Time.unscaledTime + 3.6f; }
         public void HitFeedback() => hitUntil = Time.unscaledTime + 0.13f;
+        public void FadeIn() => fadeStart = Time.unscaledTime;
 
         public void Popup(Vector3 world, string text, Color color)
         {
