@@ -3,7 +3,12 @@ using UnityEngine;
 
 namespace Nubik
 {
-    /// <summary>The chamber beyond the five-seal door. Built once and enabled only while inside.</summary>
+    /// <summary>
+    /// The chamber beyond the five-seal door. Built once and enabled only while inside.
+    /// Cthulhu is rigged from pivots (body, chest, head, arms, wings) and posed every frame from the battle state:
+    /// it sleeps until the harpoon is taken, winds up before each attack, slams when it lands, flinches when hit,
+    /// rages below half health and sinks into the floor when defeated.
+    /// </summary>
     public sealed class BossEncounter
     {
         public static readonly Vector3 Origin = new Vector3(55, -118, 0);
@@ -11,15 +16,35 @@ namespace Nubik
         public static Vector3 WeaponPoint => Origin + new Vector3(0, .8f, -6.7f);
         public BossBattle Battle { get; private set; } = new BossBattle();
         public bool Inside { get; private set; }
-        private readonly Transform root, monster, weapon, ring, wave, beam;
+        /// <summary>Camera shake from slams and roars, 0..1.</summary>
+        public float Shake { get; private set; }
+        /// <summary>The defeated monster has finished sinking.</summary>
+        public bool DeathDone => wonAt >= 0 && age - wonAt > DeathTime;
+
+        private const float DeathTime = 3.4f;
+        private static readonly Color EyeCalm = new Color(1, .7f, .24f), EyeRage = new Color(1, .26f, .12f);
+        private readonly Transform root, monster, weapon, ring, impact, wave, beam;
+        private readonly Transform body, chest, head;
+        private readonly Transform[] arms = new Transform[2], wings = new Transform[2];
+        private readonly Vector3 chestRest, headRest;
         private readonly List<Transform> tendrils = new List<Transform>();
         private readonly List<Vector3> rests = new List<Vector3>();
         private readonly HashSet<Collider> bodyParts = new HashSet<Collider>();
         private readonly HashSet<Collider> headParts = new HashSet<Collider>();
         private readonly List<Mesh> meshes = new List<Mesh>();
         private readonly Renderer[] eyes;
-        private float age, beamTime;
+        private readonly Material eyeMaterial;
         private readonly Shapes shapes;
+        private float age, beamTime;
+
+        // Pose, eased towards the battle state every frame.
+        private float lean, roll, headYaw, headPitch, curl, eyeOpen, glow;
+        private readonly float[] armUp = new float[2];
+        // Moments that drive short, sharp motions.
+        private float slamAt, hurtAt, roarAt, wonAt;
+        private int slamArm;
+        private bool slamCircle, wasEnraged;
+        private BattlePhase lastPhase;
 
         public BossEncounter(Shapes shapes)
         {
@@ -45,34 +70,49 @@ namespace Nubik
             weapon = new GameObject("Ancient harpoon").transform; weapon.SetParent(root, false); weapon.localPosition = new Vector3(0, .9f, -6.7f);
             shapes.Box("Harpoon stock", Vector3.zero, new Vector3(.95f, .17f, .24f), new Color(.34f, .49f, .46f), weapon);
             shapes.Box("Harpoon rail", new Vector3(.15f, .13f, 0), new Vector3(1.25f, .05f, .07f), new Color(.62f, .95f, .9f), weapon, false, .6f);
+
+            // The rig: pivots sit at the joints; parts are built in monster space and then attached, keeping their places.
             monster = new GameObject("Cthulhu").transform; monster.SetParent(root, false);
+            body = Pivot("Cthulhu hips", monster, new Vector3(0, .2f, 7.1f));
+            chest = Pivot("Cthulhu chest", monster, chestRest = new Vector3(0, 3.4f, 7));
+            head = Pivot("Cthulhu neck", chest, headRest = new Vector3(0, 4.3f, 6.4f));
             var skin = new Color(.24f, .53f, .40f);
-            Body(shapes.Ball("Cthulhu torso", new Vector3(0, 2.8f, 7.1f), new Vector3(4.7f, 5.2f, 3.5f), skin, monster, true), false);
-            Body(shapes.Ball("Cthulhu head", new Vector3(0, 5, 6.1f), new Vector3(3.7f, 3.5f, 3.1f), skin * 1.15f, monster, true), true);
+            Body(Attach(shapes.Ball("Cthulhu torso", new Vector3(0, 2.8f, 7.1f), new Vector3(4.7f, 5.2f, 3.5f), skin, monster, true), body), false);
+            Body(Attach(shapes.Ball("Cthulhu head", new Vector3(0, 5, 6.1f), new Vector3(3.7f, 3.5f, 3.1f), skin * 1.15f, monster, true), head), true);
             var eyeList = new List<Renderer>();
             foreach (float x in new[] { -.84f, .84f })
             {
-                eyeList.Add(shapes.Ball("Cthulhu eye", new Vector3(x, 5.18f, 4.73f), new Vector3(.65f, .32f, .28f), new Color(1, .7f, .24f), monster, false, .9f).GetComponent<Renderer>());
-                shapes.Box("Cthulhu brow", new Vector3(x, 5.47f, 4.73f), new Vector3(.95f, .18f, .35f), Quaternion.Euler(0, 0, x > 0 ? 15 : -15), skin * .7f, monster);
+                var eye = Attach(shapes.Ball("Cthulhu eye", new Vector3(x, 5.18f, 4.73f), new Vector3(.65f, .32f, .28f), EyeCalm, monster, false, .9f), head);
+                eyeList.Add(eye.GetComponent<Renderer>());
+                // The slit pupil rides on the eye and closes with it.
+                Attach(shapes.Ball("Cthulhu pupil", new Vector3(x, 5.18f, 4.6f), new Vector3(.13f, .26f, .06f), new Color(.08f, .03f, .02f), monster), eye.transform);
+                Attach(shapes.Box("Cthulhu brow", new Vector3(x, 5.47f, 4.73f), new Vector3(.95f, .18f, .35f), Quaternion.Euler(0, 0, x > 0 ? 15 : -15), skin * .7f, monster), head);
             }
             eyes = eyeList.ToArray();
+            // Its own material: the glow changes every frame and must not touch anything else of that colour.
+            eyeMaterial = new Material(eyes[0].sharedMaterial) { name = "Cthulhu eyes" };
+            foreach (var eye in eyes) eye.sharedMaterial = eyeMaterial;
             for (int side = -1; side <= 1; side += 2)
             {
-                shapes.Ball("Cthulhu arm", new Vector3(side * 2.5f, 2.3f, 6.3f), new Vector3(1.5f, 3.3f, 1.6f), skin, monster);
-                shapes.Ball("Cthulhu claw", new Vector3(side * 2.7f, .7f, 5.7f), new Vector3(1.8f, .9f, 1.9f), skin * .75f, monster);
+                int i = side < 0 ? 0 : 1;
+                arms[i] = Pivot("Cthulhu shoulder", chest, new Vector3(side * 2.3f, 3.7f, 6.5f));
+                Attach(shapes.Ball("Cthulhu arm", new Vector3(side * 2.5f, 2.3f, 6.3f), new Vector3(1.5f, 3.3f, 1.6f), skin, monster), arms[i]);
+                Attach(shapes.Ball("Cthulhu claw", new Vector3(side * 2.7f, .7f, 5.7f), new Vector3(1.8f, .9f, 1.9f), skin * .75f, monster), arms[i]);
                 for (int finger = 0; finger < 3; finger++)
-                    shapes.Box("Cthulhu claw tip", new Vector3(side * (2.2f + finger * .42f), .36f, 4.8f), new Vector3(.18f, .22f, .7f), new Color(.56f, .64f, .48f), monster);
-                Wing(side, skin * .65f);
+                    Attach(shapes.Box("Cthulhu claw tip", new Vector3(side * (2.2f + finger * .42f), .36f, 4.8f), new Vector3(.18f, .22f, .7f), new Color(.56f, .64f, .48f), monster), arms[i]);
+                wings[i] = Pivot("Cthulhu wing root", chest, new Vector3(side * 1.4f, 4, 7.5f));
+                Wing(side, skin * .65f, wings[i]);
             }
             for (int n = 0; n < 7; n++)
                 for (int segment = 0; segment < 7; segment++)
                 {
                     float t = segment / 6f, x = (n - 3) * .4f;
                     var p = new Vector3(x + Mathf.Sin(n * 2 + t * 3) * t * .65f, 4.4f - t * (2.4f + n % 2 * .5f), 4.8f - Mathf.Sin(t * 2) * .95f);
-                    var obj = shapes.Ball("Cthulhu tentacle", p, Vector3.one * Mathf.Lerp(.52f, .17f, t), skin * (1 - n % 2 * .13f), monster);
-                    tendrils.Add(obj.transform); rests.Add(p);
+                    var obj = Attach(shapes.Ball("Cthulhu tentacle", p, Vector3.one * Mathf.Lerp(.52f, .17f, t), skin * (1 - n % 2 * .13f), monster), head);
+                    tendrils.Add(obj.transform); rests.Add(obj.transform.localPosition);
                 }
-            ring = MakeRing("Tentacle warning", new Color(1, .28f, .13f));
+            ring = MakeRing("Tentacle warning", new Color(1, .28f, .13f), 2.6f, 2.3f);
+            impact = MakeRing("Tentacle impact", new Color(.75f, .95f, .9f), 2.7f, 2.5f);
             wave = shapes.Box("Wave warning", Vector3.zero, new Vector3(9.7f, .025f, 24), new Color(.84f, .23f, .15f), root, false, .6f).transform;
             beam = shapes.Box("Harpoon trail", Vector3.zero, new Vector3(.035f, .035f, 1), new Color(.47f, 1, .95f), root, false, .9f).transform;
             foreach (var p in new[] { new Vector3(-5, 5, -3), new Vector3(5, 5, 5) })
@@ -83,12 +123,35 @@ namespace Nubik
             root.gameObject.SetActive(false);
         }
 
-        private void Body(GameObject obj, bool head)
+        private static Transform Pivot(string name, Transform parent, Vector3 monsterSpace)
+        {
+            var pivot = new GameObject(name).transform;
+            pivot.SetParent(parent, false);
+            // Nothing is rotated or scaled while building, so positions simply add up along the chain.
+            pivot.localPosition = monsterSpace - MonsterSpace(parent);
+            return pivot;
+        }
+
+        private static Vector3 MonsterSpace(Transform t)
+        {
+            var sum = Vector3.zero;
+            for (; t != null && t.name != "Cthulhu"; t = t.parent) sum += t.localPosition;
+            return sum;
+        }
+
+        private static GameObject Attach(GameObject part, Transform pivot)
+        {
+            part.transform.SetParent(pivot, true);
+            return part;
+        }
+
+        private void Body(GameObject obj, bool isHead)
         {
             var collider = obj.GetComponent<Collider>(); collider.isTrigger = true;
-            bodyParts.Add(collider); if (head) headParts.Add(collider);
+            bodyParts.Add(collider); if (isHead) headParts.Add(collider);
         }
-        private void Wing(int side, Color color)
+
+        private void Wing(int side, Color color, Transform pivot)
         {
             var mesh = new Mesh { name = "Cthulhu wing" };
             mesh.vertices = new[] { new Vector3(side * 1.4f, 4, 7.5f), new Vector3(side * 6, 6.8f, 9), new Vector3(side * 5.3f, 2.3f, 8.4f), new Vector3(side * 3.8f, 3, 8), new Vector3(side * 2.2f, 1.8f, 7.8f) };
@@ -96,54 +159,199 @@ namespace Nubik
             mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back, Vector3.back };
             var obj = new GameObject("Cthulhu wing", typeof(MeshFilter), typeof(MeshRenderer)); obj.transform.SetParent(monster, false);
             obj.GetComponent<MeshFilter>().sharedMesh = mesh; obj.GetComponent<MeshRenderer>().sharedMaterial = shapes.Mat(color);
+            Attach(obj, pivot);
             var start = new Vector3(side * 1.4f, 4, 7.45f);
             foreach (var end in new[] { new Vector3(side * 6, 6.8f, 8.95f), new Vector3(side * 5.3f, 2.3f, 8.35f) })
-                shapes.Box("Cthulhu wing rib", (start + end) / 2, new Vector3(.14f, .14f, Vector3.Distance(start, end)), Quaternion.LookRotation(end - start), color * 1.6f, monster);
+                Attach(shapes.Box("Cthulhu wing rib", (start + end) / 2, new Vector3(.14f, .14f, Vector3.Distance(start, end)), Quaternion.LookRotation(end - start), color * 1.6f, monster), pivot);
         }
-        private Transform MakeRing(string name, Color color)
+
+        private Transform MakeRing(string name, Color color, float outer, float inner)
         {
             var mesh = new Mesh { name = name }; var vertices = new List<Vector3>(); var triangles = new List<int>();
             for (int i = 0; i <= 48; i++)
             {
                 float a = i * Mathf.PI * 2 / 48; var p = new Vector3(Mathf.Cos(a), .01f, Mathf.Sin(a));
-                vertices.Add(p * 2.6f); vertices.Add(p * 2.3f);
+                vertices.Add(p * outer); vertices.Add(p * inner);
                 if (i == 48) continue; int j = i * 2;
                 triangles.AddRange(new[] { j, j + 1, j + 2, j + 1, j + 3, j + 2 });
             }
             mesh.SetVertices(vertices); mesh.SetTriangles(triangles, 0); mesh.RecalculateNormals(); meshes.Add(mesh);
             var obj = new GameObject(name, typeof(MeshFilter), typeof(MeshRenderer)); obj.transform.SetParent(root, false);
             obj.GetComponent<MeshFilter>().sharedMesh = mesh; obj.GetComponent<MeshRenderer>().sharedMaterial = shapes.Mat(color, .9f);
+            obj.SetActive(false);
             return obj.transform;
         }
+
         public void Enter(bool armed)
         {
             Battle = new BossBattle(); age = 0; Inside = true; root.gameObject.SetActive(true);
-            monster.gameObject.SetActive(true); monster.localScale = Vector3.one;
-            weapon.gameObject.SetActive(!armed); ring.gameObject.SetActive(false); wave.gameObject.SetActive(false); beam.gameObject.SetActive(false);
+            monster.gameObject.SetActive(true); monster.localPosition = Vector3.zero; monster.localRotation = Quaternion.identity;
+            weapon.gameObject.SetActive(!armed); ring.gameObject.SetActive(false); impact.gameObject.SetActive(false);
+            wave.gameObject.SetActive(false); beam.gameObject.SetActive(false);
+            slamAt = hurtAt = roarAt = -10; wonAt = -1; Shake = 0; wasEnraged = false; lastPhase = BattlePhase.Waiting;
+            // Asleep until the harpoon leaves its pedestal; already awake on a retry.
+            lean = armed ? 0 : -12; headPitch = armed ? -12 : -26; headYaw = roll = curl = 0; eyeOpen = armed ? 1 : .1f; glow = armed ? .6f : .12f;
+            armUp[0] = armUp[1] = 0;
             if (armed) Battle.Begin();
+            Pose(0, Spawn);
         }
-        public void Arm() { weapon.gameObject.SetActive(false); Battle.Begin(); }
+
+        public void Arm() { weapon.gameObject.SetActive(false); Battle.Begin(); roarAt = age; Shake = .45f; }
         public void Exit() { Inside = false; root.gameObject.SetActive(false); }
         public bool IsBoss(Collider collider) => bodyParts.Contains(collider);
-        public float Shoot(Collider collider) => IsBoss(collider) ? Battle.Shoot(headParts.Contains(collider)) : 0;
+
+        public float Shoot(Collider collider)
+        {
+            if (!IsBoss(collider)) return 0;
+            float damage = Battle.Shoot(headParts.Contains(collider));
+            if (damage > 0) hurtAt = age;
+            return damage;
+        }
+
         public void Trace(Vector3 from, Vector3 to)
         {
             beam.position = (from + to) / 2; beam.rotation = Quaternion.LookRotation(to - from);
             beam.localScale = new Vector3(.035f, .035f, Vector3.Distance(from, to)); beam.gameObject.SetActive(true); beamTime = .12f;
         }
-        public float Tick(float dt, Vector3 player)
+
+        /// <summary>
+        /// Advances the fight when <paramref name="live"/> (the player is actually playing) and always animates,
+        /// so the monster keeps breathing behind menus and finishes its death behind the result card.
+        /// </summary>
+        public float Tick(float dt, Vector3 player, bool live = true)
         {
             age += dt; beamTime -= dt; if (beamTime <= 0) beam.gameObject.SetActive(false);
-            for (int i = 0; i < tendrils.Count; i++) tendrils[i].localPosition = rests[i] + new Vector3(Mathf.Sin(age * 2.3f + i * .35f) * .13f, Mathf.Cos(age * 1.7f + i) * .045f, 0);
-            float damage = Battle.Tick(dt, player - Origin);
+            float damage = 0;
+            if (live)
+            {
+                var before = Battle.Phase; int pattern = Battle.Pattern;
+                damage = Battle.Tick(dt, player - Origin);
+                if (before == BattlePhase.Warning && Battle.Phase == BattlePhase.Recovery)
+                {
+                    slamAt = age; slamCircle = pattern == 0; slamArm = pattern == 1 ? 0 : 1;
+                    Shake = Mathf.Max(Shake, slamCircle ? .45f : .7f);
+                }
+            }
+            if (Battle.Phase != lastPhase)
+            {
+                if (Battle.Phase == BattlePhase.Won) { wonAt = age; Shake = .8f; }
+                if (Battle.Phase == BattlePhase.Lost) roarAt = age;
+                lastPhase = Battle.Phase;
+            }
+            if (Battle.Enraged && !wasEnraged && Battle.Phase != BattlePhase.Won) { wasEnraged = true; roarAt = age; Shake = Mathf.Max(Shake, .6f); }
+            Shake = Mathf.Max(0, Shake - dt * 1.6f);
+
             bool warning = Battle.Phase == BattlePhase.Warning;
-            ring.gameObject.SetActive(warning && Battle.Pattern == 0); wave.gameObject.SetActive(warning && Battle.Pattern != 0);
+            float warn = Warn;
+            ring.gameObject.SetActive(warning && Battle.Pattern == 0);
             ring.localPosition = new Vector3(Battle.Target.x, .04f, Battle.Target.y);
-            wave.localPosition = new Vector3(Battle.Pattern == 1 ? -5.3f : 5.3f, .02f, 0);
-            foreach (var eye in eyes) eye.sharedMaterial.SetColor("_Emission", new Color(1, .7f, .24f) * (Battle.Phase == BattlePhase.Recovery ? 2 : .4f));
-            if (Battle.Phase == BattlePhase.Won) monster.localScale = Vector3.Lerp(monster.localScale, new Vector3(1, .14f, 1), dt * 2);
+            // The circle closes in from wide to its real size, then trembles right before the hit.
+            ring.localScale = Vector3.one * (Mathf.Lerp(1.35f, 1, Mathf.Clamp01(warn * 3)) + (warn > .75f ? Mathf.Sin(age * 50) * .015f : 0));
+            float sinceSlam = age - slamAt;
+            impact.gameObject.SetActive(slamCircle && sinceSlam < .35f);
+            impact.localPosition = ring.localPosition;
+            impact.localScale = Vector3.one * (1 + sinceSlam * 1.6f);
+            // The wave stays a moment after the slam so the hit reads.
+            wave.gameObject.SetActive(warning && Battle.Pattern != 0 || !slamCircle && sinceSlam < .2f);
+            int wavePattern = warning ? Battle.Pattern : slamArm + 1;
+            wave.localPosition = new Vector3(wavePattern == 1 ? -5.3f : 5.3f, .02f + (warning ? 0 : .01f), 0);
+
+            Pose(dt, player);
             return damage;
         }
-        public void Dispose() { foreach (var mesh in meshes) Object.Destroy(mesh); }
+
+        private float Warn => Battle.Phase == BattlePhase.Warning ? Mathf.Clamp01(1 - Battle.Remaining / Mathf.Max(.01f, Battle.Duration)) : 0;
+
+        private static float Ease(float current, float target, float rate, float dt) => Mathf.Lerp(current, target, 1 - Mathf.Exp(-rate * dt));
+
+        private void Pose(float dt, Vector3 player)
+        {
+            var phase = Battle.Phase;
+            bool asleep = phase == BattlePhase.Waiting;
+            float warn = Warn, rage = Battle.Enraged && phase != BattlePhase.Won ? 1 : 0, tempo = 1 + rage * .6f;
+            // Short motions: strike 0.12 s in, settle over 0.9 s; flinch 0.3 s; roar 1.6 s; death over DeathTime.
+            float since = age - slamAt;
+            float strike = since < 0 ? 0 : since < .12f ? since / .12f : Mathf.Clamp01(1 - (since - .12f) / .9f);
+            float hurt = Mathf.Clamp01(1 - (age - hurtAt) / .3f);
+            float roar = Mathf.Clamp01(1 - (age - roarAt) / 1.6f) * Mathf.Clamp01((age - roarAt) / .25f);
+            float death = wonAt < 0 ? 0 : Mathf.Clamp01((age - wonAt) / DeathTime);
+            float breath = Mathf.Sin(age * (asleep ? .7f : 1.3f * tempo));
+            bool circle = phase == BattlePhase.Warning && Battle.Pattern == 0;
+            int windArm = phase == BattlePhase.Warning && Battle.Pattern != 0 ? Battle.Pattern - 1 : -1;
+            float circleStrike = slamCircle ? strike : 0, waveStrike = slamCircle ? 0 : strike;
+
+            // Head follows the player within the neck's reach; sleeps and dies looking down.
+            var local = monster.InverseTransformPoint(player + Vector3.up * 1.5f) - headRest;
+            float yawTarget = Mathf.Clamp(-Mathf.Atan2(local.x, -local.z) * Mathf.Rad2Deg, -40, 40);
+            float pitchTarget = Mathf.Clamp(Mathf.Atan2(local.y, new Vector2(local.x, local.z).magnitude) * Mathf.Rad2Deg, -32, 12);
+            if (asleep) { yawTarget = 0; pitchTarget = -26; }
+            if (death > 0) { yawTarget = 0; pitchTarget = -34; }
+            headYaw = Ease(headYaw, yawTarget, 3.5f * tempo, dt);
+            headPitch = Ease(headPitch, pitchTarget + (phase == BattlePhase.Recovery ? -6 : 0), 3, dt);
+
+            // Chest: slumps asleep, rears back before the tentacles fall, leans into the slam, rears to roar.
+            float leanTarget = asleep ? -12 : circle ? warn * 12 : 0;
+            float rollTarget = windArm < 0 ? 0 : (windArm == 0 ? 1 : -1) * warn * 7;
+            lean = Ease(lean, leanTarget, 4, dt);
+            roll = Ease(roll, rollTarget, 5, dt);
+            curl = Ease(curl, circle ? warn : 0, 7, dt);
+            for (int i = 0; i < 2; i++) armUp[i] = Ease(armUp[i], windArm == i ? warn : circle ? warn * .3f : 0, 8, dt);
+            float eyeTarget = asleep ? .1f : phase == BattlePhase.Warning ? .6f : phase == BattlePhase.Recovery ? 1.35f : 1;
+            float glowTarget = asleep ? .12f : phase == BattlePhase.Warning ? .7f : phase == BattlePhase.Recovery ? 2.3f : 1;
+            eyeOpen = Ease(eyeOpen, eyeTarget, 6, dt);
+            glow = Ease(glow, glowTarget, 5, dt);
+
+            body.localScale = new Vector3(1 + .018f * breath, 1 + .03f * breath, 1 + .018f * breath);
+            chest.localPosition = chestRest + Vector3.up * (.07f * breath - death * .6f);
+            float sway = asleep ? .3f : 1 + rage * .5f;
+            chest.localRotation = Quaternion.Euler(lean - circleStrike * 18 + roar * 10 + hurt * 3 - death * 22,
+                Mathf.Sin(age * .5f) * 2.5f * sway, roll + Mathf.Sin(age * .8f) * 1.5f * sway + (waveStrike > 0 ? (slamArm == 0 ? -1 : 1) * waveStrike * 6 : 0));
+            head.localRotation = Quaternion.Euler(headPitch + hurt * 12 + roar * 18, headYaw, Mathf.Sin(age * 60) * hurt * 3);
+
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? -1 : 1;
+                // Raised high to wind up, then swept forward and down onto its half of the floor.
+                float swingDown = !slamCircle && slamArm == i ? waveStrike : circleStrike * .4f;
+                float raised = Mathf.Lerp(10 + Mathf.Sin(age * .9f + i) * 3, 150, armUp[i]) + roar * 35 - death * 8;
+                float z = side * Mathf.Lerp(raised, 30, swingDown);
+                float x = Mathf.Lerp(-armUp[i] * 25 - roar * 10, 70, swingDown) + death * 20;
+                arms[i].localRotation = Quaternion.Euler(x, 0, z);
+                // Wings beat slowly, faster in rage, spread wide to roar and fold in death.
+                float flap = Mathf.Sin(age * (1.1f + rage * 1.2f) * Mathf.PI * .5f) * (asleep ? 3 : 10 + rage * 8);
+                float spread = roar * 28 + warn * 10 - death * 30;
+                wings[i].localRotation = Quaternion.Euler(0, side * (6 + flap + spread), side * (flap * .45f + spread * .3f));
+            }
+
+            // Face tentacles: a travelling wave, curled up before they fall, whipped at the ground, limp in death.
+            for (int k = 0; k < tendrils.Count; k++)
+            {
+                int n = k / 7;
+                float t = k % 7 / 6f, spreadX = n - 3;
+                var offset = new Vector3(Mathf.Sin(age * 2.3f * tempo - t * 4 + n * .9f) * .22f * t, Mathf.Cos(age * 1.7f * tempo - t * 3 + n) * .08f * t,
+                    Mathf.Sin(age * 1.4f + n * 1.3f) * .1f * t);
+                offset += new Vector3(spreadX * .18f * t, t * t * 1.7f, -t * .7f) * curl;
+                offset += new Vector3(spreadX * .1f * t, -t * t * 1.1f, -t * 2.2f) * circleStrike;
+                offset += new Vector3(0, -t * t * 1.3f, t * .35f) * Mathf.Max(death, asleep ? .35f : 0);
+                tendrils[k].localPosition = rests[k] + offset;
+            }
+
+            var eyeColor = Color.Lerp(EyeCalm, EyeRage, rage);
+            foreach (var eye in eyes) eye.transform.localScale = new Vector3(.65f, .32f * Mathf.Max(.05f, eyeOpen * (1 - death)), .28f);
+            eyeMaterial.SetColor("_Emission", (eyeColor * glow + Color.white * hurt * 2.5f) * (1 - death));
+
+            // Death: shudders, slumps forward and sinks through the floor.
+            float sink = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(.25f, 1, death));
+            float shudder = death > 0 && death < .6f ? Mathf.Sin(age * 45) * .09f * (1 - death) : 0;
+            monster.localPosition = new Vector3(shudder, -sink * 7.6f, 0);
+            monster.localRotation = Quaternion.Euler(-death * 12, 0, shudder * 20);
+            if (DeathDone && monster.gameObject.activeSelf) monster.gameObject.SetActive(false);
+        }
+
+        public void Dispose()
+        {
+            foreach (var mesh in meshes) Object.Destroy(mesh);
+            if (eyeMaterial != null) Object.Destroy(eyeMaterial);
+        }
     }
 }

@@ -76,17 +76,25 @@ namespace Nubik
             Refuelling = !InBoss && (Yard.InsideHouse(body.transform.position) || Yard.AtFuelPump(body.transform.position)) && Fuel < FuelMax;
             if (Refuelling && Active) { Progress.Refill(config.refillRate * dt, config); saveDirty = true; }
             if (modelDrill != UsingDrill || modelWeapon != (InBoss && Progress.hasWeapon)) BuildTool();
-            if (!InBoss || !Active) return;
-            float damage = boss.Tick(dt, body.transform.position);
+            // Slams and roars shake the view.
+            head.localPosition = Vector3.up * EyeHeight + (InBoss ? (Vector3)Random.insideUnitCircle * boss.Shake * .07f : Vector3.zero);
+            if (!InBoss) return;
+            // The monster animates behind menus too; the fight itself only runs while playing.
+            float damage = boss.Tick(dt, body.transform.position, Active);
             if (damage > 0)
             {
                 hud.Hurt(damage / MaxHealth); sound.Play("hurt", .85f); saveDirty = true;
                 if (Progress.Hurt(damage, config)) LoseBattle();
             }
-            if (Battle.Phase == BattlePhase.Won && !battleResultShown)
+            if (Battle.Phase == BattlePhase.Won && !Progress.finished)
             {
-                battleResultShown = true; Progress.finished = true; SaveNow();
-                sound.Play("door", 1, 1, 0); ReleaseMouse(); hud.ShowBattleResult(true);
+                // The victory is saved at once; the result card waits until the monster has sunk.
+                Progress.finished = true; SaveNow(); sound.Play("door", 1, 1, 0);
+                hud.Announce(UiGlyph.Kind.Key, new Color(.4f, 1, .9f), "ПОСЛЕДНЯЯ ПЕЧАТЬ", "Ктулху повержен", "Древнее чудовище уходит обратно в глубину.");
+            }
+            if (Battle.Phase == BattlePhase.Won && !battleResultShown && boss.DeathDone)
+            {
+                battleResultShown = true; ReleaseMouse(); hud.ShowBattleResult(true);
             }
         }
         private void LoseBattle()

@@ -375,6 +375,75 @@ namespace Nubik.PlayTests
             GameAudio.SetMuted(false);
         }
 
+        [UnityTest]
+        public IEnumerator CthulhuSleepsWindsUpSlamsWatchesAndSinks()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game); game.Engage();
+            var field = Field<LootField>(game, "loot");
+            for (int i = 0; i < 5; i++) Invoke(game, "Collect", field.Items.Find(x => x.Key == i));
+            game.Progress.healthLevel = 4; game.Progress.health = game.MaxHealth;
+            game.DebugPlace(new Vector3(0, game.config.FloorY + .15f, -.8f), 0, 0);
+            yield return Frames(6);
+            game.Interact(); yield return Frames(5);
+            Assert.IsTrue(game.InBoss);
+            var neck = GameObject.Find("Cthulhu neck").transform;
+            var chest = GameObject.Find("Cthulhu chest").transform;
+            var arms = new System.Collections.Generic.List<Transform>();
+            foreach (Transform child in chest) if (child.name == "Cthulhu shoulder") arms.Add(child);
+            Assert.AreEqual(2, arms.Count);
+            game.SetView(0, -13);
+            yield return new WaitForSeconds(1);
+            Assert.Less(Mathf.DeltaAngle(0, neck.localEulerAngles.x), -15, "Asleep, the head hangs.");
+            Shot("cthulhu_asleep", true);
+
+            // Taking the harpoon wakes it; then every attack is wound up and lands with a slam.
+            game.DebugPlace(BossEncounter.WeaponPoint + new Vector3(0, -.7f, -.9f), 0, -13);
+            yield return Frames(3);
+            game.Interact(); yield return Frames(3);
+            Assert.IsTrue(game.Progress.hasWeapon);
+            game.DebugPlace(BossEncounter.Spawn, 0, -13);
+            for (int attack = 0; attack < 3; attack++)
+            {
+                float until = Time.time + 6;
+                while (!(game.Battle.Phase == BattlePhase.Warning && game.Battle.Remaining < .4f) && Time.time < until) yield return null;
+                Assert.AreEqual(BattlePhase.Warning, game.Battle.Phase);
+                int pattern = game.Battle.Pattern;
+                if (pattern != 0)
+                    Assert.Greater(Quaternion.Angle(Quaternion.identity, arms[pattern - 1].localRotation), 60, "The arm on the wave's side is raised.");
+                else Assert.Greater(Mathf.DeltaAngle(0, chest.localEulerAngles.x), 4, "It rears back before the tentacles fall.");
+                Shot("cthulhu_windup_" + pattern, true);
+                until = Time.time + 2;
+                while (game.Battle.Phase != BattlePhase.Recovery && Time.time < until) yield return null;
+                yield return new WaitForSeconds(.1f);
+                Shot("cthulhu_slam_" + pattern, true);
+            }
+
+            // The head follows the player around the arena.
+            game.DebugPlace(BossEncounter.Origin + new Vector3(6, .1f, -4), -60, -10);
+            yield return new WaitForSeconds(1.2f);
+            Assert.Less(Mathf.DeltaAngle(0, neck.localEulerAngles.y), -12, "The head turns towards the player.");
+
+            // Defeat: the victory is saved at once, the monster sinks, and only then the result card opens.
+            game.DebugPlace(BossEncounter.Spawn, 0, -13);
+            for (int shot = 0; shot < 80 && game.Battle.Phase != BattlePhase.Won; shot++)
+            {
+                game.Battle.Shoot(true);
+                if (game.Battle.Phase != BattlePhase.Warning && game.Battle.Phase != BattlePhase.Recovery && game.Battle.Phase != BattlePhase.Won) break;
+            }
+            Assert.AreEqual(BattlePhase.Won, game.Battle.Phase);
+            yield return Frames(3);
+            Assert.IsTrue(ProgressStore.Load(game.config).finished);
+            var hud = game.GetComponent<MineHud>();
+            Assert.IsFalse(hud.PanelOpen, "The result waits for the death animation.");
+            yield return new WaitForSeconds(1.4f);
+            Shot("cthulhu_dying", true);
+            Assert.IsTrue(GameObject.Find("Cthulhu") != null, "Still sinking.");
+            yield return new WaitForSeconds(2.4f);
+            Assert.IsNull(GameObject.Find("Cthulhu"), "Gone under the floor.");
+            Assert.IsTrue(hud.PanelOpen);
+            Shot("cthulhu_gone", true);
+        }
+
         private static void PlayByTouch(MineGame game)
         {
             // The batch editor cannot lock the mouse; touch mode lets the player move.
