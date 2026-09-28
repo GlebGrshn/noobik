@@ -17,62 +17,221 @@ MonoBehaviour:
   width: 12
   voxel: 0.5
   chunk: 12
-  hitInterval: 0.42
   reach: 3.2
   moveSpeed: 4.5
-  jumpSpeed: 5.2
-  firstDiscoveryCoins: 30
+  jumpSpeed: 6
+  gravity: 20
+  safeFallSpeed: 10
+  fallDamage: 7
+  surfaceRegen: 2
+  jetThrust: 32
+  jetMaxRise: 5.5
+  jetRecharge: 0.35
+  scanDuration: 6
+  scanCooldown: 10
+  firstDiscoveryCoins: 50
   tools:
   - nameRu: "\u041E\u0431\u044B\u0447\u043D\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
     nameEn: Basic shovel
     damage: 1
     price: 0
     radius: 1
+    interval: 0.42
     color: {r: 0.62, g: 0.64, b: 0.66, a: 1}
   - nameRu: "\u041C\u0435\u0434\u043D\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
     nameEn: Copper shovel
     damage: 2
     price: 60
     radius: 1.05
+    interval: 0.41
     color: {r: 0.9, g: 0.52, b: 0.25, a: 1}
+  - nameRu: "\u0411\u0440\u043E\u043D\u0437\u043E\u0432\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
+    nameEn: Bronze shovel
+    damage: 3
+    price: 160
+    radius: 1.08
+    interval: 0.39
+    color: {r: 0.8, g: 0.6, b: 0.3, a: 1}
   - nameRu: "\u0421\u0442\u0430\u043B\u044C\u043D\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
     nameEn: Steel shovel
     damage: 4
-    price: 220
-    radius: 1.1
+    price: 350
+    radius: 1.12
+    interval: 0.37
     color: {r: 0.8, g: 0.88, b: 0.94, a: 1}
+  - nameRu: "\u0417\u0430\u043A\u0430\u043B\u0451\u043D\u043D\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
+    nameEn: Tempered shovel
+    damage: 6
+    price: 650
+    radius: 1.16
+    interval: 0.35
+    color: {r: 0.45, g: 0.55, b: 0.75, a: 1}
+  - nameRu: "\u0422\u0438\u0442\u0430\u043D\u043E\u0432\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
+    nameEn: Titanium shovel
+    damage: 8
+    price: 1100
+    radius: 1.2
+    interval: 0.33
+    color: {r: 0.72, g: 0.74, b: 0.8, a: 1}
   - nameRu: "\u041A\u0440\u0438\u0441\u0442\u0430\u043B\u044C\u043D\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
     nameEn: Crystal shovel
-    damage: 7
-    price: 700
-    radius: 1.2
+    damage: 11
+    price: 1800
+    radius: 1.26
+    interval: 0.31
+    color: {r: 0.55, g: 0.95, b: 1, a: 1}
+  - nameRu: "\u0410\u043B\u043C\u0430\u0437\u043D\u0430\u044F \u043B\u043E\u043F\u0430\u0442\u0430"
+    nameEn: Diamond shovel
+    damage: 15
+    price: 3000
+    radius: 1.32
+    interval: 0.29
+    color: {r: 0.75, g: 1, b: 0.98, a: 1}
+  backpack:
+  - price: 0
+    value: 8
+  - price: 80
+    value: 12
+  - price: 220
+    value: 18
+  - price: 450
+    value: 26
+  - price: 800
+    value: 36
+  - price: 1400
+    value: 50
+  jetpack:
+  - price: 0
+    value: 0
+  - price: 250
+    value: 2.5
+  - price: 450
+    value: 4
+  - price: 800
+    value: 6
+  - price: 1300
+    value: 9
+  - price: 2000
+    value: 13
+  health:
+  - price: 0
+    value: 100
+  - price: 150
+    value: 130
+  - price: 350
+    value: 170
+  - price: 700
+    value: 220
+  - price: 1200
+    value: 280
+  scanner:
+    nameRu: "\u0421\u043A\u0430\u043D\u0435\u0440 \u0440\u0443\u0434\u044B"
+    nameEn: Ore scanner
+    price: 180
+    slots: 2
+    power: 14
+  medkit:
+    nameRu: "\u0410\u043F\u0442\u0435\u0447\u043A\u0430"
+    nameEn: Medkit
+    price: 25
+    slots: 1
+    power: 50
+  ores:
+  - nameRu: "\u0423\u0433\u043E\u043B\u044C"
+    nameEn: Coal
+    value: 4
+    slots: 1
+    chest: 0
+    color: {r: 0.2, g: 0.2, b: 0.23, a: 1}
+  - nameRu: "\u041C\u0435\u0434\u044C"
+    nameEn: Copper
+    value: 9
+    slots: 1
+    chest: 0
+    color: {r: 0.9, g: 0.52, b: 0.28, a: 1}
+  - nameRu: "\u0416\u0435\u043B\u0435\u0437\u043E"
+    nameEn: Iron
+    value: 15
+    slots: 1
+    chest: 0
+    color: {r: 0.72, g: 0.58, b: 0.52, a: 1}
+  - nameRu: "\u0421\u0435\u0440\u0435\u0431\u0440\u043E"
+    nameEn: Silver
+    value: 28
+    slots: 1
+    chest: 0
+    color: {r: 0.86, g: 0.92, b: 0.98, a: 1}
+  - nameRu: "\u0417\u043E\u043B\u043E\u0442\u043E"
+    nameEn: Gold
+    value: 55
+    slots: 1
+    chest: 0
+    color: {r: 1, g: 0.78, b: 0.2, a: 1}
+  - nameRu: "\u0410\u043C\u0435\u0442\u0438\u0441\u0442"
+    nameEn: Amethyst
+    value: 90
+    slots: 1
+    chest: 0
+    color: {r: 0.7, g: 0.45, b: 0.95, a: 1}
+  - nameRu: "\u0418\u0437\u0443\u043C\u0440\u0443\u0434"
+    nameEn: Emerald
+    value: 140
+    slots: 1
+    chest: 0
+    color: {r: 0.3, g: 0.92, b: 0.52, a: 1}
+  - nameRu: "\u0410\u043B\u043C\u0430\u0437"
+    nameEn: Diamond
+    value: 240
+    slots: 1
+    chest: 0
+    color: {r: 0.72, g: 0.96, b: 1, a: 1}
+  - nameRu: "\u0421\u0442\u0430\u0440\u044B\u0439 \u0441\u0443\u043D\u0434\u0443\u043A"
+    nameEn: Old chest
+    value: 45
+    slots: 2
+    chest: 1
+    color: {r: 1, g: 0.72, b: 0.2, a: 1}
+  - nameRu: "\u0421\u0443\u043D\u0434\u0443\u043A \u0441 \u0441\u0435\u0440\u0435\u0431\u0440\u043E\u043C"
+    nameEn: Silver chest
+    value: 90
+    slots: 2
+    chest: 1
+    color: {r: 0.86, g: 0.92, b: 0.98, a: 1}
+  - nameRu: "\u041A\u0440\u0438\u0441\u0442\u0430\u043B\u044C\u043D\u044B\u0439 \u043B\u0430\u0440\u0435\u0446"
+    nameEn: Crystal casket
+    value: 180
+    slots: 2
+    chest: 1
     color: {r: 0.55, g: 0.95, b: 1, a: 1}
   zones:
   - nameRu: "\u0417\u0435\u043C\u043B\u044F"
     nameEn: Topsoil
-    noteRu: "\u041C\u044F\u0433\u043A\u0430\u044F \u0437\u0435\u043C\u043B\u044F: \u043A\u043E\u043F\u0430\u0439 \u0431\u044B\u0441\u0442\u0440\u043E \u0438 \u0441\u043E\u0431\u0438\u0440\u0430\u0439 \u043F\u0435\u0440\u0432\u044B\u0435 \u043D\u0430\u0445\u043E\u0434\u043A\u0438."
-    noteEn: 'Soft dirt: dig fast and grab the first finds.'
+    noteRu: "\u041C\u044F\u0433\u043A\u0430\u044F \u0437\u0435\u043C\u043B\u044F: \u043A\u043E\u043F\u0430\u0439 \u0431\u044B\u0441\u0442\u0440\u043E \u0438 \u0441\u043E\u0431\u0438\u0440\u0430\u0439 \u043F\u0435\u0440\u0432\u0443\u044E \u0440\u0443\u0434\u0443."
+    noteEn: 'Soft dirt: dig fast and grab the first ore.'
     startDepth: 0
     rock:
       nameRu: "\u0417\u0435\u043C\u043B\u044F"
       nameEn: Dirt
       hardness: 2
-      value: 25
+      value: 0
       color: {r: 0.55, g: 0.34, b: 0.2, a: 1}
     vein:
       nameRu: "\u0413\u043B\u0438\u043D\u0430"
       nameEn: Clay
       hardness: 2
-      value: 35
+      value: 0
       color: {r: 0.72, g: 0.45, b: 0.28, a: 1}
     veinShare: 0.2
-    volumePerFind: 16
-    findMin: 12
-    findMax: 25
-    chestMin: 35
-    chestMax: 50
+    volumePerFind: 12
+    ores:
+    - ore: 0
+      weight: 45
+    - ore: 1
+      weight: 40
+    - ore: 2
+      weight: 15
+    chestOre: 8
     chestDepths: 0c00000018000000i
-    findColor: {r: 1, g: 0.72, b: 0.2, a: 1}
     fog: {r: 0.2, g: 0.13, b: 0.09, a: 1}
     ambient: {r: 0.62, g: 0.66, b: 0.72, a: 1}
     sun: {r: 1, g: 0.95, b: 0.86, a: 1}
@@ -81,29 +240,32 @@ MonoBehaviour:
     fogEnd: 34
   - nameRu: "\u041A\u0430\u043C\u0435\u043D\u044C"
     nameEn: Stone
-    noteRu: "\u041F\u043E\u0440\u043E\u0434\u0430 \u0442\u0432\u0451\u0440\u0436\u0435 \u2014 \u043F\u0440\u0438\u0433\u043E\u0434\u0438\u0442\u0441\u044F \u043B\u043E\u043F\u0430\u0442\u0430 \u043F\u043E\u043A\u0440\u0435\u043F\u0447\u0435. \u0417\u0430\u0442\u043E \u043D\u0430\u0445\u043E\u0434\u043A\u0438 \u0434\u043E\u0440\u043E\u0436\u0435."
-    noteEn: 'Harder rock: a stronger shovel helps, and finds pay more.'
+    noteRu: "\u041F\u043E\u0440\u043E\u0434\u0430 \u0442\u0432\u0451\u0440\u0436\u0435 \u2014 \u043F\u0440\u0438\u0433\u043E\u0434\u0438\u0442\u0441\u044F \u043B\u043E\u043F\u0430\u0442\u0430 \u043F\u043E\u043A\u0440\u0435\u043F\u0447\u0435. \u0417\u0430\u0442\u043E \u0440\u0443\u0434\u0430 \u0434\u043E\u0440\u043E\u0436\u0435."
+    noteEn: 'Harder rock: a stronger shovel helps, and ore pays more.'
     startDepth: 30
     rock:
       nameRu: "\u041A\u0430\u043C\u0435\u043D\u044C"
       nameEn: Stone
       hardness: 6
-      value: 50
+      value: 0
       color: {r: 0.46, g: 0.47, b: 0.5, a: 1}
     vein:
       nameRu: "\u041F\u0440\u043E\u0447\u043D\u0430\u044F \u0436\u0438\u043B\u0430"
       nameEn: Hard vein
       hardness: 10
-      value: 90
+      value: 0
       color: {r: 0.34, g: 0.4, b: 0.55, a: 1}
     veinShare: 0.16
-    volumePerFind: 16
-    findMin: 20
-    findMax: 40
-    chestMin: 45
-    chestMax: 70
+    volumePerFind: 12
+    ores:
+    - ore: 2
+      weight: 40
+    - ore: 3
+      weight: 40
+    - ore: 4
+      weight: 20
+    chestOre: 9
     chestDepths: 2600000038000000i
-    findColor: {r: 0.86, g: 0.92, b: 0.98, a: 1}
     fog: {r: 0.07, g: 0.08, b: 0.11, a: 1}
     ambient: {r: 0.36, g: 0.39, b: 0.46, a: 1}
     sun: {r: 0.8, g: 0.88, b: 1, a: 1}
@@ -112,29 +274,34 @@ MonoBehaviour:
     fogEnd: 26
   - nameRu: "\u041F\u0435\u0449\u0435\u0440\u0430"
     nameEn: Cavern
-    noteRu: "\u041F\u043B\u043E\u0442\u043D\u0430\u044F \u043F\u043E\u0440\u043E\u0434\u0430, \u043A\u0440\u0438\u0441\u0442\u0430\u043B\u043B\u044B \u0438 \u043F\u0443\u0441\u0442\u043E\u0442\u044B. \u0413\u0434\u0435-\u0442\u043E \u0432\u043D\u0438\u0437\u0443 \u0436\u0434\u0451\u0442 \u0434\u0432\u0435\u0440\u044C."
-    noteEn: Dense rock, crystals and hollows. A door waits below.
+    noteRu: "\u041F\u043B\u043E\u0442\u043D\u0430\u044F \u043F\u043E\u0440\u043E\u0434\u0430, \u0441\u0430\u043C\u043E\u0446\u0432\u0435\u0442\u044B \u0438 \u043F\u0443\u0441\u0442\u043E\u0442\u044B. \u0413\u0434\u0435-\u0442\u043E \u0432\u043D\u0438\u0437\u0443 \u0436\u0434\u0451\u0442 \u0434\u0432\u0435\u0440\u044C."
+    noteEn: Dense rock, gems and hollows. A door waits below.
     startDepth: 70
     rock:
       nameRu: "\u041F\u043B\u043E\u0442\u043D\u0430\u044F \u043F\u043E\u0440\u043E\u0434\u0430"
       nameEn: Dense rock
       hardness: 24
-      value: 90
+      value: 0
       color: {r: 0.29, g: 0.25, b: 0.37, a: 1}
     vein:
       nameRu: "\u041A\u0440\u0438\u0441\u0442\u0430\u043B\u043B\u0438\u0447\u0435\u0441\u043A\u0430\u044F \u0436\u0438\u043B\u0430"
       nameEn: Crystal vein
       hardness: 32
-      value: 160
+      value: 0
       color: {r: 0.45, g: 0.33, b: 0.72, a: 1}
     veinShare: 0.15
-    volumePerFind: 14
-    findMin: 35
-    findMax: 60
-    chestMin: 70
-    chestMax: 100
+    volumePerFind: 11
+    ores:
+    - ore: 4
+      weight: 40
+    - ore: 5
+      weight: 30
+    - ore: 6
+      weight: 20
+    - ore: 7
+      weight: 10
+    chestOre: 10
     chestDepths: 540000006a000000i
-    findColor: {r: 0.55, g: 0.95, b: 1, a: 1}
     fog: {r: 0.05, g: 0.03, b: 0.09, a: 1}
     ambient: {r: 0.3, g: 0.26, b: 0.42, a: 1}
     sun: {r: 0.7, g: 0.6, b: 1, a: 1}

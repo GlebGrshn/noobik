@@ -4,8 +4,8 @@
 //   py -3 -m http.server 8080 --directory Builds/WebGL      (in another terminal)
 //   node Tools/web-check.mjs [url] [outDir]
 //
-// Steps: desktop start screen, start, dig, shop, zone announcement at 35 m; then a portrait phone
-// layout with touch controls.
+// Steps: desktop start screen, start, dig, the house at the ore buyer, zone announcement at 35 m,
+// pause menu; then a portrait phone layout with touch controls.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -74,7 +74,7 @@ async function shot(name) {
 const mouse = (type, x, y, button = 'left') => send('Input.dispatchMouseEvent', { type, x, y, button, buttons: type === 'mouseReleased' ? 0 : button === 'left' ? 1 : 2, clickCount: 1 });
 async function click(x, y) { await mouse('mouseMoved', x, y); await sleep(60); await mouse('mousePressed', x, y); await sleep(120); await mouse('mouseReleased', x, y); }
 async function key(code, text) {
-  const keyCode = text.toUpperCase().charCodeAt(0);
+  const keyCode = text === 'Escape' ? 27 : text.toUpperCase().charCodeAt(0);
   await send('Input.dispatchKeyEvent', { type: 'keyDown', code, key: text, windowsVirtualKeyCode: keyCode });
   await sleep(80);
   await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: text, windowsVirtualKeyCode: keyCode });
@@ -98,9 +98,10 @@ try {
   await sleep(1500);
   await evaluate(`(async () => { for (const db of await indexedDB.databases()) if (db.name?.includes('idbfs')) await new Promise(r => { const q = indexedDB.deleteDatabase(db.name); q.onsuccess = q.onerror = q.onblocked = r; }); })()`);
 
+  const withParam = extra => url + (url.includes('?') ? '&' : '?') + extra;
   await load(1280, 720, false);
   await shot('desktop_01_start');
-  await click(640, 415);
+  await click(640, 391);
   await sleep(800);
   await shot('desktop_02_playing');
   await mouse('mouseMoved', 640, 360);
@@ -109,21 +110,34 @@ try {
   await mouse('mouseReleased', 640, 360);
   await sleep(300);
   await shot('desktop_03_dug');
-  await key('KeyR', 'r');
-  await sleep(1200);
-  await shot('desktop_04_shop');
 
   // Leaving the page must save quietly.
   step = 'leaving the page';
   await send('Page.navigate', { url: 'about:blank' });
   await sleep(1500);
-  // Drop to the stone zone (localhost test helper), start, and catch the zone announcement.
-  step = 'loading at depth';
-  await load(1280, 720, false, url + (url.includes('?') ? '&' : '?') + 'depth=35');
-  await shot('desktop_05_welcome_back');
-  await click(640, 415);
+  // Walk-in house: stand at the ore buyer (localhost test helper) and open it with E.
+  step = 'house';
+  await load(1280, 720, false, withParam('at=counter'));
+  await sleep(2500);
+  await click(640, 391);
   await sleep(700);
-  await shot('desktop_06_zone');
+  await shot('desktop_04_at_counter');
+  await key('KeyE', 'e');
+  await sleep(800);
+  await shot('desktop_05_house');
+  await key('Escape', 'Escape');
+  await sleep(400);
+
+  // Drop to the stone zone, start, catch the zone announcement, then open the pause menu.
+  step = 'loading at depth';
+  await load(1280, 720, false, withParam('depth=35'));
+  await shot('desktop_06_welcome_back');
+  await click(640, 391);
+  await sleep(700);
+  await shot('desktop_07_zone');
+  await key('Escape', 'Escape');
+  await sleep(500);
+  await shot('desktop_08_pause');
 
   await load(390, 844, true);
   await shot('phone_01_start');

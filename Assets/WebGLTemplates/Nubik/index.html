@@ -80,6 +80,9 @@
       // Local testing only: ?depth=40 carves a shaft and drops the player there.
       const testDepth = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('depth');
       if (testDepth) setTimeout(() => instance.SendMessage('NubikGame', 'DebugDig', testDepth), 1500);
+      // ?at=counter | workbench | yard stands the player there (after the world is built).
+      const testSpot = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('at');
+      if (testSpot) setTimeout(() => instance.SendMessage('NubikGame', 'DebugGoto', testSpot), 4000);
     }).catch(error => { document.getElementById('error').textContent = 'Не удалось запустить игру. Обновите страницу. ' + error; });
     loader.onerror = () => { document.getElementById('error').textContent = 'Не удалось загрузить игру. Проверьте соединение и обновите страницу.'; };
     document.body.appendChild(loader);

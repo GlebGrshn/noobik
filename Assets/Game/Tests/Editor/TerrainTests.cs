@@ -19,13 +19,14 @@ namespace Nubik.Tests
             Assert.IsFalse(terrain.IsAir(new Vector3(3, -50, 3)));
         }
 
-        // Hits of the dig core per voxel follow the economy table: dirt 2 with the basic shovel,
-        // stone 3 with copper, 2 with steel, dense rock 6 with steel and 4 with crystal.
+        // Hits of the dig core per voxel: dirt 2 with the basic shovel, stone 3 with copper and 2 with steel,
+        // dense rock 6 with steel, 4 with tempered and 2 with diamond.
         [TestCase(0, 2, 2)]
         [TestCase(1, 6, 3)]
-        [TestCase(2, 6, 2)]
-        [TestCase(2, 24, 6)]
-        [TestCase(3, 24, 4)]
+        [TestCase(3, 6, 2)]
+        [TestCase(3, 24, 6)]
+        [TestCase(4, 24, 4)]
+        [TestCase(7, 24, 2)]
         [TestCase(0, 6, 6)]
         public void CoreHitsMatchTheTable(int tool, int hardness, int expected)
         {

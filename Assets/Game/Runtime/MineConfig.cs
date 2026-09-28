@@ -8,8 +8,26 @@ namespace Nubik
     {
         public string nameRu, nameEn;
         [Tooltip("Hits of a damage-1 tool needed to clear one voxel.")] public int hardness = 2;
-        [Tooltip("Coins per cleared voxel, in hundredths.")] public int value = 25;
+        [Tooltip("Coins per cleared voxel, in hundredths. Zero: money comes from selling ore.")] public int value;
         public Color color = Color.gray;
+    }
+
+    /// <summary>Anything that rides in the backpack and sells in the house: ore pieces and chests.</summary>
+    [Serializable]
+    public sealed class OreDef
+    {
+        public string nameRu, nameEn;
+        public int value = 5;
+        [Tooltip("Backpack slots one piece takes.")] public int slots = 1;
+        public bool chest;
+        public Color color = Color.gray;
+    }
+
+    [Serializable]
+    public sealed class OreChance
+    {
+        public int ore;
+        public int weight = 1;
     }
 
     [Serializable]
@@ -20,11 +38,11 @@ namespace Nubik
         [Tooltip("Depth in meters where the zone begins.")] public int startDepth;
         public RockDef rock = new RockDef(), vein = new RockDef();
         [Range(0, 1)] public float veinShare = 0.18f;
-        [Tooltip("Cubic meters of ground per hidden find.")] public float volumePerFind = 10;
-        public int findMin = 12, findMax = 25;
-        public int chestMin = 35, chestMax = 50;
+        [Tooltip("Cubic meters of ground per hidden ore piece.")] public float volumePerFind = 10;
+        public OreChance[] ores = new OreChance[0];
+        [Tooltip("Ore entry used for the chests of this zone.")] public int chestOre;
         public int[] chestDepths = new int[0];
-        public Color findColor = Color.yellow, fog = Color.black, ambient = Color.gray, sun = Color.white;
+        public Color fog = Color.black, ambient = Color.gray, sun = Color.white;
         public float sunIntensity = 1f, lamp, fogEnd = 40;
     }
 
@@ -34,7 +52,24 @@ namespace Nubik
         public string nameRu, nameEn;
         public int damage = 1, price;
         [Tooltip("Dig sphere radius in meters.")] public float radius = 1f;
+        [Tooltip("Seconds between hits.")] public float interval = 0.42f;
         public Color color = Color.gray;
+    }
+
+    /// <summary>One step of an upgrade track; the meaning of value depends on the track.</summary>
+    [Serializable]
+    public sealed class LevelDef
+    {
+        public int price;
+        public float value;
+    }
+
+    [Serializable]
+    public sealed class ItemDef
+    {
+        public string nameRu, nameEn;
+        public int price, slots = 1;
+        [Tooltip("Scanner: range in meters. Medkit: health restored.")] public float power;
     }
 
     [Serializable]
@@ -55,48 +90,98 @@ namespace Nubik
         [Tooltip("Width and length of the diggable yard patch, meters.")] public int width = 12;
         public float voxel = 0.5f;
         [Tooltip("Voxels per chunk edge.")] public int chunk = 12;
-        public float hitInterval = 0.42f;
         public float reach = 3.2f;
         public float moveSpeed = 4.5f;
-        public float jumpSpeed = 5.2f;
-        public int firstDiscoveryCoins = 30;
+        [Tooltip("About 0.9 m high: enough to climb dug steps.")] public float jumpSpeed = 6f;
+        public float gravity = 20f;
+        [Tooltip("Landing faster than this (m/s) hurts.")] public float safeFallSpeed = 10f;
+        [Tooltip("Health lost per m/s above the safe speed.")] public float fallDamage = 7f;
+        [Tooltip("Health restored per second on the lawn; the house heals fully.")] public float surfaceRegen = 2f;
+        [Tooltip("Upward acceleration of the jetpack, m/s².")] public float jetThrust = 32f;
+        public float jetMaxRise = 5.5f;
+        [Tooltip("Share of the tank refilled per second while standing.")] public float jetRecharge = 0.35f;
+        public float scanDuration = 6f, scanCooldown = 10f;
+        public int firstDiscoveryCoins = 50;
 
         public ToolDef[] tools =
         {
-            new ToolDef { nameRu = "Обычная лопата", nameEn = "Basic shovel", damage = 1, price = 0, radius = 1f, color = new Color(0.62f, 0.64f, 0.66f) },
-            new ToolDef { nameRu = "Медная лопата", nameEn = "Copper shovel", damage = 2, price = 60, radius = 1.05f, color = new Color(0.90f, 0.52f, 0.25f) },
-            new ToolDef { nameRu = "Стальная лопата", nameEn = "Steel shovel", damage = 4, price = 220, radius = 1.1f, color = new Color(0.80f, 0.88f, 0.94f) },
-            new ToolDef { nameRu = "Кристальная лопата", nameEn = "Crystal shovel", damage = 7, price = 700, radius = 1.2f, color = new Color(0.55f, 0.95f, 1f) },
+            new ToolDef { nameRu = "Обычная лопата", nameEn = "Basic shovel", damage = 1, price = 0, radius = 1f, interval = 0.42f, color = new Color(0.62f, 0.64f, 0.66f) },
+            new ToolDef { nameRu = "Медная лопата", nameEn = "Copper shovel", damage = 2, price = 60, radius = 1.05f, interval = 0.41f, color = new Color(0.90f, 0.52f, 0.25f) },
+            new ToolDef { nameRu = "Бронзовая лопата", nameEn = "Bronze shovel", damage = 3, price = 160, radius = 1.08f, interval = 0.39f, color = new Color(0.80f, 0.60f, 0.30f) },
+            new ToolDef { nameRu = "Стальная лопата", nameEn = "Steel shovel", damage = 4, price = 350, radius = 1.12f, interval = 0.37f, color = new Color(0.80f, 0.88f, 0.94f) },
+            new ToolDef { nameRu = "Закалённая лопата", nameEn = "Tempered shovel", damage = 6, price = 650, radius = 1.16f, interval = 0.35f, color = new Color(0.45f, 0.55f, 0.75f) },
+            new ToolDef { nameRu = "Титановая лопата", nameEn = "Titanium shovel", damage = 8, price = 1100, radius = 1.2f, interval = 0.33f, color = new Color(0.72f, 0.74f, 0.80f) },
+            new ToolDef { nameRu = "Кристальная лопата", nameEn = "Crystal shovel", damage = 11, price = 1800, radius = 1.26f, interval = 0.31f, color = new Color(0.55f, 0.95f, 1f) },
+            new ToolDef { nameRu = "Алмазная лопата", nameEn = "Diamond shovel", damage = 15, price = 3000, radius = 1.32f, interval = 0.29f, color = new Color(0.75f, 1f, 0.98f) },
+        };
+
+        [Tooltip("Backpack slots per level.")]
+        public LevelDef[] backpack =
+        {
+            new LevelDef { price = 0, value = 8 }, new LevelDef { price = 80, value = 12 }, new LevelDef { price = 220, value = 18 },
+            new LevelDef { price = 450, value = 26 }, new LevelDef { price = 800, value = 36 }, new LevelDef { price = 1400, value = 50 },
+        };
+
+        [Tooltip("Jetpack fuel in seconds per level; level 0 means no jetpack.")]
+        public LevelDef[] jetpack =
+        {
+            new LevelDef { price = 0, value = 0 }, new LevelDef { price = 250, value = 2.5f }, new LevelDef { price = 450, value = 4f },
+            new LevelDef { price = 800, value = 6f }, new LevelDef { price = 1300, value = 9f }, new LevelDef { price = 2000, value = 13f },
+        };
+
+        [Tooltip("Maximum health per level.")]
+        public LevelDef[] health =
+        {
+            new LevelDef { price = 0, value = 100 }, new LevelDef { price = 150, value = 130 }, new LevelDef { price = 350, value = 170 },
+            new LevelDef { price = 700, value = 220 }, new LevelDef { price = 1200, value = 280 },
+        };
+
+        public ItemDef scanner = new ItemDef { nameRu = "Сканер руды", nameEn = "Ore scanner", price = 180, slots = 2, power = 14 };
+        public ItemDef medkit = new ItemDef { nameRu = "Аптечка", nameEn = "Medkit", price = 25, slots = 1, power = 50 };
+
+        public OreDef[] ores =
+        {
+            new OreDef { nameRu = "Уголь", nameEn = "Coal", value = 4, color = new Color(0.20f, 0.20f, 0.23f) },
+            new OreDef { nameRu = "Медь", nameEn = "Copper", value = 9, color = new Color(0.90f, 0.52f, 0.28f) },
+            new OreDef { nameRu = "Железо", nameEn = "Iron", value = 15, color = new Color(0.72f, 0.58f, 0.52f) },
+            new OreDef { nameRu = "Серебро", nameEn = "Silver", value = 28, color = new Color(0.86f, 0.92f, 0.98f) },
+            new OreDef { nameRu = "Золото", nameEn = "Gold", value = 55, color = new Color(1f, 0.78f, 0.20f) },
+            new OreDef { nameRu = "Аметист", nameEn = "Amethyst", value = 90, color = new Color(0.70f, 0.45f, 0.95f) },
+            new OreDef { nameRu = "Изумруд", nameEn = "Emerald", value = 140, color = new Color(0.30f, 0.92f, 0.52f) },
+            new OreDef { nameRu = "Алмаз", nameEn = "Diamond", value = 240, color = new Color(0.72f, 0.96f, 1f) },
+            new OreDef { nameRu = "Старый сундук", nameEn = "Old chest", value = 45, slots = 2, chest = true, color = new Color(1f, 0.72f, 0.20f) },
+            new OreDef { nameRu = "Сундук с серебром", nameEn = "Silver chest", value = 90, slots = 2, chest = true, color = new Color(0.86f, 0.92f, 0.98f) },
+            new OreDef { nameRu = "Кристальный ларец", nameEn = "Crystal casket", value = 180, slots = 2, chest = true, color = new Color(0.55f, 0.95f, 1f) },
         };
 
         public ZoneDef[] zones =
         {
             new ZoneDef
             {
-                nameRu = "Земля", nameEn = "Topsoil", noteRu = "Мягкая земля: копай быстро и собирай первые находки.", noteEn = "Soft dirt: dig fast and grab the first finds.", startDepth = 0,
-                rock = new RockDef { nameRu = "Земля", nameEn = "Dirt", hardness = 2, value = 25, color = new Color(0.55f, 0.34f, 0.20f) },
-                vein = new RockDef { nameRu = "Глина", nameEn = "Clay", hardness = 2, value = 35, color = new Color(0.72f, 0.45f, 0.28f) },
-                veinShare = 0.2f, volumePerFind = 16, findMin = 12, findMax = 25, chestMin = 35, chestMax = 50, chestDepths = new[] { 12, 24 },
-                findColor = new Color(1f, 0.72f, 0.20f), fog = new Color(0.20f, 0.13f, 0.09f),
-                ambient = new Color(0.62f, 0.66f, 0.72f), sun = new Color(1f, 0.95f, 0.86f), sunIntensity = 0.55f, lamp = 1.4f, fogEnd = 34,
+                nameRu = "Земля", nameEn = "Topsoil", noteRu = "Мягкая земля: копай быстро и собирай первую руду.", noteEn = "Soft dirt: dig fast and grab the first ore.", startDepth = 0,
+                rock = new RockDef { nameRu = "Земля", nameEn = "Dirt", hardness = 2, color = new Color(0.55f, 0.34f, 0.20f) },
+                vein = new RockDef { nameRu = "Глина", nameEn = "Clay", hardness = 2, color = new Color(0.72f, 0.45f, 0.28f) },
+                veinShare = 0.2f, volumePerFind = 12, chestDepths = new[] { 12, 24 }, chestOre = 8,
+                ores = new[] { new OreChance { ore = 0, weight = 45 }, new OreChance { ore = 1, weight = 40 }, new OreChance { ore = 2, weight = 15 } },
+                fog = new Color(0.20f, 0.13f, 0.09f), ambient = new Color(0.62f, 0.66f, 0.72f), sun = new Color(1f, 0.95f, 0.86f), sunIntensity = 0.55f, lamp = 1.4f, fogEnd = 34,
             },
             new ZoneDef
             {
-                nameRu = "Камень", nameEn = "Stone", noteRu = "Порода твёрже — пригодится лопата покрепче. Зато находки дороже.", noteEn = "Harder rock: a stronger shovel helps, and finds pay more.", startDepth = 30,
-                rock = new RockDef { nameRu = "Камень", nameEn = "Stone", hardness = 6, value = 50, color = new Color(0.46f, 0.47f, 0.50f) },
-                vein = new RockDef { nameRu = "Прочная жила", nameEn = "Hard vein", hardness = 10, value = 90, color = new Color(0.34f, 0.40f, 0.55f) },
-                veinShare = 0.16f, volumePerFind = 16, findMin = 20, findMax = 40, chestMin = 45, chestMax = 70, chestDepths = new[] { 38, 56 },
-                findColor = new Color(0.86f, 0.92f, 0.98f), fog = new Color(0.07f, 0.08f, 0.11f),
-                ambient = new Color(0.36f, 0.39f, 0.46f), sun = new Color(0.8f, 0.88f, 1f), sunIntensity = 0.15f, lamp = 2.2f, fogEnd = 26,
+                nameRu = "Камень", nameEn = "Stone", noteRu = "Порода твёрже — пригодится лопата покрепче. Зато руда дороже.", noteEn = "Harder rock: a stronger shovel helps, and ore pays more.", startDepth = 30,
+                rock = new RockDef { nameRu = "Камень", nameEn = "Stone", hardness = 6, color = new Color(0.46f, 0.47f, 0.50f) },
+                vein = new RockDef { nameRu = "Прочная жила", nameEn = "Hard vein", hardness = 10, color = new Color(0.34f, 0.40f, 0.55f) },
+                veinShare = 0.16f, volumePerFind = 12, chestDepths = new[] { 38, 56 }, chestOre = 9,
+                ores = new[] { new OreChance { ore = 2, weight = 40 }, new OreChance { ore = 3, weight = 40 }, new OreChance { ore = 4, weight = 20 } },
+                fog = new Color(0.07f, 0.08f, 0.11f), ambient = new Color(0.36f, 0.39f, 0.46f), sun = new Color(0.8f, 0.88f, 1f), sunIntensity = 0.15f, lamp = 2.2f, fogEnd = 26,
             },
             new ZoneDef
             {
-                nameRu = "Пещера", nameEn = "Cavern", noteRu = "Плотная порода, кристаллы и пустоты. Где-то внизу ждёт дверь.", noteEn = "Dense rock, crystals and hollows. A door waits below.", startDepth = 70,
-                rock = new RockDef { nameRu = "Плотная порода", nameEn = "Dense rock", hardness = 24, value = 90, color = new Color(0.29f, 0.25f, 0.37f) },
-                vein = new RockDef { nameRu = "Кристаллическая жила", nameEn = "Crystal vein", hardness = 32, value = 160, color = new Color(0.45f, 0.33f, 0.72f) },
-                veinShare = 0.15f, volumePerFind = 14, findMin = 35, findMax = 60, chestMin = 70, chestMax = 100, chestDepths = new[] { 84, 106 },
-                findColor = new Color(0.55f, 0.95f, 1f), fog = new Color(0.05f, 0.03f, 0.09f),
-                ambient = new Color(0.30f, 0.26f, 0.42f), sun = new Color(0.7f, 0.6f, 1f), sunIntensity = 0f, lamp = 2.8f, fogEnd = 22,
+                nameRu = "Пещера", nameEn = "Cavern", noteRu = "Плотная порода, самоцветы и пустоты. Где-то внизу ждёт дверь.", noteEn = "Dense rock, gems and hollows. A door waits below.", startDepth = 70,
+                rock = new RockDef { nameRu = "Плотная порода", nameEn = "Dense rock", hardness = 24, color = new Color(0.29f, 0.25f, 0.37f) },
+                vein = new RockDef { nameRu = "Кристаллическая жила", nameEn = "Crystal vein", hardness = 32, color = new Color(0.45f, 0.33f, 0.72f) },
+                veinShare = 0.15f, volumePerFind = 11, chestDepths = new[] { 84, 106 }, chestOre = 10,
+                ores = new[] { new OreChance { ore = 4, weight = 40 }, new OreChance { ore = 5, weight = 30 }, new OreChance { ore = 6, weight = 20 }, new OreChance { ore = 7, weight = 10 } },
+                fog = new Color(0.05f, 0.03f, 0.09f), ambient = new Color(0.30f, 0.26f, 0.42f), sun = new Color(0.7f, 0.6f, 1f), sunIntensity = 0f, lamp = 2.8f, fogEnd = 22,
             },
         };
 
@@ -108,6 +193,21 @@ namespace Nubik
             new CollectibleDef { nameRu = "Фрагмент механизма", nameEn = "Mechanism fragment", depth = 97, color = new Color(0.80f, 0.58f, 0.28f) },
             new CollectibleDef { nameRu = "Загадочный ключ", nameEn = "Mysterious key", depth = 114, color = new Color(1f, 0.84f, 0.30f) },
         };
+
+        /// <summary>Picks an ore of the zone from a hash, by weight.</summary>
+        public int PickOre(ZoneDef zone, uint hash)
+        {
+            int total = 0;
+            foreach (var chance in zone.ores) total += Mathf.Max(0, chance.weight);
+            if (total <= 0) return 0;
+            int roll = (int)(hash % (uint)total);
+            foreach (var chance in zone.ores)
+            {
+                roll -= Mathf.Max(0, chance.weight);
+                if (roll < 0) return chance.ore;
+            }
+            return zone.ores[zone.ores.Length - 1].ore;
+        }
 
         // Voxel grid: x/z across the yard patch, y from the bedrock floor up to a few meters of air.
         public int SizeX => Mathf.RoundToInt(width / voxel);

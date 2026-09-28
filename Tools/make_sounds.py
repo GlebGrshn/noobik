@@ -58,9 +58,11 @@ def fade(samples, seconds=0.01):
     return samples
 
 
-def write(name, samples, peak=0.85):
+def write(name, samples, peak=0.85, loop=False):
     top = max(abs(v) for v in samples) or 1.0
-    frames = b''.join(struct.pack('<h', int(max(-1, min(1, v / top * peak)) * 32767)) for v in fade(samples))
+    if not loop:
+        fade(samples)
+    frames = b''.join(struct.pack('<h', int(max(-1, min(1, v / top * peak)) * 32767)) for v in samples)
     with wave.open(os.path.join(OUT, name + '.wav'), 'wb') as file:
         file.setnchannels(1)
         file.setsampwidth(2)
@@ -110,6 +112,22 @@ def main():
     for freq in (110, 164.8, 220):
         add(swell, tone(freq, 1.7, 0.7, ((1, 1.0), (2, 0.2)), attack=0.45), gain=0.5)
     write('zone', swell)
+
+    # Jetpack hiss: steady filtered noise whose ends cross-fade so it loops without a click.
+    hiss = noise(1.2, 1e9, 1800, rng, attack=0.0001)
+    add(hiss, noise(1.2, 1e9, 260, rng, attack=0.0001), gain=1.4)
+    blend = int(RATE * 0.2)
+    for i in range(blend):
+        t = i / blend
+        hiss[i] = hiss[i] * t + hiss[len(hiss) - blend + i] * (1 - t)
+    write('jet', hiss[:len(hiss) - blend], peak=0.6, loop=True)
+
+    hurt = add(noise(0.3, 0.07, 500, rng), tone(80, 0.3, 0.1, sweep=-0.5), gain=1.2)
+    write('hurt', hurt)
+
+    faint = tone(330, 1.2, 0.5, ((1, 1.0), (1.5, 0.3)), attack=0.02, sweep=-0.55)
+    add(faint, noise(1.2, 0.5, 200, rng, attack=0.05), gain=0.5)
+    write('faint', faint)
 
     rumble = noise(2.4, 0.9, 140, rng, attack=0.3)
     add(rumble, tone(55, 2.4, 0.9, attack=0.3), gain=0.8)

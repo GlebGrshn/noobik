@@ -10,7 +10,9 @@ namespace Nubik
         public LootKind Kind;
         /// <summary>Finds: save slot inside their chunk. Specials and collectibles use their own indices.</summary>
         public int Chunk = -1, Slot = -1, Special = -1, Collectible = -1;
-        public int Value;
+        /// <summary>Ore entry for finds and chests; -1 for collectibles.</summary>
+        public int Ore = -1;
+        public int Value, Slots;
         public Vector3 Position;
         public float Size;
         public Color Color;
@@ -35,14 +37,14 @@ namespace Nubik
             for (int i = 0; i < byChunk.Length; i++) byChunk[i] = new List<LootItem>();
 
             // Special index order is part of the save format: first find, then chests zone by zone.
-            var firstZone = config.zones[0];
-            Add(new LootItem { Kind = LootKind.Find, Special = 0, Value = (firstZone.findMin + firstZone.findMax) / 2, Position = FirstFindPosition, Size = 0.3f, Color = firstZone.findColor });
+            var firstOres = config.zones[0].ores;
+            Add(WithOre(new LootItem { Special = 0, Position = FirstFindPosition, Size = 0.3f }, firstOres.Length > 1 ? firstOres[1].ore : 0));
             int special = 1;
             foreach (var zone in config.zones)
                 foreach (int depth in zone.chestDepths)
                 {
                     var spot = Spread(depth, 307, 2.5f);
-                    Add(new LootItem { Kind = LootKind.Chest, Special = special, Value = Range(zone.chestMin, zone.chestMax, config.Hash(depth, special, 0, 311)), Position = new Vector3(spot.x, -depth - 0.5f, spot.y), Size = 0.45f, Color = zone.findColor });
+                    Add(WithOre(new LootItem { Special = special, Position = new Vector3(spot.x, -depth - 0.5f, spot.y), Size = 0.45f }, zone.chestOre));
                     special++;
                 }
             for (int i = 0; i < config.collection.Length; i++)
@@ -65,13 +67,25 @@ namespace Nubik
                     var position = min + new Vector3(Next(ref state), Next(ref state), Next(ref state)) * extent;
                     float size = 0.2f + Next(ref state) * 0.12f;
                     if (position.y > -0.6f || position.y < config.FloorY + 0.8f || Mathf.Abs(position.x) > edge || Mathf.Abs(position.z) > edge) continue;
-                    var local = config.Zone(-position.y);
-                    Add(new LootItem { Kind = LootKind.Find, Chunk = chunk, Slot = slot, Value = Range(local.findMin, local.findMax, state), Position = position, Size = size, Color = local.findColor });
+                    int ore = config.PickOre(config.Zone(-position.y), state);
+                    Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = position, Size = size }, ore));
                 }
             }
         }
 
         public static readonly Vector3 FirstFindPosition = new Vector3(0, -0.05f, -2.5f);
+
+        private LootItem WithOre(LootItem item, int ore)
+        {
+            ore = Mathf.Clamp(ore, 0, config.ores.Length - 1);
+            var def = config.ores[ore];
+            item.Ore = ore;
+            item.Kind = def.chest ? LootKind.Chest : LootKind.Find;
+            item.Value = def.value;
+            item.Slots = Mathf.Max(1, def.slots);
+            item.Color = def.color;
+            return item;
+        }
 
         private void Add(LootItem item)
         {
@@ -113,8 +127,6 @@ namespace Nubik
 
         private Vector2 Spread(int depth, int salt, float spread) =>
             new Vector2(config.Hash(depth, salt, 1, 509) % 1000 / 1000f - 0.5f, config.Hash(depth, salt, 2, 509) % 1000 / 1000f - 0.5f) * 2 * spread;
-
-        private static int Range(int min, int max, uint hash) => max <= min ? min : min + (int)(hash % (uint)(max - min + 1));
 
         private static float Next(ref uint state)
         {

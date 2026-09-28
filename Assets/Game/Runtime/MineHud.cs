@@ -6,12 +6,13 @@ using UnityEngine.UI;
 namespace Nubik
 {
     /// <summary>Responsive expedition HUD. Layout uses safe-area coordinates and a separate portrait composition.</summary>
-    public sealed class MineHud : MonoBehaviour
+    public sealed partial class MineHud : MonoBehaviour
     {
         public TouchStick Stick { get; private set; }
         public TouchLook Look { get; private set; }
         public HoldButton Dig { get; private set; }
-        public bool PanelOpen => shop.activeSelf || confirmation.activeSelf || ending.activeSelf;
+        public HoldButton Jump { get; private set; }
+        public bool PanelOpen => house.activeSelf || ending.activeSelf;
 
         private static readonly Color Ink = new Color(0.065f, 0.105f, 0.12f, 0.98f);
         private static readonly Color Card = new Color(0.08f, 0.135f, 0.15f, 0.92f);
@@ -20,6 +21,8 @@ namespace Nubik
         private static readonly Color Muted = new Color(0.69f, 0.78f, 0.77f);
         private static readonly Color Amber = new Color(1, 0.76f, 0.31f);
         private static readonly Color Mint = new Color(0.43f, 0.86f, 0.72f);
+        private static readonly Color Red = new Color(1f, 0.40f, 0.34f);
+        private static readonly Color Blue = new Color(0.40f, 0.72f, 1f);
         private static readonly Color Scrim = new Color(0.025f, 0.055f, 0.065f, 0.72f);
 
         private MineGame game;
@@ -27,18 +30,16 @@ namespace Nubik
         private Sprite rounded, circle;
         private readonly List<Texture2D> textures = new List<Texture2D>();
         private CanvasScaler scaler;
-        private RectTransform root, coinCard, depthCard, bagCard, actions, toolCard, targetCard, toastCard, depthTrack;
-        private RectTransform shopCard, shopLeft, shopRight, startCard, touchControls, pad, digRect, jumpRect;
-        private GameObject overlay, shop, confirmation, ending;
-        private Button shopButton, returnButton, upgrade, descend, soundButton;
-        private Text coins, depth, zone, backpack, target, hint, toast, toolName, toolKeys;
-        private Text shopInfo, upgradeText, upgradeInfo, albumTitle, soundText, endingText, startHelp;
-        private Text shopWallet, bagCaption, record;
-        private Image depthFill, crosshair;
+        private RectTransform root, coinCard, depthCard, bagCard, vitalsCard, actions, toolCard, targetCard, toastCard, depthTrack;
+        private RectTransform startCard, touchControls, pad, digRect, jumpRect, scanRect, medkitRect, fuelRow;
+        private GameObject overlay, ending;
+        private Button startButton, stationButton, menuButton, scanButton, medkitButton, rescueButton;
+        private Text coins, depth, zone, backpack, bagCaption, record, target, hint, toast, toolName, toolKeys;
+        private Text endingText, startHelp, startKicker, startSub, startAction, stationText, medkitText, scanText, healthText, fuelText;
+        private Image depthFill, crosshair, bagFill, healthFill, fuelFill;
         private RawImage vignette;
         private Image fade;
-        private float fadeStart = -10;
-        private Text startKicker, startSub, startAction;
+        private float fadeStart = -10, fadeLength = 0.45f, hurtAt = -10, hurtStrength, bagFullAt = -10;
         private RectTransform announceCard;
         private CanvasGroup announceGroup;
         private UiGlyph announceIcon;
@@ -46,15 +47,14 @@ namespace Nubik
         private float announceStart = -10;
         private const float AnnounceTime = 3.4f;
         private readonly List<Image> zoneTicks = new List<Image>();
-        private readonly List<Image> albumTiles = new List<Image>();
-        private readonly List<UiGlyph> albumIcons = new List<UiGlyph>();
-        private readonly List<Text> albumNames = new List<Text>();
         private readonly List<FloatingText> popups = new List<FloatingText>();
+        private readonly List<ScanMark> scanMarks = new List<ScanMark>();
         private bool jumpQueued, portrait, lastTouch;
         private int lastWidth, lastHeight, lastCoins = -1;
         private float toastUntil, hitUntil, pulseUntil, shownCoins;
 
         private sealed class FloatingText { public Text label; public Vector3 world; public float age = 1; }
+        private sealed class ScanMark { public RectTransform rect; public UiGlyph icon; public Text label; }
 
         public void Setup(MineGame owner)
         {
@@ -71,31 +71,31 @@ namespace Nubik
             Stretch(root);
             new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
 
-            // The vignette sits under everything else and deepens underground.
+            // The vignette sits under everything else, deepens underground and flashes red on a hard landing.
             vignette = Rect("Vignette", root).gameObject.AddComponent<RawImage>();
             vignette.texture = MakeVignette();
             vignette.raycastTarget = false;
             Stretch(vignette.rectTransform);
-            // Short fade from dark after teleports; under the cards and windows so they stay crisp.
+            // Short fade from dark after waking at home; under the cards and windows so they stay crisp.
             fade = Panel("Fade", root, Color.black, false).GetComponent<Image>();
             Stretch(fade.rectTransform);
             fade.enabled = false;
 
+            BuildScanMarks();
             BuildTouch();
             BuildStats();
             BuildStart();
-            BuildShop();
-            BuildDialogs();
+            BuildHouse();
+            BuildEnding();
             BuildAnnouncement();
-            // Toasts sit above modals: automatic sale feedback stays readable when the shop opens.
+            // Toasts sit above modals: sale feedback stays readable in the house.
             toastCard = Panel("Notification", root, Ink);
             Icon(toastCard, UiGlyph.Kind.Coin, Amber, 14, 16, 28);
             toast = Caption(toastCard, "", 18, Cream, 52, 9, 422, 48);
             // Only buttons, touch areas and modal backdrops catch the pointer.
             foreach (var image in root.GetComponentsInChildren<Image>(true))
                 image.raycastTarget = image.GetComponent<Button>() != null || image.GetComponent<TouchStick>() != null ||
-                    image.GetComponent<TouchLook>() != null || image.gameObject == overlay || image.gameObject == shop ||
-                    image.gameObject == confirmation || image.gameObject == ending;
+                    image.GetComponent<TouchLook>() != null || image.gameObject == overlay || image.gameObject == house || image.gameObject == ending;
             Layout();
         }
 
@@ -120,8 +120,16 @@ namespace Nubik
             var dig = Action(touchControls, "КОПАТЬ", Amber, null);
             digRect = (RectTransform)dig.transform;
             Dig = dig.gameObject.AddComponent<HoldButton>();
-            var jump = Action(touchControls, "ПРЫЖОК", Inset, () => jumpQueued = true, Cream);
+            // Tap to jump; keep holding in the air to fire the jetpack.
+            var jump = Action(touchControls, "ПРЫЖОК", Inset, null, Cream);
             jumpRect = (RectTransform)jump.transform;
+            Jump = jump.gameObject.AddComponent<HoldButton>();
+            scanButton = Action(touchControls, "СКАН", Inset, game.Scan, Cream);
+            scanRect = (RectTransform)scanButton.transform;
+            scanText = scanButton.GetComponentInChildren<Text>();
+            medkitButton = Action(touchControls, "", Inset, game.UseMedkit, Cream);
+            medkitRect = (RectTransform)medkitButton.transform;
+            medkitText = medkitButton.GetComponentInChildren<Text>();
         }
 
         private void BuildStats()
@@ -130,6 +138,16 @@ namespace Nubik
             Icon(coinCard, UiGlyph.Kind.Coin, Amber, 18, 22, 38);
             Caption(coinCard, "МОНЕТЫ", 15, Muted, 70, 10, 150, 22);
             coins = Caption(coinCard, "", 28, Cream, 70, 31, 150, 38, true);
+
+            vitalsCard = Panel("Vitals", root, Card);
+            Icon(vitalsCard, UiGlyph.Kind.Heart, Red, 12, 8, 20);
+            healthFill = Bar(vitalsCard, 42, 14, 138, Red);
+            healthText = Caption(vitalsCard, "", 14, Cream, 188, 3, 40, 26, true);
+            fuelRow = Rect("Fuel", vitalsCard);
+            At(fuelRow, 0, 30, 232, 30);
+            Icon(fuelRow, UiGlyph.Kind.Jet, Blue, 12, 5, 20);
+            fuelFill = Bar(fuelRow, 42, 11, 138, Blue);
+            fuelText = Caption(fuelRow, "", 14, Cream, 188, 1, 40, 26, true);
 
             depthCard = Panel("Depth", root, Card);
             Icon(depthCard, UiGlyph.Kind.Down, Mint, 15, 17, 32);
@@ -152,24 +170,27 @@ namespace Nubik
             record = Caption(depthCard, "", 12, Muted, 18, 62, 284, 20);
 
             bagCard = Panel("Backpack", root, Card);
-            Icon(bagCard, UiGlyph.Kind.Bag, Mint, 18, 22, 36);
-            bagCaption = Caption(bagCard, "РЮКЗАК", 15, Muted, 70, 10, 158, 22);
-            backpack = Caption(bagCard, "", 25, Cream, 70, 33, 156, 35, true);
+            Icon(bagCard, UiGlyph.Kind.Bag, Mint, 18, 18, 36);
+            bagCaption = Caption(bagCard, "", 14, Muted, 70, 8, 162, 22);
+            backpack = Caption(bagCard, "", 24, Cream, 70, 28, 162, 34, true);
+            bagFill = Bar(bagCard, 70, 66, 150, Mint);
 
             actions = Rect("Actions", root);
-            returnButton = Action(actions, "Наверх", Amber, game.RequestReturn);
-            shopButton = Action(actions, "Лавка", Inset, game.OpenShop, Cream);
+            stationButton = Action(actions, "", Amber, game.OpenHouse);
+            stationText = stationButton.GetComponentInChildren<Text>();
+            menuButton = Action(actions, "", Inset, game.OpenMenu, Cream);
+            Center(Icon(menuButton.transform, UiGlyph.Kind.Menu, Cream, 0, 0, 30).rectTransform, 0, 0, 30, 30);
 
             toolCard = Panel("Tool card", root, Card);
             Icon(toolCard, UiGlyph.Kind.Shovel, Amber, 12, 14, 36);
-            toolName = Caption(toolCard, "", 18, Cream, 58, 7, 290, 26, true);
-            toolKeys = Caption(toolCard, "", 12, Muted, 58, 34, 290, 19);
+            toolName = Caption(toolCard, "", 18, Cream, 58, 7, 430, 26, true);
+            toolKeys = Caption(toolCard, "", 12, Muted, 58, 34, 430, 19);
             toolKeys.resizeTextForBestFit = true;
             toolKeys.resizeTextMinSize = 9;
             toolKeys.resizeTextMaxSize = 12;
 
             targetCard = Panel("Target", root, Card);
-            target = Caption(targetCard, "", 17, Cream, 12, 4, 360, 34);
+            target = Caption(targetCard, "", 17, Cream, 12, 4, 400, 34);
             target.alignment = TextAnchor.MiddleCenter;
             crosshair = Panel("Crosshair", root, Cream, false).GetComponent<Image>();
             crosshair.sprite = circle;
@@ -181,7 +202,56 @@ namespace Nubik
             hint.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(1, -1);
         }
 
-        /// <summary>Large card for milestones: a new zone or a collection item.</summary>
+        private void BuildScanMarks()
+        {
+            for (int i = 0; i < 14; i++)
+            {
+                var rect = Rect("Scan mark", root);
+                var icon = rect.gameObject.AddComponent<UiGlyph>();
+                icon.raycastTarget = false;
+                var label = Caption(rect, "", 13, Cream, -47, 28, 120, 20, true);
+                label.alignment = TextAnchor.MiddleCenter;
+                label.gameObject.AddComponent<Shadow>().effectDistance = new Vector2(1, -1);
+                rect.gameObject.SetActive(false);
+                scanMarks.Add(new ScanMark { rect = rect, icon = icon, label = label });
+            }
+        }
+
+        private void BuildStart()
+        {
+            overlay = Backdrop("Start overlay");
+            startCard = Panel("Start card", overlay.transform, Ink);
+            Center(startCard, 0, 0, 480, 470);
+            Icon(startCard, UiGlyph.Kind.Shovel, Amber, 210, 24, 60);
+            startKicker = Caption(startCard, "", 12, Mint, 20, 94, 440, 24);
+            startKicker.alignment = TextAnchor.MiddleCenter;
+            var title = Caption(startCard, "НУБИК ШАХТЁР", 37, Cream, 20, 124, 440, 55, true);
+            title.alignment = TextAnchor.MiddleCenter;
+            startSub = Caption(startCard, "", 19, Muted, 24, 185, 432, 34);
+            startSub.alignment = TextAnchor.MiddleCenter;
+            startButton = Action(startCard, "", Amber, game.Engage);
+            At((RectTransform)startButton.transform, 32, 236, 416, 60);
+            startAction = startButton.GetComponentInChildren<Text>();
+            rescueButton = Action(startCard, "Вызвать спасателей · руда останется в шахте", Inset, game.CallRescue, Cream);
+            At((RectTransform)rescueButton.transform, 32, 306, 416, 48);
+            startHelp = Caption(startCard, "", 14, Muted, 32, 364, 416, 92);
+            startHelp.alignment = TextAnchor.MiddleCenter;
+        }
+
+        private void BuildEnding()
+        {
+            ending = Backdrop("Ending");
+            var endCard = Panel("Ending card", ending.transform, Ink);
+            Center(endCard, 0, 0, 480, 460);
+            Icon(endCard, UiGlyph.Kind.Key, Mint, 212, 24, 56);
+            Caption(endCard, "ЗАПЕЧАТАННАЯ ДВЕРЬ", 27, Cream, 24, 94, 432, 44, true).alignment = TextAnchor.MiddleCenter;
+            endingText = Caption(endCard, "", 18, Muted, 28, 151, 424, 203);
+            var stay = Action(endCard, "Осмотреться", Amber, () => { ending.SetActive(false); game.Engage(); });
+            At((RectTransform)stay.transform, 28, 372, 424, 60);
+            ending.SetActive(false);
+        }
+
+        /// <summary>Large card for milestones: a new zone, a collection item, waking up at home.</summary>
         private void BuildAnnouncement()
         {
             announceCard = Panel("Announcement", root, Ink);
@@ -224,89 +294,6 @@ namespace Nubik
             announceCard.localScale = Vector3.one * Mathf.Lerp(0.88f, 1, 1 - (1 - appear) * (1 - appear));
         }
 
-        private void BuildStart()
-        {
-            overlay = Backdrop("Start overlay");
-            startCard = Panel("Start card", overlay.transform, Ink);
-            Center(startCard, 0, 0, 480, 438);
-            Icon(startCard, UiGlyph.Kind.Shovel, Amber, 210, 24, 60);
-            startKicker = Caption(startCard, "", 12, Mint, 20, 94, 440, 24);
-            startKicker.alignment = TextAnchor.MiddleCenter;
-            var title = Caption(startCard, "НУБИК ШАХТЁР", 37, Cream, 20, 124, 440, 55, true);
-            title.alignment = TextAnchor.MiddleCenter;
-            startSub = Caption(startCard, "", 19, Muted, 24, 185, 432, 34);
-            startSub.alignment = TextAnchor.MiddleCenter;
-            var start = Action(startCard, "", Amber, game.Engage);
-            startAction = start.GetComponentInChildren<Text>();
-            At((RectTransform)start.transform, 32, 244, 416, 60);
-            startHelp = Caption(startCard, "", 15, Muted, 32, 324, 416, 82);
-            startHelp.alignment = TextAnchor.MiddleCenter;
-        }
-
-        private void BuildShop()
-        {
-            shop = Backdrop("Shop");
-            shopCard = Panel("Shop card", shop.transform, Ink);
-            Caption(shopCard, "ЛАВКА ШАХТЁРА", 30, Cream, 28, 20, 430, 42, true);
-            Caption(shopCard, "Отдохни перед следующей вылазкой", 16, Muted, 28, 65, 470, 28);
-            shopLeft = Panel("Equipment", shopCard, Card);
-            shopRight = Panel("Collection", shopCard, Card);
-            Caption(shopLeft, "ТВОЙ ИНСТРУМЕНТ", 13, Muted, 20, 14, 268, 24);
-            Icon(shopLeft, UiGlyph.Kind.Shovel, Amber, 20, 53, 48);
-            shopInfo = Caption(shopLeft, "", 20, Cream, 80, 47, 215, 65, true);
-            Caption(shopLeft, "УЛУЧШЕНИЕ", 13, Mint, 20, 130, 260, 24);
-            upgradeInfo = Caption(shopLeft, "", 16, Muted, 20, 158, 278, 55);
-            upgrade = Action(shopLeft, "", Amber, game.Upgrade);
-            upgradeText = upgrade.GetComponentInChildren<Text>();
-            albumTitle = Caption(shopRight, "", 20, Cream, 20, 14, 422, 30, true);
-            Caption(shopRight, "Истории, спрятанные под землёй", 15, Muted, 20, 50, 422, 26);
-            for (int i = 0; i < game.config.collection.Length; i++)
-            {
-                var tile = Panel("Collection item " + i, shopRight, Inset);
-                At(tile, 20 + i * 86, 94, 76, 86);
-                albumTiles.Add(tile.GetComponent<Image>());
-                albumIcons.Add(Icon(tile, (UiGlyph.Kind)((int)UiGlyph.Kind.Helmet + i), Muted, 16, 19, 44));
-                var name = Caption(shopRight, "", 12, Muted, 16 + i * 86, 188, 84, 54);
-                name.alignment = TextAnchor.UpperCenter;
-                albumNames.Add(name);
-            }
-            var note = Caption(shopRight, "Находки продаются при выходе из шахты.\nКоллекция остаётся с тобой.", 16, Mint, 20, 258, 422, 54);
-            note.alignment = TextAnchor.MiddleLeft;
-            shopWallet = Caption(shopCard, "", 18, Amber, 28, 452, 800, 28, true);
-            descend = Action(shopCard, "Вернуться к месту копания", Mint, game.Descend);
-            var close = Action(shopCard, "Во двор", Inset, game.CloseShop, Cream);
-            close.name = "Close shop";
-            soundButton = Action(shopCard, "", Inset, game.ToggleSound, Cream);
-            soundText = soundButton.GetComponentInChildren<Text>();
-            shop.SetActive(false);
-        }
-
-        private void BuildDialogs()
-        {
-            confirmation = Backdrop("Confirm return");
-            var card = Panel("Return card", confirmation.transform, Ink);
-            Center(card, 0, 0, 480, 268);
-            Caption(card, "Вернуться на поверхность?", 25, Cream, 28, 24, 424, 45, true);
-            Caption(card, "Находки продадутся автоматически.\nТы сможешь спуститься обратно.", 18, Muted, 28, 82, 424, 68);
-            var yes = Action(card, "Наверх", Amber, () => { confirmation.SetActive(false); game.ReturnToSurface(); });
-            At((RectTransform)yes.transform, 28, 180, 202, 60);
-            var no = Action(card, "Остаться", Inset, () => { confirmation.SetActive(false); game.Engage(); }, Cream);
-            At((RectTransform)no.transform, 250, 180, 202, 60);
-            confirmation.SetActive(false);
-
-            ending = Backdrop("Ending");
-            var endCard = Panel("Ending card", ending.transform, Ink);
-            Center(endCard, 0, 0, 480, 460);
-            Icon(endCard, UiGlyph.Kind.Key, Mint, 212, 24, 56);
-            Caption(endCard, "ЗАПЕЧАТАННАЯ ДВЕРЬ", 27, Cream, 24, 94, 432, 44, true).alignment = TextAnchor.MiddleCenter;
-            endingText = Caption(endCard, "", 18, Muted, 28, 151, 424, 203);
-            var stay = Action(endCard, "Осмотреться", Inset, () => { ending.SetActive(false); game.Engage(); }, Cream);
-            At((RectTransform)stay.transform, 28, 372, 202, 60);
-            var up = Action(endCard, "Наверх", Amber, () => { ending.SetActive(false); game.ReturnToSurface(); });
-            At((RectTransform)up.transform, 250, 372, 202, 60);
-            ending.SetActive(false);
-        }
-
         private void Layout()
         {
             lastWidth = Screen.width;
@@ -331,48 +318,35 @@ namespace Nubik
             }
             At(depthTrack, 18, 52, portrait ? 476 : 284, 6);
             At(record.rectTransform, 18, 62, portrait ? 476 : 284, 20);
+            At(vitalsCard, edge, portrait ? 206 : 118, 232, 62);
 
-            float actionHeight = touch ? (portrait ? 76 : 88) : 56;
-            Right(actions, edge, portrait ? 212 : 124, portrait ? 246 : 240, actionHeight);
-            At((RectTransform)returnButton.transform, 0, 0, portrait ? 118 : 112, actionHeight);
-            At((RectTransform)shopButton.transform, portrait ? 128 : 124, 0, portrait ? 118 : 116, actionHeight);
+            float actionHeight = touch ? (portrait ? 64 : 72) : 56;
+            Right(actions, edge, portrait ? 206 : 118, 246, actionHeight);
+            At((RectTransform)stationButton.transform, 0, 0, touch ? 170 : 246, actionHeight);
+            At((RectTransform)menuButton.transform, 180, 0, 66, actionHeight);
 
-            BottomLeft(toolCard, 24, 24, 360, 60);
+            BottomLeft(toolCard, 24, 24, 500, 60);
             BottomCenter(hint.rectTransform, touch ? 206 : 96, portrait ? 492 : 700, 48);
-            Center(targetCard, 0, -54, 384, 42);
+            Center(targetCard, 0, -54, 424, 42);
             Center(crosshair.rectTransform, 0, 0, 7, 7);
             CenterTop(toastCard, portrait ? 300 : 194, portrait ? 504 : 500, 68);
             CenterTop(announceCard, portrait ? 300 : 170, 470, 118);
             BottomLeft(pad, 24, 28, 150, 150);
             BottomRight(digRect, 24, 28, 156, 132);
-            if (portrait) BottomRight(jumpRect, 24, 174, 156, 64);
-            else BottomRight(jumpRect, 196, 28, 124, 88);
-
-            Center(shopCard, 0, 0, portrait ? 512 : 860, portrait ? 858 : wideTouch ? 640 : 580);
-            At(shopLeft, portrait ? 20 : 24, 110, portrait ? 472 : 318, portrait ? 285 : 318);
-            At(shopRight, portrait ? 20 : 366, portrait ? 410 : 110, portrait ? 472 : 470, 318);
-            // Equipment panel becomes wide in portrait, keeping the primary action at full width.
-            At((RectTransform)upgrade.transform, 20, portrait ? 210 : 224, portrait ? 432 : 278, wideTouch ? 88 : 60);
-            At(upgradeInfo.rectTransform, 20, 158, portrait ? 432 : 278, 45);
-            At(shopWallet.rectTransform, 28, portrait ? 738 : 447, portrait ? 456 : 804, 32);
-            float footer = portrait ? 786 : wideTouch ? 516 : 500, buttonHeight = wideTouch ? 88 : 64;
-            At((RectTransform)descend.transform, 28, footer, portrait ? 220 : 358, buttonHeight);
-            At((RectTransform)shopCard.Find("Close shop"), portrait ? 260 : 400, footer, portrait ? 104 : 204, buttonHeight);
-            At((RectTransform)soundButton.transform, portrait ? 376 : 618, footer, portrait ? 108 : 214, buttonHeight);
-            soundText.fontSize = portrait ? 15 : 18;
-
-            At((RectTransform)startCard.GetComponentInChildren<Button>().transform, 32, 244, 416, wideTouch ? 88 : 60);
-            At(startHelp.rectTransform, 32, wideTouch ? 344 : 324, 416, 82);
-            foreach (var dialog in new[] { confirmation, ending })
+            if (portrait)
             {
-                var card = (RectTransform)dialog.transform.GetChild(0);
-                card.sizeDelta = new Vector2(480, dialog == confirmation ? (wideTouch ? 296 : 268) : (wideTouch ? 488 : 460));
-                foreach (var button in card.GetComponentsInChildren<Button>(true))
-                {
-                    var rect = (RectTransform)button.transform;
-                    rect.sizeDelta = new Vector2(rect.sizeDelta.x, wideTouch ? 88 : 60);
-                }
+                BottomRight(jumpRect, 24, 174, 156, 64);
+                BottomRight(scanRect, 190, 110, 104, 56);
+                BottomRight(medkitRect, 190, 174, 104, 56);
             }
+            else
+            {
+                BottomRight(jumpRect, 196, 28, 124, 88);
+                BottomRight(scanRect, 24, 174, 110, 58);
+                BottomRight(medkitRect, 144, 174, 124, 58);
+            }
+            At((RectTransform)startButton.transform, 32, 236, 416, wideTouch ? 64 : 60);
+            LayoutHouse(portrait, wideTouch);
         }
 
         private void Update()
@@ -404,28 +378,27 @@ namespace Nubik
             depthFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(metres / (float)config.depth), 1);
             for (int i = 0; i < zoneTicks.Count; i++)
                 zoneTicks[i].color = progress.maxDepth >= config.zones[i + 1].startDepth ? Mint : Cream;
-            backpack.text = progress.backpack + " " + MineGame.Plural(progress.backpack, "монета", "монеты", "монет");
-            bagCaption.text = progress.backpack > 0 ? "ПРОДАДИМ НАВЕРХУ" : "РЮКЗАК";
+            UpdateVitals();
+            UpdateBag(progress, config);
             toolName.text = game.Tool.nameRu;
-            toolKeys.text = game.FreeMouse ? "ЛКМ копать  ·  ПКМ обзор  ·  WASD идти  ·  R наверх"
-                : "ЛКМ копать  ·  ПРОБЕЛ прыжок  ·  WASD идти  ·  R наверх";
-            // Returning players see their progress instead of the tagline.
-            bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
-            startKicker.text = returning ? "С ВОЗВРАЩЕНИЕМ" : "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.";
-            startSub.text = returning ? "Рекорд " + progress.maxDepth + " м  ·  коллекция " + progress.CollectionCount + " / " + config.collection.Length
-                : "Копай глубже. Находи сокровища.";
-            startAction.text = returning ? "Продолжить вылазку" : "Начать вылазку";
-            startHelp.text = game.FreeMouse ? "ЛКМ — копать · ПКМ — осмотреться\nWASD — идти · R — наверх"
-                : "Мышь — обзор · ЛКМ — копать\nWASD — идти · R — наверх";
+            toolKeys.text = (game.FreeMouse ? "ЛКМ копать  ·  ПКМ обзор" : "ЛКМ копать") + "  ·  ПРОБЕЛ прыжок" + (game.HasJetpack ? ", держи — джетпак" : "") +
+                (progress.scanner ? "  ·  F скан" : "") + (progress.medkits > 0 ? "  ·  Q аптечка" : "") + "  ·  E дом";
 
             bool modal = PanelOpen, waiting = game.NeedsClick;
-            overlay.SetActive(waiting);
+            UpdateStart(progress, config, waiting);
             coinCard.gameObject.SetActive(!modal);
             depthCard.gameObject.SetActive(!modal);
             bagCard.gameObject.SetActive(!modal);
+            vitalsCard.gameObject.SetActive(!modal);
             actions.gameObject.SetActive(!modal && !waiting);
-            shopButton.gameObject.SetActive(game.NearShop);
-            touchControls.gameObject.SetActive(game.TouchMode && !modal);
+            stationButton.gameObject.SetActive(game.Station != Station.None);
+            stationText.text = (game.Station == Station.Counter ? "Скупка" : "Мастерская") + (game.TouchMode ? "" : "  ·  E");
+            menuButton.gameObject.SetActive(game.TouchMode);
+            touchControls.gameObject.SetActive(game.TouchMode && !modal && !waiting);
+            scanButton.gameObject.SetActive(progress.scanner);
+            scanText.text = game.ScanWait > 0 ? "СКАН " + Mathf.CeilToInt(game.ScanWait) : "СКАН";
+            medkitButton.gameObject.SetActive(progress.medkits > 0);
+            medkitText.text = "АПТЕЧКА ×" + progress.medkits;
             toolCard.gameObject.SetActive(!game.TouchMode && !modal && !waiting);
             targetCard.gameObject.SetActive(game.Active && !string.IsNullOrEmpty(game.TargetText));
             target.text = game.TargetText;
@@ -436,72 +409,90 @@ namespace Nubik
             hint.text = modal || waiting ? "" : game.Hint;
             UpdateAnnouncement(modal || waiting);
             toastCard.gameObject.SetActive(Time.unscaledTime < toastUntil && !modal && !announceCard.gameObject.activeSelf);
-            float fadeAge = (Time.unscaledTime - fadeStart) / 0.45f;
+            float fadeAge = (Time.unscaledTime - fadeStart) / fadeLength;
             fade.enabled = fadeAge < 1;
             if (fade.enabled) fade.color = new Color(0.02f, 0.04f, 0.05f, 1 - Mathf.SmoothStep(0, 1, fadeAge));
-            vignette.color = new Color(0, 0, 0, modal || waiting ? 0.35f : Mathf.Lerp(0.3f, 0.82f, Mathf.Clamp01(metres / 12f)));
+            // Red edge after a hard landing, fading over a second.
+            float hurt = Mathf.Clamp01(1 - (Time.unscaledTime - hurtAt)) * hurtStrength;
+            float dark = modal || waiting ? 0.35f : Mathf.Lerp(0.3f, 0.82f, Mathf.Clamp01(metres / 12f));
+            vignette.color = Color.Lerp(new Color(0, 0, 0, dark), new Color(0.75f, 0.05f, 0.03f, 0.9f), hurt);
             UpdatePopups();
-            if (shop.activeSelf) UpdateShop();
+            UpdateScanMarks();
+            if (house.activeSelf) UpdateHouse();
         }
 
-        private void UpdateShop()
+        private void UpdateVitals()
         {
-            var progress = game.Progress;
-            var config = game.config;
-            int next = progress.tool + 1;
-            shopInfo.text = game.Tool.nameRu + "\n<size=15>Сила копания: " + game.Tool.damage + "</size>";
-            albumTitle.text = "ТВОЯ КОЛЛЕКЦИЯ  ·  " + progress.CollectionCount + " / " + config.collection.Length;
-            for (int i = 0; i < albumTiles.Count; i++)
-            {
-                bool found = progress.HasCollectible(i);
-                albumIcons[i].kind = found ? (UiGlyph.Kind)((int)UiGlyph.Kind.Helmet + i) : UiGlyph.Kind.Lock;
-                albumIcons[i].color = found ? config.collection[i].color : Muted;
-                albumTiles[i].color = found ? new Color(0.17f, 0.28f, 0.27f) : Inset;
-                // A rough depth turns a locked slot into a goal.
-                albumNames[i].text = found ? config.collection[i].nameRu : "где-то\nна " + RoundDepth(config.collection[i].depth) + " м";
-            }
-            if (next < config.tools.Length)
-            {
-                var tool = config.tools[next];
-                int missing = Mathf.Max(0, tool.price - progress.coins);
-                upgradeInfo.text = tool.nameRu + " · сила " + tool.damage + "\n" + (missing > 0 ? "Ещё " + missing + " монет до покупки" : "Можно купить прямо сейчас");
-                upgradeText.text = "Улучшить  ·  " + tool.price + " монет";
-                upgrade.interactable = missing == 0;
-            }
-            else
-            {
-                upgradeInfo.text = "В руках лучшая лопата.";
-                upgradeText.text = "Максимальный уровень";
-                upgrade.interactable = false;
-            }
-            shopWallet.text = Time.unscaledTime < toastUntil ? toast.text : "В кошельке: " + progress.coins + " монет";
-            descend.interactable = progress.hasDive;
-            soundText.text = progress.muted ? "Звук: выкл" : "Звук: вкл";
+            float health = game.Health, max = game.MaxHealth;
+            healthFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(health / max), 1);
+            healthFill.color = health < max * 0.3f ? Color.Lerp(Red, Cream, Mathf.PingPong(Time.unscaledTime * 3, 1) * 0.5f) : Red;
+            healthText.text = Mathf.CeilToInt(health).ToString();
+            bool jet = game.HasJetpack;
+            fuelRow.gameObject.SetActive(jet);
+            vitalsCard.sizeDelta = new Vector2(232, jet ? 62 : 36);
+            if (!jet) return;
+            fuelFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(game.Fuel / Mathf.Max(0.01f, game.FuelMax)), 1);
+            fuelFill.color = game.Thrusting ? Cream : Blue;
+            fuelText.text = game.Fuel.ToString("0.0");
         }
 
-        private static int RoundDepth(int metres) => metres < 10 ? metres : Mathf.RoundToInt(metres / 5f) * 5;
-
-        public void ShowShop(bool show)
+        private void UpdateBag(GameProgress progress, MineConfig config)
         {
-            shop.SetActive(show);
-            if (!show) return;
-            ending.SetActive(false);
-            confirmation.SetActive(false);
-            ClearInput();
+            int used = progress.UsedSlots(config), capacity = progress.Capacity(config);
+            bool full = used >= capacity;
+            bool flash = Time.unscaledTime - bagFullAt < 0.8f;
+            bagCaption.text = full ? "РЮКЗАК ПОЛОН" : "РЮКЗАК  ·  " + used + " / " + capacity;
+            bagCaption.color = full || flash ? Red : Muted;
+            int value = progress.BagValue(config);
+            backpack.text = value + " " + MineGame.Plural(value, "монета", "монеты", "монет");
+            bagFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(used / (float)Mathf.Max(1, capacity)), 1);
+            bagFill.color = full || flash ? Red : Mint;
+        }
+
+        private void UpdateStart(GameProgress progress, MineConfig config, bool waiting)
+        {
+            overlay.SetActive(waiting);
+            if (!waiting) return;
+            // Returning players see their progress instead of the tagline; the same card is the pause menu.
+            bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
+            startKicker.text = game.MenuOpen ? "ПАУЗА" : returning ? "С ВОЗВРАЩЕНИЕМ" : "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.";
+            startSub.text = returning ? "Рекорд " + progress.maxDepth + " м  ·  коллекция " + progress.CollectionCount + " / " + config.collection.Length
+                : "Копай глубже. Находи сокровища.";
+            startAction.text = game.MenuOpen || returning ? "Продолжить" : "Начать вылазку";
+            rescueButton.gameObject.SetActive(game.CanRescue);
+            startHelp.text = game.TouchMode ? "Стик — идти, справа — осмотр\nДержи ПРЫЖОК в воздухе — джетпак\nРуду продают и прокачивают снаряжение дома"
+                : (game.FreeMouse ? "ЛКМ — копать · ПКМ — осмотреться" : "Мышь — обзор · ЛКМ — копать") +
+                  "\nПробел — прыжок, держи в воздухе — джетпак\nРуду продают и прокачивают снаряжение дома (E)";
+        }
+
+        private void UpdateScanMarks()
+        {
+            var camera = Camera.main;
+            var hits = game.ScanHits;
+            bool show = game.ScanActive && !PanelOpen && camera != null;
+            for (int i = 0; i < scanMarks.Count; i++)
+            {
+                var mark = scanMarks[i];
+                if (!show || i >= hits.Count) { mark.rect.gameObject.SetActive(false); continue; }
+                var item = hits[i];
+                var screen = camera.WorldToScreenPoint(item.Position);
+                if (screen.z <= 0) { mark.rect.gameObject.SetActive(false); continue; }
+                RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screen, null, out var local);
+                mark.rect.gameObject.SetActive(true);
+                Center(mark.rect, local.x, local.y, 26, 26);
+                mark.icon.kind = item.Kind == LootKind.Collectible ? UiGlyph.Kind.Key : item.Kind == LootKind.Chest ? UiGlyph.Kind.Bag : UiGlyph.Kind.Gem;
+                float pulse = 0.75f + 0.25f * Mathf.Sin(Time.unscaledTime * 6 + i);
+                mark.icon.color = new Color(item.Color.r, item.Color.g, item.Color.b, pulse);
+                string name = item.Kind == LootKind.Collectible ? "???" : game.config.ores[item.Ore].nameRu;
+                mark.label.text = name + " · " + Mathf.RoundToInt(screen.z) + " м";
+            }
         }
 
         public void ClosePanel()
         {
-            shop.SetActive(false);
-            confirmation.SetActive(false);
+            house.SetActive(false);
             ending.SetActive(false);
             ClearInput();
-        }
-
-        public void ShowReturnConfirmation()
-        {
-            ClearInput();
-            confirmation.SetActive(true);
         }
 
         public void ShowEnding()
@@ -510,16 +501,18 @@ namespace Nubik
             bool key = progress.HasCollectible(game.config.collection.Length - 1);
             endingText.text = "На глубине " + game.config.depth + " м тебя ждала древняя дверь. За камнем слышится тихий гул.\n\n" +
                 (key ? "Найденный ключ откроет путь в следующем обновлении." : "Может быть, ключ ещё спрятан в шахте?") +
-                "\n\nКоллекция: " + progress.CollectionCount + " / " + game.config.collection.Length;
+                "\n\nКоллекция: " + progress.CollectionCount + " / " + game.config.collection.Length + ". Обратный путь — на джетпаке или по уступам.";
             ClearInput();
             ending.SetActive(true);
         }
 
-        public void ClearInput() { Stick.ResetInput(); Dig.ResetInput(); Look.ResetInput(); jumpQueued = false; }
+        public void ClearInput() { Stick.ResetInput(); Dig.ResetInput(); Look.ResetInput(); Jump.ResetInput(); jumpQueued = false; }
         public bool ConsumeJump() { bool value = jumpQueued; jumpQueued = false; return value; }
         public void Notify(string message) { toast.text = message; toastUntil = Time.unscaledTime + 3.6f; }
         public void HitFeedback() => hitUntil = Time.unscaledTime + 0.13f;
-        public void FadeIn() => fadeStart = Time.unscaledTime;
+        public void FadeIn(float seconds = 0.45f) { fadeStart = Time.unscaledTime; fadeLength = seconds; }
+        public void Hurt(float share) { hurtAt = Time.unscaledTime; hurtStrength = Mathf.Clamp(share * 2.5f, 0.35f, 1f); }
+        public void BagFull() => bagFullAt = Time.unscaledTime;
 
         public void Popup(Vector3 world, string text, Color color)
         {
@@ -583,6 +576,16 @@ namespace Nubik
             return rect;
         }
 
+        /// <summary>Thin rounded track with a fill; the fill's right anchor is the value.</summary>
+        private Image Bar(Transform parent, float x, float y, float width, Color color)
+        {
+            var track = Panel("Track", parent, Inset);
+            At(track, x, y, width, 8);
+            var fill = Panel("Fill", track, color).GetComponent<Image>();
+            Stretch(fill.rectTransform);
+            return fill;
+        }
+
         private Text Caption(Transform parent, string text, int size, Color color, float x, float y, float w, float h, bool bold = false)
         {
             var rect = Rect("Label", parent);
@@ -624,6 +627,9 @@ namespace Nubik
             label.rectTransform.offsetMin = new Vector2(10, 6);
             label.rectTransform.offsetMax = new Vector2(-10, -6);
             label.alignment = TextAnchor.MiddleCenter;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 11;
+            label.resizeTextMaxSize = 18;
             return button;
         }
 
@@ -681,7 +687,7 @@ namespace Nubik
             r.sizeDelta = new Vector2(w, h);
         }
 
-        /// <summary>Anti-aliased rounded square (radius &gt; 0, sliced) or circle (radius 0) generated at runtime.</summary>
+        /// <summary>Anti-aliased rounded square (inset &gt; 0, sliced) or circle (inset 0) generated at runtime.</summary>
         private Sprite MakeSprite(string name, int size, float inset, float border)
         {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = name, filterMode = FilterMode.Bilinear };

@@ -8,6 +8,7 @@ namespace Nubik
     {
         private readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
         private readonly List<AudioSource> sources = new List<AudioSource>();
+        private AudioSource loop;
         private int next;
 
         private void Awake()
@@ -29,6 +30,24 @@ namespace Nubik
             next = (next + 1) % sources.Count;
             source.pitch = pitch * (1 + Random.Range(-jitter, jitter));
             source.PlayOneShot(clip, volume);
+        }
+
+        /// <summary>Starts or stops a looping sound, such as the jetpack hiss.</summary>
+        public void Loop(string name, bool on, float volume = 1)
+        {
+            if (loop == null)
+            {
+                loop = gameObject.AddComponent<AudioSource>();
+                loop.playOnAwake = false;
+                loop.loop = true;
+                loop.spatialBlend = 0;
+            }
+            if (!on) { if (loop.isPlaying) loop.Stop(); return; }
+            if (!clips.TryGetValue(name, out var clip)) return;
+            loop.volume = volume;
+            if (loop.isPlaying && loop.clip == clip) return;
+            loop.clip = clip;
+            loop.Play();
         }
 
         public static void SetMuted(bool muted) => AudioListener.volume = muted ? 0 : 1;

@@ -15,6 +15,13 @@ namespace Nubik
         [Serializable]
         private sealed class VersionProbe { public int version; }
 
+        /// <summary>v2 kept the backpack as a coin total; v3 keeps ore pieces.</summary>
+        [Serializable]
+        private sealed class LegacyV2 { public int backpack, tool; }
+
+        // Shovel indices of v1/v2 (basic, copper, steel, crystal) in the eight-level list of v3.
+        private static readonly int[] OldTools = { 0, 1, 3, 6 };
+
         /// <summary>Top-down grid prototype save. Terrain is not carried over: the world changed.</summary>
         [Serializable]
         private sealed class LegacyV1
@@ -48,8 +55,9 @@ namespace Nubik
             {
                 int version = JsonUtility.FromJson<VersionProbe>(json).version;
                 if (version == 1) return Migrate(JsonUtility.FromJson<LegacyV1>(json), config);
-                if (version != GameProgress.CurrentVersion) return null;
+                if (version != 2 && version != GameProgress.CurrentVersion) return null;
                 var data = JsonUtility.FromJson<GameProgress>(json);
+                if (data != null && version == 2) Migrate(data, JsonUtility.FromJson<LegacyV2>(json), config);
                 return data != null && data.IsValid(config) ? data : null;
             }
             catch (ArgumentException) { return null; }
@@ -59,14 +67,25 @@ namespace Nubik
         {
             if (old == null || old.seed != config.seed || old.coins < 0 || old.backpack < 0 || old.pickTier < 0 || old.expeditions < 0) return null;
             var data = GameProgress.New(config);
-            data.coins = old.coins;
-            data.backpack = old.backpack;
-            data.tool = Mathf.Min(old.pickTier, config.tools.Length - 1);
+            // Loot of the old backpack is paid out: v3 bags hold ore pieces, not coin totals.
+            data.coins = old.coins + old.backpack;
+            data.tool = ToolFromOld(old.pickTier, config);
             data.expeditions = old.expeditions;
             // The helmet bonus was already paid in v1.
             if (old.foundHelmet && config.collection.Length > 0) data.collection = 1;
             return data.IsValid(config) ? data : null;
         }
+
+        private static void Migrate(GameProgress data, LegacyV2 old, MineConfig config)
+        {
+            if (old == null || old.backpack < 0) { data.version = -1; return; }
+            data.version = GameProgress.CurrentVersion;
+            data.coins += old.backpack;
+            data.tool = ToolFromOld(old.tool, config);
+        }
+
+        private static int ToolFromOld(int tier, MineConfig config) =>
+            tier < 0 ? -1 : Mathf.Min(tier < OldTools.Length ? OldTools[tier] : OldTools[OldTools.Length - 1], config.tools.Length - 1);
 
         public static string Encode(GameProgress data) => JsonUtility.ToJson(data);
 

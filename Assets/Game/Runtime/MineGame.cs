@@ -5,7 +5,12 @@ using UnityEngine.EventSystems;
 
 namespace Nubik
 {
-    /// <summary>First-person digging in the backyard: player, shovel, terrain, finds, shop and saves.</summary>
+    public enum Station { None, Counter, Workbench }
+
+    /// <summary>
+    /// First-person digging in the backyard: player, shovel, terrain, finds, health, jetpack and saves.
+    /// There are no teleports: ore is carried out of the mine and sold in the house.
+    /// </summary>
     public sealed class MineGame : MonoBehaviour
     {
         public MineConfig config;
@@ -20,13 +25,25 @@ namespace Nubik
         public ToolDef Tool => config.tools[Progress.tool];
         public string TargetText { get; private set; } = "";
         public string Hint { get; private set; } = "";
-        public bool NearShop { get; private set; }
+        public Station Station { get; private set; }
         public bool InReach { get; private set; }
         public bool TouchMode { get; private set; }
+        /// <summary>The touch pause menu (on PC releasing the mouse opens the same card).</summary>
+        public bool MenuOpen { get; private set; }
         /// <summary>Mouse play needs a click first; afterwards a lost pointer lock asks for another click.</summary>
-        public bool NeedsClick => !TouchMode && !hud.PanelOpen && !(engaged && (WebInput.Locked || WebInput.LockUnavailable));
+        public bool NeedsClick => MenuOpen || !TouchMode && !hud.PanelOpen && !(engaged && (WebInput.Locked || WebInput.LockUnavailable));
         public bool FreeMouse => !TouchMode && WebInput.LockUnavailable;
-        public bool Active => !hud.PanelOpen && !YandexBridge.Paused && (TouchMode || !NeedsClick);
+        public bool Active => !hud.PanelOpen && !YandexBridge.Paused && !NeedsClick;
+        public float Health => Progress.Health(config);
+        public float MaxHealth => Progress.MaxHealth(config);
+        public bool HasJetpack => Progress.jetLevel > 0;
+        public float Fuel { get; private set; }
+        public float FuelMax => Progress.JetFuel(config);
+        public bool Thrusting { get; private set; }
+        public bool Underground => body.transform.position.y < -1.5f;
+        public bool ScanActive => Time.time < scanUntil;
+        public float ScanWait => Mathf.Max(0, scanReadyAt - Time.time);
+        public readonly List<LootItem> ScanHits = new List<LootItem>();
 
         private const float MouseDegreesPerPixel = 0.16f, EyeHeight = 1.55f;
         private const int IgnoreRaycastLayer = 2;
@@ -35,6 +52,7 @@ namespace Nubik
         private static readonly Color SurfaceAmbient = new Color(0.36f, 0.43f, 0.47f);
         private static readonly Color SunColor = new Color(1f, 0.95f, 0.85f);
         private static readonly Color Amber = new Color(1f, 0.78f, 0.25f);
+        private static readonly Color Danger = new Color(1f, 0.38f, 0.32f);
         // Shovel held low on the right: pointing forward-up-left with the blade face towards the camera.
         private static readonly Vector3 ToolAim = new Vector3(-0.25f, 0.55f, 0.8f).normalized;
         private static readonly Quaternion ToolRotation = Quaternion.LookRotation(ToolAim, new Vector3(-0.2f, 0.4f, -0.9f));
@@ -61,13 +79,11 @@ namespace Nubik
         private readonly List<Flight> flights = new List<Flight>();
         private readonly List<Debris> debris = new List<Debris>();
         private readonly Stack<Debris> debrisPool = new Stack<Debris>();
-        private float yaw, pitch, verticalSpeed, nextHit, swing = 1, nextVisibility, nextAutosave, walkCycle, lastDig = -10;
-        private bool saveDirty, endingShown, wasActive, engaged, wantLock;
+        private float yaw, pitch, verticalSpeed, nextHit, swing = 1, nextVisibility, nextAutosave, walkCycle;
+        private float jetDelay, scanUntil = -10, scanReadyAt, fullBagNoticeAt;
+        private bool saveDirty, endingShown, wasActive, engaged, wantLock, wentDown;
         private int engagedFrame = -10;
-        private string pendingDebugDig;
-        private bool underground;
-        private Vector3 lastUndergroundPosition;
-        private float lastUndergroundYaw;
+        private string pendingDebugDig, pendingGoto;
 
         private sealed class ChunkView { public GameObject obj; public Mesh mesh; public MeshCollider collider; }
         private sealed class Flight { public Transform obj; public Vector3 from; public float t; }
@@ -100,9 +116,11 @@ namespace Nubik
             hud = gameObject.AddComponent<MineHud>();
             hud.Setup(this);
             SpawnAtStart();
+            Fuel = FuelMax;
             UpdateAmbience();
             platform.Ready();
             if (pendingDebugDig != null) DebugDig(pendingDebugDig);
+            if (pendingGoto != null) DebugGoto(pendingGoto);
         }
 
         // ---------- World ----------
@@ -219,7 +237,7 @@ namespace Nubik
         {
             if (Progress.hasResume && Standable(Progress.resume)) { Teleport(Progress.resume); yaw = Progress.resumeYaw; pitch = 15; }
             else if (Progress.expeditions == 0 && Progress.maxDepth == 0 && Standable(Yard.FirstSpawn)) { Teleport(Yard.FirstSpawn); yaw = 0; pitch = 36; }
-            else { Teleport(Yard.SurfaceSpawn); yaw = Yard.SurfaceYaw; pitch = 10; }
+            else { Teleport(Yard.HomeSpawn); yaw = Yard.HomeYaw; pitch = 5; }
             ApplyView();
         }
 
@@ -245,10 +263,18 @@ namespace Nubik
             // Narrow portrait screens get a wider vertical view so the shovel and HUD leave room for the world.
             view.fieldOfView = Mathf.Lerp(88, 70, Mathf.InverseLerp(0.5f, 1.3f, view.aspect));
             UpdateDebris();
-            if (YandexBridge.Paused) { hud.ClearInput(); return; }
-            if (Input.GetKeyDown(KeyCode.Escape) && hud.PanelOpen) hud.ClosePanel();
+            if (YandexBridge.Paused) { hud.ClearInput(); sound.Loop("jet", false); return; }
+            // Esc closes a window or pauses; E also closes the house it opened.
+            bool keyUsed = false;
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                if (hud.PanelOpen) hud.ClosePanel();
+                else if (Active) OpenMenu();
+                keyUsed = true;
+            }
+            else if (Input.GetKeyDown(KeyCode.E) && hud.PanelOpen) { hud.ClosePanel(); keyUsed = true; }
             if (!TouchMode && Input.touchCount > 0) { TouchMode = true; WebInput.WantLock(false); }
-            bool want = !TouchMode && !hud.PanelOpen && !WebInput.LockUnavailable;
+            bool want = !TouchMode && !hud.PanelOpen && !MenuOpen && !WebInput.LockUnavailable;
             if (want != wantLock) { wantLock = want; WebInput.WantLock(want); }
             bool active = Active;
             if (active != wasActive) { wasActive = active; platform.SetInMine(active); }
@@ -256,27 +282,35 @@ namespace Nubik
             {
                 Look();
                 Move(Time.deltaTime);
-                if (Input.GetKeyDown(KeyCode.R)) RequestReturn();
-                if (Input.GetKeyDown(KeyCode.E) && NearShop) OpenShop();
+                if (!keyUsed && Input.GetKeyDown(KeyCode.E) && Station != Station.None) OpenHouse();
+                if (Input.GetKeyDown(KeyCode.F)) Scan();
+                if (Input.GetKeyDown(KeyCode.Q)) UseMedkit();
                 if (Input.GetKeyDown(KeyCode.M)) ToggleSound();
             }
-            else hud.ClearInput();
+            else
+            {
+                hud.ClearInput();
+                Thrusting = false;
+            }
+            sound.Loop("jet", Thrusting, 0.55f);
             UpdateTarget();
             // The click that starts play only engages the mouse.
             bool click = !TouchMode && Input.GetMouseButtonDown(0) && Time.frameCount > engagedFrame + 1;
             bool overUi = !TouchMode && EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
             if (Active && !overUi && (DigHeld || click) && Time.time >= nextHit) Swing();
             AnimateTool();
-            var feet = body.transform.position;
-            NearShop = feet.y > -0.5f && Vector2.Distance(new Vector2(feet.x, feet.z), new Vector2(yard.ShopPoint.x, yard.ShopPoint.z)) < 2.8f;
-            TrackSurfaceExit();
+            UpdateStation();
+            UpdateHealth(Time.deltaTime);
+            TrackTrips();
             TrackDepth();
+            if (ScanActive) RefreshScan();
             if (Time.unscaledTime >= nextVisibility) UpdateVisibility();
             if (saveDirty && Time.unscaledTime >= nextAutosave) SaveNow();
             UpdateHint();
         }
 
         private bool DigHeld => TouchMode ? hud.Dig.Held : Input.GetMouseButton(0);
+        private bool JumpHeld => Input.GetKey(KeyCode.Space) || hud.Jump.Held;
 
         private void Look()
         {
@@ -300,19 +334,45 @@ namespace Nubik
             var input = Vector2.ClampMagnitude(new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")) + hud.Stick.Value, 1);
             var horizontal = Quaternion.Euler(0, yaw, 0) * new Vector3(input.x, 0, input.y) * config.moveSpeed;
             bool jump = Input.GetKeyDown(KeyCode.Space) | hud.ConsumeJump();
-            if (body.isGrounded)
+            bool grounded = body.isGrounded;
+            if (grounded)
             {
                 if (verticalSpeed < 0) verticalSpeed = -2;
-                if (jump) verticalSpeed = config.jumpSpeed;
+                // A plain jump first; holding on lights the jetpack a moment later.
+                if (jump) { verticalSpeed = config.jumpSpeed; jetDelay = 0.2f; }
             }
-            verticalSpeed = Mathf.Max(verticalSpeed - 20 * dt, -40);
-            body.Move((horizontal + Vector3.up * verticalSpeed) * dt);
-            walkCycle += input.magnitude * dt * 9;
-            if (body.transform.position.y < config.FloorY - 3)
+            jetDelay -= dt;
+            Thrusting = !grounded && JumpHeld && HasJetpack && Fuel > 0 && jetDelay <= 0;
+            if (Thrusting)
             {
-                Teleport(Yard.SurfaceSpawn);
-                hud.Notify("Выбрались на поверхность");
+                verticalSpeed = Mathf.Min(verticalSpeed + config.jetThrust * dt, config.jetMaxRise);
+                Fuel = Mathf.Max(0, Fuel - dt);
             }
+            else if (grounded) Fuel = Mathf.Min(FuelMax, Fuel + FuelMax * config.jetRecharge * dt);
+            verticalSpeed = Mathf.Max(verticalSpeed - config.gravity * dt, -40);
+            float impact = -verticalSpeed;
+            body.Move((horizontal + Vector3.up * verticalSpeed) * dt);
+            if (!grounded && body.isGrounded && impact > config.safeFallSpeed) Land(impact);
+            walkCycle += input.magnitude * dt * 9;
+            if (body.transform.position.y < config.FloorY - 3) WakeAtHome("ТЫ ВЫПАЛ ИЗ МИРА", "Очнулся дома", false);
+        }
+
+        private void Land(float impact)
+        {
+            float damage = (impact - config.safeFallSpeed) * config.fallDamage;
+            sound.Play("hurt", Mathf.Clamp01(0.5f + damage / 60f));
+            hud.Hurt(damage / MaxHealth);
+            hud.Popup(view.transform.position + view.transform.forward * 1.2f - Vector3.up * 0.3f, "-" + Mathf.CeilToInt(damage), Danger);
+            saveDirty = true;
+            if (Progress.Hurt(damage, config)) WakeAtHome("ТЫ ПОТЕРЯЛ СОЗНАНИЕ", "Падение было слишком высоким", true);
+        }
+
+        private void UpdateHealth(float dt)
+        {
+            var feet = body.transform.position;
+            // Rest at home; slow recovery on the lawn; none underground.
+            float regen = Yard.InsideHouse(feet) ? 60 : feet.y > -0.3f ? config.surfaceRegen : 0;
+            if (regen > 0 && Health < MaxHealth) Progress.Heal(regen * dt, config);
         }
 
         private void UpdateTarget()
@@ -327,7 +387,7 @@ namespace Nubik
             }
             InReach = true;
             if (itemColliders.TryGetValue(hit.collider, out var item)) { TargetText = ItemLabel(item); return; }
-            if (!terrainColliders.Contains(hit.collider)) { TargetText = hit.point.y < 0.3f ? "Копать можно между колышками" : ""; return; }
+            if (!terrainColliders.Contains(hit.collider)) { TargetText = hit.point.y < 0.3f && !Yard.InsideHouse(hit.point) ? "Копать можно в рамке участка" : ""; return; }
             float edge = config.width / 2f - 0.55f;
             if (hit.point.y < config.FloorY + 0.8f) TargetText = "Коренная порода — глубже не пройти";
             else if (Mathf.Abs(hit.point.x) > edge || Mathf.Abs(hit.point.z) > edge) TargetText = "Край участка";
@@ -341,12 +401,10 @@ namespace Nubik
 
         private string ItemLabel(LootItem item)
         {
-            switch (item.Kind)
-            {
-                case LootKind.Collectible: return "Что-то особенное!";
-                case LootKind.Chest: return "Сундук";
-                default: return "Находка · " + item.Value + " монет";
-            }
+            if (item.Kind == LootKind.Collectible) return "Что-то особенное!";
+            var ore = config.ores[item.Ore];
+            string space = item.Slots > 1 ? " · " + item.Slots + " " + Plural(item.Slots, "слот", "слота", "слотов") : "";
+            return ore.nameRu + " · " + ore.value + " монет" + space + (Progress.FreeSlots(config) < item.Slots ? " · рюкзак полон" : "");
         }
 
         public static string Plural(int n, string one, string few, string many)
@@ -360,9 +418,8 @@ namespace Nubik
 
         private void Swing()
         {
-            nextHit = Time.time + config.hitInterval;
+            nextHit = Time.time + Tool.interval;
             swing = 0;
-            lastDig = Time.time;
             var origin = view.transform.position;
             var direction = view.transform.forward;
             if (!Physics.Raycast(origin, direction, out var hit, config.reach, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide)) return;
@@ -386,8 +443,6 @@ namespace Nubik
             else sound.Play("dig_stone", 0.75f, Mathf.Lerp(1.05f, 0.72f, Mathf.InverseLerp(6, 32, hardness)));
             RebuildDirty();
             ShowLoad(dust);
-            int paid = Progress.AddDigValue(result.Value);
-            if (paid > 0) { hud.Popup(hit.point, "+" + paid, Amber); sound.Play("coin", 0.35f, 1, 0.1f); }
             saveDirty = true;
             RevealLoot(center, Tool.radius);
         }
@@ -407,7 +462,19 @@ namespace Nubik
         private void Collect(LootItem item)
         {
             if (item.Taken) return;
-            bool paid = Progress.Collect(item, config);
+            var result = Progress.Collect(item, config);
+            if (result == Pickup.BagFull)
+            {
+                // The ore stays in the wall; remind without spamming.
+                sound.Play("dig_stone", 0.6f, 0.6f);
+                if (Time.time > fullBagNoticeAt)
+                {
+                    hud.Notify("Рюкзак полон — продай руду в доме");
+                    fullBagNoticeAt = Time.time + 2.5f;
+                }
+                hud.BagFull();
+                return;
+            }
             item.Taken = true;
             if (item.View == null) ShowItem(item);
             var viewObj = item.View;
@@ -415,7 +482,8 @@ namespace Nubik
             Destroy(viewObj.GetComponent<Collider>());
             flights.Add(new Flight { obj = viewObj.transform, from = viewObj.transform.position });
             item.View = null;
-            if (!paid) return;
+            ScanHits.Remove(item);
+            if (result != Pickup.Collected) return;
             switch (item.Kind)
             {
                 case LootKind.Collectible:
@@ -428,12 +496,12 @@ namespace Nubik
                     break;
                 case LootKind.Chest:
                     sound.Play("chest", 1, 1, 0);
-                    hud.Notify("Сундук! +" + item.Value + " монет в рюкзак");
-                    hud.Popup(item.Position, "+" + item.Value, item.Color);
+                    hud.Notify(config.ores[item.Ore].nameRu + " в рюкзаке · " + item.Value + " монет при продаже");
+                    hud.Popup(item.Position, config.ores[item.Ore].nameRu, item.Color);
                     break;
                 default:
                     sound.Play("pickup", 0.9f);
-                    hud.Popup(item.Position, "+" + item.Value + " в рюкзак", item.Color);
+                    hud.Popup(item.Position, "+" + config.ores[item.Ore].nameRu, item.Color);
                     break;
             }
             SaveNow();
@@ -464,12 +532,14 @@ namespace Nubik
                     glow.type = LightType.Point; glow.range = 2.6f; glow.intensity = 1.3f; glow.color = item.Color;
                     break;
                 default:
+                    // Coal is dull; metals and gems glow a little so they read in the dark.
+                    float shine = Mathf.Clamp01(config.ores[item.Ore].value / 60f) * 0.45f + 0.08f;
                     for (int i = 0; i < 3; i++)
                     {
                         uint k = h >> (i * 5);
                         // Cast before subtraction: unsigned underflow sent nuggets millions of metres away.
                         var offset = new Vector3(((int)(k % 7) - 3) * 0.03f, ((int)(k / 7 % 5) - 2) * 0.03f, ((int)(k / 35 % 7) - 3) * 0.03f);
-                        shapes.Box("Nugget", offset, Vector3.one * s * (1 - i * 0.22f), Quaternion.Euler(k % 90, k / 3 % 90, k / 11 % 90), item.Color, root, false, 0.35f);
+                        shapes.Box("Nugget", offset, Vector3.one * s * (1 - i * 0.22f), Quaternion.Euler(k % 90, k / 3 % 90, k / 11 % 90), item.Color, root, false, shine);
                     }
                     break;
             }
@@ -529,6 +599,41 @@ namespace Nubik
             }
         }
 
+        // ---------- Items ----------
+
+        /// <summary>Scanner in the backpack: marks ore and treasures through the rock for a few seconds.</summary>
+        public void Scan()
+        {
+            if (!Progress.scanner || !Active) return;
+            if (Time.time < scanReadyAt) { hud.Notify("Сканер заряжается · " + Mathf.CeilToInt(ScanWait) + " с"); return; }
+            scanUntil = Time.time + config.scanDuration;
+            scanReadyAt = Time.time + config.scanCooldown;
+            RefreshScan();
+            sound.Play("zone", 0.5f, 1.8f, 0);
+            hud.Notify(ScanHits.Count > 0 ? "Сканер: рядом " + ScanHits.Count + " " + Plural(ScanHits.Count, "находка", "находки", "находок") : "Сканер: поблизости пусто");
+        }
+
+        private void RefreshScan()
+        {
+            ScanHits.Clear();
+            var eye = view.transform.position;
+            float range = config.scanner.power;
+            loot.Near(eye, range, nearby);
+            nearby.Sort((a, b) => (a.Position - eye).sqrMagnitude.CompareTo((b.Position - eye).sqrMagnitude));
+            for (int i = 0; i < nearby.Count && ScanHits.Count < 14; i++)
+                if (!nearby[i].Taken) ScanHits.Add(nearby[i]);
+        }
+
+        public void UseMedkit()
+        {
+            if (!Active && !hud.PanelOpen) return;
+            if (Progress.medkits <= 0) { hud.Notify("Аптечек нет — купи в мастерской"); return; }
+            if (!Progress.UseMedkit(config)) { hud.Notify("Здоровье и так полное"); return; }
+            sound.Play("pickup", 0.9f, 0.8f);
+            hud.Popup(view.transform.position + view.transform.forward * 1.2f, "+" + Mathf.RoundToInt(config.medkit.power), new Color(0.45f, 0.95f, 0.6f));
+            SaveNow();
+        }
+
         // ---------- Feedback ----------
 
         private void ShowLoad(Color color)
@@ -544,11 +649,13 @@ namespace Nubik
             float carried = Time.time - loadSince;
             load.gameObject.SetActive(carried < 0.5f);
             load.localScale = Vector3.one * Mathf.Clamp01(carried / 0.08f);
-            swing = Mathf.MoveTowards(swing, 1, Time.deltaTime / (config.hitInterval * 0.8f));
+            swing = Mathf.MoveTowards(swing, 1, Time.deltaTime / (Tool.interval * 0.8f));
             float thrust = Mathf.Sin(swing * Mathf.PI) * (swing < 1 ? 1 : 0);
             // Narrow portrait screens pull the shovel towards the centre so the blade stays visible.
             float side = Mathf.Lerp(0.07f, 0.2f, Mathf.InverseLerp(0.5f, 1.6f, view.aspect));
             var bob = new Vector3(Mathf.Sin(walkCycle) * 0.006f, Mathf.Abs(Mathf.Cos(walkCycle)) * 0.006f, 0);
+            // The jetpack shakes the view model a little.
+            if (Thrusting) bob += Random.insideUnitSphere * 0.003f;
             tool.localPosition = new Vector3(side, -0.2f, 0.34f) + bob + ToolAim * 0.09f * thrust;
             tool.localRotation = ToolRotation * Quaternion.Euler(-35 * thrust, 0, 0);
         }
@@ -636,6 +743,29 @@ namespace Nubik
 
         // ---------- Progress ----------
 
+        private void UpdateStation()
+        {
+            var feet = body.transform.position;
+            Station = Station.None;
+            if (!Yard.InsideHouse(feet)) return;
+            var flat = new Vector2(feet.x, feet.z);
+            if (Vector2.Distance(flat, new Vector2(Yard.CounterPoint.x, Yard.CounterPoint.z)) < 2.4f) Station = Station.Counter;
+            else if (Vector2.Distance(flat, new Vector2(Yard.WorkbenchPoint.x, Yard.WorkbenchPoint.z)) < 2.4f) Station = Station.Workbench;
+        }
+
+        /// <summary>A trip counts when the player comes back up from below three metres.</summary>
+        private void TrackTrips()
+        {
+            var feet = body.transform.position;
+            if (feet.y < -3) wentDown = true;
+            else if (wentDown && feet.y > -0.2f && body.isGrounded)
+            {
+                wentDown = false;
+                Progress.expeditions++;
+                saveDirty = true;
+            }
+        }
+
         private void TrackDepth()
         {
             int depth = Depth;
@@ -665,16 +795,22 @@ namespace Nubik
 
         private void UpdateHint()
         {
-            int next = Progress.tool + 1;
-            if (Progress.coins == 0 && Progress.backpack == 0 && Progress.maxDepth == 0)
+            int free = Progress.FreeSlots(config);
+            if (Progress.coins == 0 && Progress.OrePieces == 0 && Progress.maxDepth == 0)
                 Hint = TouchMode ? "Наведи прицел на землю и держи КОПАТЬ"
                     : FreeMouse ? "ЛКМ — копать, зажатая ПКМ — осмотреться" : "Наведи прицел на землю и держи ЛКМ";
-            else if (Progress.backpack > 0 && Progress.expeditions == 0)
-                Hint = "Выйди из шахты — находки продадутся автоматически";
-            else if (NearShop)
-                Hint = TouchMode ? "Нажми «Лавка»" : "E — открыть лавку";
-            else if (next < config.tools.Length && Progress.coins + Progress.backpack >= config.tools[next].price)
-                Hint = "Хватает на лопату получше — загляни в лавку";
+            else if (Station == Station.Counter)
+                Hint = TouchMode ? "Нажми «Скупка»" : "E — скупка руды";
+            else if (Station == Station.Workbench)
+                Hint = TouchMode ? "Нажми «Мастерская»" : "E — мастерская";
+            else if (Health < MaxHealth * 0.3f && Underground)
+                Hint = Progress.medkits > 0 ? (TouchMode ? "Мало здоровья — нажми «Аптечка»" : "Мало здоровья — Q, аптечка") : "Мало здоровья — осторожнее с прыжками вниз";
+            else if (free <= 0 && Progress.OrePieces > 0)
+                Hint = "Рюкзак полон — отнеси руду в дом, к скупщику";
+            else if (Progress.OrePieces > 0 && !Underground)
+                Hint = "Продай руду в доме: вход за патио, скупщик слева";
+            else if (!HasJetpack && Depth > 6)
+                Hint = "Выбираться придётся по уступам — копай ступеньки. Джетпак — в мастерской";
             else Hint = "";
         }
 
@@ -682,11 +818,19 @@ namespace Nubik
         public void Engage()
         {
             engaged = true;
+            MenuOpen = false;
             engagedFrame = Time.frameCount;
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
 #if UNITY_EDITOR || !UNITY_WEBGL
             if (!TouchMode) WebInput.LockNow();
 #endif
+        }
+
+        public void OpenMenu()
+        {
+            MenuOpen = true;
+            hud.ClearInput();
+            ReleaseMouse();
         }
 
         private void ReleaseMouse()
@@ -695,97 +839,76 @@ namespace Nubik
             WebInput.WantLock(false);
         }
 
-        public void RequestReturn()
+        public bool CanRescue => Underground;
+
+        /// <summary>Rescuers haul the player home; the ore stays in the mine.</summary>
+        public void CallRescue()
         {
-            if (hud.PanelOpen) return;
-            if (DigHeld && Time.time - lastDig < 0.6f && Depth > 1)
-            {
-                ReleaseMouse();
-                hud.ShowReturnConfirmation();
-                return;
-            }
-            ReturnToSurface();
+            if (!CanRescue) return;
+            MenuOpen = false;
+            WakeAtHome("СПАСАТЕЛИ", "Тебя подняли и отвезли домой", true);
+            Engage();
         }
 
-        public void ReturnToSurface()
+        private void WakeAtHome(string kicker, string title, bool dropOre)
         {
-            var feet = body.transform.position;
-            if (Depth > 1)
-            {
-                Progress.hasDive = true;
-                Progress.dive = feet;
-                Progress.diveYaw = yaw;
-            }
-            bool completedExpedition = underground || feet.y < -0.8f;
-            Teleport(Yard.SurfaceSpawn);
-            hud.FadeIn();
-            yaw = Yard.SurfaceYaw; pitch = 8;
+            int lost = dropOre ? Progress.DropOre() : 0;
+            Progress.health = MaxHealth;
+            wentDown = false;
+            Teleport(Yard.HomeSpawn);
+            yaw = Yard.HomeYaw; pitch = 5;
             ApplyView();
-            FinishSurfaceExit(completedExpedition);
-            OpenShop();
-        }
-
-        private void TrackSurfaceExit()
-        {
-            var feet = body.transform.position;
-            if (feet.y < -0.8f)
-            {
-                underground = true;
-                lastUndergroundPosition = feet;
-                lastUndergroundYaw = yaw;
-                return;
-            }
-            // Require a landing at lawn level: jumping inside the shaft is not an exit.
-            bool onSurface = feet.y >= -0.1f && body.isGrounded;
-            float edge = config.width / 2f;
-            bool outsidePatch = Mathf.Abs(feet.x) >= edge || Mathf.Abs(feet.z) >= edge;
-            if (!onSurface || (!underground && !(outsidePatch && Progress.backpack > 0))) return;
-            if (underground)
-            {
-                Progress.hasDive = true;
-                Progress.dive = lastUndergroundPosition;
-                Progress.diveYaw = lastUndergroundYaw;
-            }
-            FinishSurfaceExit(underground);
-        }
-
-        private void FinishSurfaceExit(bool completedExpedition)
-        {
-            underground = false;
-            if (completedExpedition) Progress.expeditions++;
-            int amount = Progress.Sell();
+            Fuel = FuelMax;
+            Thrusting = false;
+            hud.FadeIn(1.2f);
+            sound.Play("faint", 1, 1, 0);
+            hud.Announce(UiGlyph.Kind.Heart, Danger, kicker, title,
+                lost > 0 ? "Руда из рюкзака осталась в шахте: " + lost + " шт." : "Рюкзак цел. Отдохни и возвращайся.");
             SaveNow();
-            if (amount <= 0) return;
-            sound.Play("sell", 1, 1, 0);
-            hud.Notify("Находки проданы при выходе: +" + amount + " монет");
         }
 
-        public void OpenShop()
+        public void OpenHouse()
         {
             ReleaseMouse();
             hud.ClearInput();
-            hud.ShowShop(true);
+            hud.ShowHouse(Station == Station.Counter ? 0 : 1);
         }
 
-        public void CloseShop() => hud.ShowShop(false);
+        public void CloseHouse() => hud.ClosePanel();
 
-        public void Descend()
+        public void SellOre()
         {
-            if (!Progress.hasDive) return;
-            CloseShop();
-            if (Standable(Progress.dive)) Teleport(Progress.dive);
-            hud.FadeIn();
-            yaw = Progress.diveYaw; pitch = 20;
-            ApplyView();
+            int amount = Progress.Sell(config);
+            if (amount <= 0) return;
+            SaveNow();
+            sound.Play("sell", 1, 1, 0);
+            hud.Notify("Руда продана: +" + amount + " монет");
         }
 
-        public void Upgrade()
+        public void Buy(Track track)
         {
-            if (!Progress.Upgrade(config)) return;
+            if (!Progress.Upgrade(track, config)) return;
+            if (track == Track.Jetpack) Fuel = FuelMax;
             SaveNow();
             sound.Play("buy", 1, 1, 0);
-            BuildTool();
-            hud.Notify("Новая лопата: " + Tool.nameRu + "!");
+            if (track == Track.Tool) BuildTool();
+            hud.Notify(track == Track.Tool ? "Новая лопата: " + Tool.nameRu + "!" : track == Track.Backpack ? "Рюкзак стал вместительнее"
+                : track == Track.Jetpack ? (Progress.jetLevel == 1 ? "Джетпак! Держи пробел в прыжке" : "Больше топлива в джетпаке") : "Здоровье выросло");
+        }
+
+        public void BuyScanner()
+        {
+            if (!Progress.BuyScanner(config)) return;
+            SaveNow();
+            sound.Play("buy", 1, 1, 0);
+            hud.Notify(TouchMode ? "Сканер в рюкзаке: кнопка «Скан»" : "Сканер в рюкзаке: клавиша F");
+        }
+
+        public void BuyMedkit()
+        {
+            if (!Progress.BuyMedkit(config)) return;
+            SaveNow();
+            sound.Play("buy", 0.8f, 1.2f, 0);
         }
 
         /// <summary>Localhost-only test helper (see the WebGL template): carves a shaft and drops the player to that depth.</summary>
@@ -804,6 +927,22 @@ namespace Nubik
             RebuildDirty();
             Teleport(new Vector3(shaft.x, -metres + 0.2f, shaft.z));
             saveDirty = true;
+        }
+
+        /// <summary>Localhost-only test helper: stands the player at a named spot (counter, workbench, yard).</summary>
+        public void DebugGoto(string spot)
+        {
+            if (terrain == null) { pendingGoto = spot; return; }
+            if (spot == "counter") DebugPlace(Yard.CounterPoint + Vector3.up * 0.15f, 0, 5);
+            else if (spot == "workbench") DebugPlace(Yard.WorkbenchPoint + Vector3.up * 0.15f, 0, 5);
+            else DebugPlace(Yard.SurfaceSpawn, Yard.SurfaceYaw, 8);
+        }
+
+        /// <summary>Test helper: places the player without touching progress.</summary>
+        public void DebugPlace(Vector3 feet, float newYaw, float newPitch)
+        {
+            Teleport(feet);
+            SetView(newYaw, newPitch);
         }
 
         public void SetView(float newYaw, float newPitch)

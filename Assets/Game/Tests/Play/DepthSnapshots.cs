@@ -9,8 +9,8 @@ using UnityEngine.TestTools;
 namespace Nubik.PlayTests
 {
     /// <summary>
-    /// Smoke test of the real scene: drops the player to several depths and writes camera frames
-    /// to TestResults/Snapshots. Run with graphics (no -nographics) to get pictures:
+    /// Smoke tests of the real scene: depths, ore, the house, falls and the jetpack. Camera frames go to
+    /// TestResults/Snapshots. Run with graphics (no -nographics) to get pictures:
     /// Unity -batchmode -runTests -testPlatform PlayMode -projectPath .
     /// The editor save is kept aside and restored.
     /// </summary>
@@ -73,12 +73,16 @@ namespace Nubik.PlayTests
             game.SetView(-14, 8);
             yield return Frames(3);
             Shot("120_door");
-            game.ReturnToSurface();
-            game.CloseShop();
-            game.SetView(0, 10);
+            // No way up but climbing, the jetpack or the rescuers.
+            Assert.IsTrue(game.CanRescue);
+            game.CallRescue();
+            yield return Frames(30);
+            Assert.AreEqual(0, game.Depth);
+            Assert.IsTrue(Yard.InsideHouse(Body(game).transform.position));
+            Shot("house_inside");
+            game.DebugPlace(Yard.SurfaceSpawn, Yard.SurfaceYaw, 10);
             yield return Frames(30);
             Shot("99_surface_again");
-            Assert.AreEqual(0, game.Depth);
         }
 
         [UnityTest]
@@ -101,66 +105,105 @@ namespace Nubik.PlayTests
                 rendered++;
             }
             Assert.Greater(rendered, 0);
-            Assert.AreEqual(0, game.Progress.backpack);
+            Assert.AreEqual(0, game.Progress.OrePieces);
 
             // Aim at the starter nugget from above and exercise the actual digging ray.
             var first = field.Items.Find(item => item.Special == 0);
-            Invoke(game, "Teleport", first.Position + new Vector3(0, 0.6f, 0));
-            game.SetView(0, 85);
+            game.DebugPlace(first.Position + new Vector3(0, 0.6f, 0), 0, 85);
             Physics.SyncTransforms();
             Shot("ore_before_pickup");
             Invoke(game, "Swing");
             Assert.IsTrue(first.Taken);
-            Assert.AreEqual(first.Value, game.Progress.backpack);
-            int amount = game.Progress.backpack;
+            Assert.AreEqual(1, game.Progress.OreCount(first.Ore));
             Invoke(game, "Swing");
-            Assert.AreEqual(amount, game.Progress.backpack, "An ore hit must pay only once.");
+            Assert.AreEqual(1, game.Progress.OrePieces, "An ore hit must pay only once.");
         }
 
         [UnityTest]
-        public IEnumerator ReturningSellsOnceAndKeepsDivePosition()
+        public IEnumerator OreSellsOnlyAtTheBuyer()
         {
             var game = Object.FindAnyObjectByType<MineGame>();
+            PlayByTouch(game);
             game.DebugDig("12");
             yield return Frames(3);
-            int coins = game.Progress.coins, trips = game.Progress.expeditions;
-            game.Progress.backpack = 47;
-            game.ReturnToSurface();
+            game.Progress.ores = new int[game.config.ores.Length];
+            game.Progress.ores[1] = 4;
+            int coins = game.Progress.coins, value = game.Progress.BagValue(game.config);
+            game.DebugPlace(Yard.SurfaceSpawn, Yard.SurfaceYaw, 5);
+            yield return new WaitForSeconds(0.5f);
+            Assert.AreEqual(value, game.Progress.BagValue(game.config), "Coming up does not sell anything.");
+            Assert.AreEqual(Station.None, game.Station);
+            game.DebugPlace(Yard.CounterPoint + Vector3.up * 0.15f, 0, 5);
+            yield return Frames(5);
+            Assert.AreEqual(Station.Counter, game.Station);
+            Shot("house_counter");
+            game.OpenHouse();
             yield return Frames(3);
-            Shot("ui_shop", true);
-            Assert.AreEqual(0, game.Progress.backpack);
-            Assert.AreEqual(coins + 47, game.Progress.coins);
-            Assert.AreEqual(trips + 1, game.Progress.expeditions);
-            Assert.IsTrue(game.Progress.hasDive);
-            Assert.Less(game.Progress.dive.y, -10);
-            game.ReturnToSurface();
-            Assert.AreEqual(coins + 47, game.Progress.coins);
-            Assert.AreEqual(trips + 1, game.Progress.expeditions);
+            Shot("ui_house_sell", true);
+            game.SellOre();
+            Assert.AreEqual(coins + value, game.Progress.coins);
+            Assert.AreEqual(0, game.Progress.OrePieces);
+            game.SellOre();
+            Assert.AreEqual(coins + value, game.Progress.coins, "A second sale pays nothing.");
+            game.GetComponent<MineHud>().ShowHouse(1);
+            yield return Frames(3);
+            Shot("ui_house_upgrades", true);
+            game.GetComponent<MineHud>().ShowHouse(2);
+            yield return Frames(3);
+            Shot("ui_house_items", true);
         }
 
         [UnityTest]
-        public IEnumerator WalkingOutSellsWithoutOpeningShop()
+        public IEnumerator ShortFallHurtsLongFallFaintsAndDropsOre()
         {
             var game = Object.FindAnyObjectByType<MineGame>();
-            game.DebugDig("3");
+            PlayByTouch(game);
+            game.DebugDig("4");
             yield return Frames(3);
-            var body = Field<CharacterController>(game, "body");
-            game.Progress.backpack = 31;
-            int coins = game.Progress.coins;
+            var shaft = new Vector3(0.8f, 0.2f, -1.2f);
+            game.DebugPlace(shaft, 0, 60);
+            yield return new WaitForSeconds(1.5f);
+            Assert.Less(game.Health, game.MaxHealth, "A four metre drop hurts.");
+            Assert.Greater(game.Health, 0);
+
+            game.DebugDig("24");
             yield return Frames(3);
-            Assert.AreEqual(31, game.Progress.backpack, "No sale while underground.");
-            Invoke(game, "Teleport", Yard.SurfaceSpawn + Vector3.up * 2);
-            yield return Frames(3);
-            Assert.AreEqual(31, game.Progress.backpack, "Do not sell during a jump.");
-            Invoke(game, "Teleport", Yard.SurfaceSpawn);
-            body.Move(Vector3.down * 0.2f);
-            yield return Frames(3);
-            Assert.AreEqual(0, game.Progress.backpack);
-            Assert.AreEqual(coins + 31, game.Progress.coins);
-            Assert.IsFalse(game.GetComponent<MineHud>().PanelOpen);
-            yield return Frames(3);
-            Assert.AreEqual(coins + 31, game.Progress.coins);
+            game.Progress.ores = new int[game.config.ores.Length];
+            game.Progress.ores[0] = 3;
+            game.DebugPlace(shaft, 0, 60);
+            yield return new WaitForSeconds(3f);
+            Assert.AreEqual(0, game.Progress.OrePieces, "Fainting leaves the ore in the mine.");
+            Assert.AreEqual(game.MaxHealth, game.Health, "Wakes up rested.");
+            Assert.IsTrue(Yard.InsideHouse(Body(game).transform.position));
         }
+
+        [UnityTest]
+        public IEnumerator JetpackLiftsAndBurnsFuel()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>();
+            PlayByTouch(game);
+            game.Progress.coins = game.Progress.NextPrice(Track.Jetpack, game.config);
+            game.Buy(Track.Jetpack);
+            Assert.IsTrue(game.HasJetpack);
+            game.DebugDig("10");
+            yield return new WaitForSeconds(0.5f);
+            float start = Body(game).transform.position.y;
+            var jump = game.GetComponent<MineHud>().Jump;
+            jump.OnPointerDown(null);
+            yield return new WaitForSeconds(1.2f);
+            float top = Body(game).transform.position.y;
+            jump.OnPointerUp(null);
+            Assert.Greater(top - start, 2.5f, "The jetpack climbs out of the shaft.");
+            Assert.Less(game.Fuel, game.FuelMax);
+        }
+
+        private static void PlayByTouch(MineGame game)
+        {
+            // The batch editor cannot lock the mouse; touch mode lets the player move.
+            typeof(MineGame).GetField("<TouchMode>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(game, true);
+        }
+
+        private static CharacterController Body(MineGame game) => Field<CharacterController>(game, "body");
 
         private static T Field<T>(MineGame game, string name) =>
             (T)typeof(MineGame).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);

@@ -9,7 +9,13 @@ namespace Nubik
         public static readonly Vector3 FirstSpawn = new Vector3(0, 0.05f, -4.6f);
         public static readonly Vector3 SurfaceSpawn = new Vector3(-6.6f, 0.05f, -9.2f);
         public const float SurfaceYaw = 35;
-        public Vector3 ShopPoint { get; private set; }
+        /// <summary>Where a fainted or rescued player wakes up, facing the workbench.</summary>
+        public static readonly Vector3 HomeSpawn = new Vector3(-3, 0.15f, 19.2f);
+        public const float HomeYaw = 0;
+        /// <summary>Standing spots in front of the ore buyer's counter and the workbench.</summary>
+        public static readonly Vector3 CounterPoint = new Vector3(-7.6f, 0, 22.4f);
+        public static readonly Vector3 WorkbenchPoint = new Vector3(1.8f, 0, 22.6f);
+        public static bool InsideHouse(Vector3 p) => p.x > -10.3f && p.x < 4.3f && p.z > 17.3f && p.z < 24.7f && p.y > -0.5f && p.y < 3;
         public Vector3 DoorPoint { get; private set; }
         public readonly List<Renderer> Runes = new List<Renderer>();
         public Light DoorLight { get; private set; }
@@ -44,10 +50,9 @@ namespace Nubik
             // Brick patio and the house to the north.
             s.Box("Patio", new Vector3(-1, 0.04f, 15.5f), new Vector3(26, 0.1f, 3.2f), new Color(0.74f, 0.48f, 0.36f), root, true);
             var wall = new Color(0.60f, 0.55f, 0.48f);
-            s.Box("House", new Vector3(-3, 2.6f, 21), new Vector3(15, 5.2f, 7.8f), wall, root, true);
+            BuildHouse(s, root, wall);
             s.Box("Roof south", new Vector3(-3, 6.25f, 19.1f), new Vector3(16, 0.35f, 4.9f), Quaternion.Euler(-32, 0, 0), new Color(0.86f, 0.46f, 0.24f), root);
             s.Box("Roof north", new Vector3(-3, 6.25f, 22.9f), new Vector3(16, 0.35f, 4.9f), Quaternion.Euler(32, 0, 0), new Color(0.80f, 0.42f, 0.22f), root);
-            s.Box("Door", new Vector3(-3, 1.15f, 17.08f), new Vector3(1.3f, 2.3f, 0.12f), new Color(0.55f, 0.37f, 0.27f), root);
             var glass = new Color(0.26f, 0.36f, 0.46f);
             foreach (var w in new[] { new Vector2(-8, 1.6f), new Vector2(2, 1.6f), new Vector2(-8, 4f), new Vector2(-3, 4f), new Vector2(2, 4f) })
             {
@@ -72,27 +77,16 @@ namespace Nubik
                 s.Box("Hedge", new Vector3(side * 17.2f, 0.45f, 2), new Vector3(1, 0.9f, 20), Hedge, root);
             }
             s.Box("Fence south", new Vector3(0, 0.8f, -16), new Vector3(36, 1.6f, 0.14f), Wood, root, true);
-            s.Box("Fence north", new Vector3(0, 0.8f, 17.3f), new Vector3(36, 1.6f, 0.14f), Wood, root, true).GetComponent<Renderer>().enabled = false;
+            // Invisible fence behind the patio, with the house and garage closing the rest.
+            foreach (var span in new[] { new Vector2(-18, -10.5f), new Vector2(4.5f, 6), new Vector2(13, 18) })
+                s.Box("Fence north", new Vector3((span.x + span.y) / 2, 0.8f, 17.3f), new Vector3(span.y - span.x, 1.6f, 0.14f), Wood, root, true)
+                    .GetComponent<Renderer>().enabled = false;
             for (int i = -17; i <= 17; i += 2)
                 s.Box("Fence post", new Vector3(i, 0.9f, -15.9f), new Vector3(0.18f, 1.8f, 0.18f), DarkWood, root);
             Tree(s, root, new Vector3(-14, 0, 10), new Color(0.93f, 0.48f, 0.18f));
             Tree(s, root, new Vector3(14.5f, 0, -12), new Color(0.88f, 0.36f, 0.16f));
             Tree(s, root, new Vector3(-14.5f, 0, -12.5f), new Color(0.40f, 0.62f, 0.24f));
             Tree(s, root, new Vector3(15, 0, 9), new Color(0.95f, 0.66f, 0.22f));
-
-            // Shop stall and the sell crate by the south-west corner.
-            var shop = new Vector3(-10.5f, 0, -9.5f);
-            ShopPoint = shop + new Vector3(1.6f, 0, 0.3f);
-            s.Box("Counter", shop + new Vector3(0, 0.55f, 0), new Vector3(1.1f, 1.1f, 2.6f), Wood, root, true);
-            s.Box("Counter top", shop + new Vector3(0, 1.12f, 0), new Vector3(1.3f, 0.08f, 2.8f), DarkWood, root);
-            for (int z = -1; z <= 1; z += 2)
-                s.Box("Stall post", shop + new Vector3(-0.4f, 1.4f, z * 1.3f), new Vector3(0.12f, 2.8f, 0.12f), DarkWood, root);
-            for (int i = 0; i < 6; i++)
-                s.Box("Awning", shop + new Vector3(0.1f, 2.75f, -1.45f + i * 0.58f), new Vector3(1.8f, 0.08f, 0.58f), Quaternion.Euler(0, 0, -14), i % 2 == 0 ? new Color(0.95f, 0.50f, 0.20f) : new Color(0.98f, 0.95f, 0.88f), root);
-            var crate = shop + new Vector3(1.4f, 0.4f, 2.1f);
-            s.Box("Sell crate", crate, new Vector3(0.9f, 0.8f, 0.9f), Wood, root, true);
-            for (int i = 0; i < 5; i++)
-                s.Box("Coins", crate + new Vector3((i % 3 - 1) * 0.2f, 0.42f, (i / 3 - 0.5f) * 0.25f), new Vector3(0.16f, 0.06f, 0.16f), new Color(1f, 0.76f, 0.2f), root, false, 0.2f);
 
             // The sealed door waits in a chamber on the bedrock floor.
             var door = new Vector3(0, config.FloorY + 1.6f, 1.9f);
@@ -158,7 +152,7 @@ namespace Nubik
             }
             s.Box("Chimney",new Vector3(-7,6.2f,21.5f),new Vector3(.85f,2,.8f),new Color(.48f,.30f,.24f),root);
             s.Box("Chimney cap",new Vector3(-7,7.24f,21.5f),new Vector3(1.05f,.18f,1),DarkWood,root);
-            WorldSign(root,new Vector3(-9.88f,1.65f,-9.5f),-90,"ЛАВКА",new Color(1,.81f,.45f),1.55f,.55f);
+            WorldSign(root, new Vector3(-3, 2.72f, 16.98f), 0, "ДОМ  ·  СКУПКА И МАСТЕРСКАЯ", new Color(1, .81f, .45f), 3.4f, .42f);
             // Deterministic foliage outside the excavation; its own random stream never touches loot or saves.
             var random = new System.Random(41);
             float Range(float min, float max) => min + (float)random.NextDouble() * (max - min);
@@ -210,6 +204,89 @@ namespace Nubik
                 float angle=i*Mathf.PI*2/9;
                 s.Ball("Distant hill",new Vector3(Mathf.Sin(angle)*74,-7,Mathf.Cos(angle)*74),
                     new Vector3(42,27+(i%3)*5,38),new Color(.37f,.52f,.45f),root);
+            }
+        }
+
+        /// <summary>Hollow house you can walk into: the ore buyer on the left, the workbench on the right.</summary>
+        private void BuildHouse(Shapes s, Transform root, Color wall)
+        {
+            var inner = new Color(0.86f, 0.80f, 0.68f);
+            var floor = new Color(0.62f, 0.44f, 0.30f);
+            s.Box("House floor", new Vector3(-3, 0.05f, 21), new Vector3(14.6f, 0.1f, 7.4f), floor, root, true);
+            s.Box("House ceiling", new Vector3(-3, 3.25f, 21), new Vector3(14.6f, 0.1f, 7.4f), inner, root, true);
+            s.Box("House back", new Vector3(-3, 2.6f, 24.8f), new Vector3(15, 5.2f, 0.2f), wall, root, true);
+            s.Box("House left", new Vector3(-10.4f, 2.6f, 21), new Vector3(0.2f, 5.2f, 7.8f), wall, root, true);
+            s.Box("House right", new Vector3(4.4f, 2.6f, 21), new Vector3(0.2f, 5.2f, 7.8f), wall, root, true);
+            // Front wall with a doorway 1.4 m wide and 2.4 m tall.
+            s.Box("House front", new Vector3(-7.1f, 2.6f, 17.2f), new Vector3(6.8f, 5.2f, 0.2f), wall, root, true);
+            s.Box("House front", new Vector3(1.1f, 2.6f, 17.2f), new Vector3(6.8f, 5.2f, 0.2f), wall, root, true);
+            s.Box("Above door", new Vector3(-3, 3.8f, 17.2f), new Vector3(1.4f, 2.8f, 0.2f), wall, root, true);
+            s.Box("Upper floor", new Vector3(-3, 4.25f, 21), new Vector3(15, 1.9f, 7.8f), wall, root);
+            // Inner wall faces in a lighter plaster, and the open door leaning inside.
+            s.Box("Plaster back", new Vector3(-3, 1.65f, 24.68f), new Vector3(14.6f, 3.1f, 0.04f), inner, root);
+            s.Box("Plaster left", new Vector3(-10.28f, 1.65f, 21), new Vector3(0.04f, 3.1f, 7.4f), inner, root);
+            s.Box("Plaster right", new Vector3(4.28f, 1.65f, 21), new Vector3(0.04f, 3.1f, 7.4f), inner, root);
+            s.Box("Door", new Vector3(-3.62f, 1.2f, 17.95f), new Vector3(0.08f, 2.3f, 1.3f), new Color(0.55f, 0.37f, 0.27f), root);
+            s.Box("Doormat", new Vector3(-3, 0.1f, 16.6f), new Vector3(1.4f, 0.03f, 0.8f), new Color(0.45f, 0.30f, 0.20f), root);
+            foreach (float x in new[] { -8f, 2f })
+                s.Box("Window light", new Vector3(x, 1.6f, 17.33f), new Vector3(1.4f, 1.1f, 0.04f), new Color(0.78f, 0.90f, 1f), root, false, 0.6f);
+            s.Box("Rug", new Vector3(-3, 0.11f, 20.6f), new Vector3(4.2f, 0.02f, 2.6f), new Color(0.62f, 0.26f, 0.22f), root);
+            s.Box("Rug border", new Vector3(-3, 0.105f, 20.6f), new Vector3(4.5f, 0.02f, 2.9f), new Color(0.90f, 0.72f, 0.40f), root);
+
+            // Ore buyer: counter, scales, crates of ore and a sign.
+            var wood = new Color(0.55f, 0.36f, 0.22f);
+            s.Box("Buyer counter", new Vector3(-7.6f, 0.6f, 23.6f), new Vector3(3.2f, 1f, 0.9f), wood, root, true);
+            s.Box("Counter top", new Vector3(-7.6f, 1.13f, 23.6f), new Vector3(3.4f, 0.07f, 1f), DarkWood, root);
+            s.Box("Scales", new Vector3(-7f, 1.26f, 23.5f), new Vector3(0.5f, 0.2f, 0.35f), new Color(0.75f, 0.70f, 0.55f), root);
+            s.Box("Scale pan", new Vector3(-7f, 1.4f, 23.5f), new Vector3(0.42f, 0.03f, 0.42f), new Color(0.95f, 0.80f, 0.40f), root, false, 0.15f);
+            var crateOre = new[] { new Color(0.90f, 0.52f, 0.28f), new Color(0.86f, 0.92f, 0.98f), new Color(1f, 0.78f, 0.20f) };
+            for (int i = 0; i < 3; i++)
+            {
+                var crate = new Vector3(-9.4f + i * 0.95f, 0.35f, 24.25f);
+                s.Box("Ore crate", crate, new Vector3(0.85f, 0.7f, 0.6f), DarkWood, root);
+                for (int k = 0; k < 4; k++)
+                    s.Box("Crate ore", crate + new Vector3((k % 2 - 0.5f) * 0.35f, 0.38f, (k / 2 - 0.5f) * 0.25f), Vector3.one * 0.2f,
+                        Quaternion.Euler(k * 20, k * 35, 10), crateOre[i], root, false, 0.2f);
+            }
+            WorldSign(root, new Vector3(-7.6f, 2.35f, 24.6f), 0, "СКУПКА РУДЫ", new Color(1, .81f, .45f), 3f, .5f);
+
+            // Workbench with a pegboard of tools and a jetpack on display.
+            s.Box("Workbench", new Vector3(1.8f, 0.5f, 23.7f), new Vector3(3f, 0.9f, 1f), wood, root, true);
+            s.Box("Bench top", new Vector3(1.8f, 0.98f, 23.7f), new Vector3(3.2f, 0.08f, 1.1f), new Color(0.70f, 0.52f, 0.32f), root);
+            s.Box("Vise", new Vector3(0.6f, 1.12f, 23.5f), new Vector3(0.25f, 0.2f, 0.3f), new Color(0.30f, 0.34f, 0.38f), root);
+            s.Box("Pegboard", new Vector3(1.8f, 1.9f, 24.64f), new Vector3(2.8f, 1.2f, 0.04f), new Color(0.78f, 0.66f, 0.48f), root);
+            for (int i = 0; i < 4; i++)
+                s.Box("Hanging tool", new Vector3(0.8f + i * 0.65f, 1.9f, 24.6f), new Vector3(0.08f, 0.8f, 0.04f), Quaternion.Euler(0, 0, (i - 1.5f) * 8), new Color(0.40f, 0.44f, 0.48f), root);
+            var pack = new Vector3(2.6f, 1.45f, 23.8f);
+            for (int side = -1; side <= 1; side += 2)
+            {
+                s.Box("Jetpack tank", pack + new Vector3(side * 0.15f, 0, 0), new Vector3(0.22f, 0.7f, 0.22f), new Color(0.85f, 0.35f, 0.25f), root);
+                s.Box("Jetpack nozzle", pack + new Vector3(side * 0.15f, -0.42f, 0), new Vector3(0.14f, 0.14f, 0.14f), new Color(0.30f, 0.30f, 0.34f), root);
+            }
+            s.Box("Jetpack frame", pack + new Vector3(0, 0.1f, 0.14f), new Vector3(0.5f, 0.5f, 0.06f), new Color(0.30f, 0.30f, 0.34f), root);
+            WorldSign(root, new Vector3(1.8f, 2.75f, 24.6f), 0, "МАСТЕРСКАЯ", new Color(.43f, .86f, .72f), 3f, .45f);
+
+            // Bed, shelves and lamps make it a home to come back to.
+            s.Box("Bed", new Vector3(-9.3f, 0.35f, 19.3f), new Vector3(1.5f, 0.5f, 2.3f), wood, root, true);
+            s.Box("Blanket", new Vector3(-9.3f, 0.64f, 19.0f), new Vector3(1.45f, 0.1f, 1.7f), new Color(0.25f, 0.45f, 0.42f), root);
+            s.Box("Pillow", new Vector3(-9.3f, 0.68f, 20.1f), new Vector3(1.1f, 0.14f, 0.45f), new Color(0.95f, 0.93f, 0.86f), root);
+            var jars = new[] { new Color(0.75f, 0.85f, 0.95f), new Color(0.90f, 0.70f, 0.40f), new Color(0.60f, 0.80f, 0.55f) };
+            for (int i = 0; i < 3; i++)
+            {
+                s.Box("Shelf", new Vector3(4.1f, 0.8f + i * 0.6f, 19.8f), new Vector3(0.35f, 0.05f, 2f), DarkWood, root);
+                for (int k = 0; k < 4; k++)
+                    s.Box("Jar", new Vector3(4.1f, 0.93f + i * 0.6f, 19.1f + k * 0.45f), new Vector3(0.14f, 0.22f, 0.14f), jars[(i + k) % 3], root);
+            }
+            s.Box("Ceiling lamp", new Vector3(-3, 3.12f, 21), new Vector3(0.6f, 0.12f, 0.6f), new Color(1f, 0.90f, 0.65f), root, false, 0.9f);
+            foreach (var at in new[] { new Vector3(-3, 2.75f, 21), new Vector3(-7.6f, 2.4f, 22.8f), new Vector3(1.8f, 2.4f, 22.8f) })
+            {
+                var light = new GameObject("House light", typeof(Light)).GetComponent<Light>();
+                light.transform.position = at;
+                light.type = LightType.Point;
+                light.color = new Color(1f, 0.86f, 0.62f);
+                light.range = at.x == -3 ? 10 : 5;
+                light.intensity = at.x == -3 ? 2.2f : 1.3f;
+                light.shadows = LightShadows.None;
             }
         }
 

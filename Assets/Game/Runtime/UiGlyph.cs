@@ -7,7 +7,7 @@ namespace Nubik
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class UiGlyph : MaskableGraphic
     {
-        public enum Kind { Coin, Bag, Down, Shovel, Helmet, Shell, Crystal, Gear, Key, Lock }
+        public enum Kind { Coin, Bag, Down, Shovel, Helmet, Shell, Crystal, Gear, Key, Lock, Heart, Jet, Radar, Cross, Gem, Menu }
         private Kind glyph;
         public Kind kind
         {
@@ -49,6 +49,24 @@ namespace Nubik
                 case Kind.Key:
                     Ring(mesh,.32f,.7f,.22f,.12f); Line(mesh,.43f,.56f,.78f,.2f,.085f);
                     Line(mesh,.67f,.31f,.8f,.44f,.085f); break;
+                case Kind.Heart:
+                    Disc(mesh, .33f, .64f, .2f); Disc(mesh, .67f, .64f, .2f);
+                    Tri(mesh, new Vector2(.14f, .6f), new Vector2(.86f, .6f), new Vector2(.5f, .12f)); break;
+                case Kind.Jet:
+                    Box(mesh, .2f, .34f, .42f, .86f); Box(mesh, .58f, .34f, .8f, .86f); Box(mesh, .42f, .52f, .58f, .72f);
+                    Tri(mesh, new Vector2(.22f, .3f), new Vector2(.4f, .3f), new Vector2(.31f, .08f));
+                    Tri(mesh, new Vector2(.6f, .3f), new Vector2(.78f, .3f), new Vector2(.69f, .08f)); break;
+                case Kind.Radar:
+                    Ring(mesh, .5f, .5f, .42f, .34f); Ring(mesh, .5f, .5f, .24f, .16f); Disc(mesh, .5f, .5f, .07f);
+                    Line(mesh, .5f, .5f, .8f, .78f, .07f); break;
+                case Kind.Cross:
+                    Box(mesh, .38f, .14f, .62f, .86f); Box(mesh, .14f, .38f, .86f, .62f); break;
+                case Kind.Gem:
+                    Tri(mesh, new Vector2(.14f, .62f), new Vector2(.86f, .62f), new Vector2(.5f, .1f));
+                    Tri(mesh, new Vector2(.14f, .62f), new Vector2(.3f, .86f), new Vector2(.86f, .62f));
+                    Tri(mesh, new Vector2(.3f, .86f), new Vector2(.7f, .86f), new Vector2(.86f, .62f)); break;
+                case Kind.Menu:
+                    Box(mesh, .18f, .22f, .82f, .32f); Box(mesh, .18f, .45f, .82f, .55f); Box(mesh, .18f, .68f, .82f, .78f); break;
                 default:
                     Ring(mesh,.5f,.65f,.24f,.15f); Box(mesh,.2f,.15f,.8f,.57f); break;
             }
