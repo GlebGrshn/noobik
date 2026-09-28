@@ -3,14 +3,14 @@ using UnityEngine;
 
 namespace Nubik
 {
-    public enum LootKind { Find, Chest, Collectible, Key }
+    public enum LootKind { Find, Chest, Collectible, Key, Secret }
 
     public sealed class LootItem
     {
         public LootKind Kind;
         /// <summary>Finds: save slot inside their chunk. Specials and collectibles use their own indices.</summary>
-        public int Chunk = -1, Slot = -1, Special = -1, Collectible = -1, Key = -1;
-        /// <summary>Ore entry for finds and chests; -1 for collectibles.</summary>
+        public int Chunk = -1, Slot = -1, Special = -1, Collectible = -1, Key = -1, Secret = -1;
+        /// <summary>Ore entry for finds and chests; -1 for collectibles, keys and secrets.</summary>
         public int Ore = -1;
         public int Value, Slots;
         public Vector3 Position;
@@ -59,6 +59,8 @@ namespace Nubik
 
             for (int i = 0; i < Expedition.Keys.Length; i++)
                 Add(new LootItem { Kind = LootKind.Key, Key = i, Position = Expedition.Keys[i].Position, Size = .34f, Color = Expedition.Keys[i].Color });
+            for (int i = 0; i < Secrets.All.Length; i++)
+                Add(new LootItem { Kind = LootKind.Secret, Secret = i, Position = Secrets.All[i].Position, Size = .36f, Color = Secrets.All[i].Color });
 
             float edge = config.width / 2f - 0.8f, extent = config.chunk * config.voxel;
             for (int cy = 0; cy < config.ChunksY; cy++)
@@ -80,7 +82,7 @@ namespace Nubik
                             if (Mathf.FloorToInt((slot + 1) * config.oreDensity + .0001f) == Mathf.FloorToInt(slot * config.oreDensity + .0001f)) continue;
                             if (position.y > -.6f || position.y < config.FloorY + .8f || Mathf.Abs(position.x) > edge || Mathf.Abs(position.z) > edge) continue;
                             int ore = config.PickOre(config.Zone(-position.y), state);
-                            Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = MineSites.AnchorOre(position, terrain), Size = size }, ore));
+                            Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = Secrets.Embed(MineSites.AnchorOre(position, terrain)), Size = size }, ore));
                         }
                     }
         }
@@ -127,12 +129,12 @@ namespace Nubik
                             if (!item.Taken && (item.Position - center).sqrMagnitude <= radius * radius) result.Add(item);
         }
 
-        public bool IsExposed(LootItem item) => item.Key == 0 || terrain.IsExposed(item.Position, item.Size + 0.35f);
+        public bool IsExposed(LootItem item) => item.Key == 0 || item.Secret >= 0 && Secrets.All[item.Secret].OnSurface || terrain.IsExposed(item.Position, item.Size + 0.35f);
 
         public void MarkTaken(GameProgress progress)
         {
             foreach (var item in Items)
-                item.Taken = item.Key >= 0 ? progress.HasKey(item.Key) : item.Collectible >= 0 ? progress.HasCollectible(item.Collectible)
+                item.Taken = item.Key >= 0 ? progress.HasKey(item.Key) : item.Secret >= 0 ? progress.HasSecret(item.Secret) : item.Collectible >= 0 ? progress.HasCollectible(item.Collectible)
                     : item.Special >= 0 ? progress.HasSpecial(item.Special)
                     : progress.IsFound(item.Chunk, item.Slot);
         }

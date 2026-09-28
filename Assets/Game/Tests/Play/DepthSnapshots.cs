@@ -146,12 +146,18 @@ namespace Nubik.PlayTests
             Assert.AreEqual(0, game.Progress.OrePieces);
             game.SellOre();
             Assert.AreEqual(coins + value, game.Progress.coins, "A second sale pays nothing.");
-            game.GetComponent<MineHud>().ShowHouse(1);
+            game.GetComponent<MineHud>().ShowHouse(MineHud.OrderPage);
+            yield return Frames(3);
+            Shot("ui_house_orders", true);
+            game.GetComponent<MineHud>().ShowHouse(MineHud.UpgradePage);
             yield return Frames(3);
             Shot("ui_house_upgrades", true);
-            game.GetComponent<MineHud>().ShowHouse(2);
+            game.GetComponent<MineHud>().ShowHouse(MineHud.ItemPage);
             yield return Frames(3);
             Shot("ui_house_items", true);
+            game.GetComponent<MineHud>().ShowHouse(MineHud.JournalPage);
+            yield return Frames(3);
+            Shot("ui_house_journal", true);
         }
 
         [UnityTest]
@@ -229,7 +235,7 @@ namespace Nubik.PlayTests
             yield return Frames(5);
             game.OpenHouse();
             var hud = game.GetComponent<MineHud>();
-            typeof(MineHud).GetMethod("SelectTab", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(hud, new object[] { 3 });
+            typeof(MineHud).GetMethod("SelectTab", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(hud, new object[] { MineHud.JournalPage });
             yield return Frames(5);
             Shot("ui_exploration_journal", true);
         }
@@ -284,6 +290,89 @@ namespace Nubik.PlayTests
             game.ReturnFromBoss(); yield return Frames(5);
             Assert.IsFalse(game.InBoss); Assert.IsTrue(Yard.InsideHouse(Body(game).transform.position));
             Assert.IsTrue(ProgressStore.Load(game.config).finished);
+        }
+
+        [UnityTest]
+        public IEnumerator SecretsOrdersAdsAndRestart()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game); game.Engage();
+            var field = Field<LootField>(game, "loot");
+            // The garden gnome: stand beside it and hit it with the real dig ray.
+            var gnome = field.Items.Find(x => x.Secret == 0);
+            var stand = gnome.Position + new Vector3(-1.5f, -.2f, 0);
+            var look = gnome.Position - (stand + Vector3.up * 1.55f);
+            game.DebugPlace(stand, Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg, -Mathf.Asin(look.y / look.magnitude) * Mathf.Rad2Deg);
+            yield return new WaitForSeconds(.6f);
+            Assert.NotNull(gnome.View, "Surface secrets are visible from the lawn.");
+            Shot("secret_gnome", true);
+            int coins = game.Progress.coins;
+            Invoke(game, "Swing");
+            Assert.IsTrue(gnome.Taken);
+            Assert.AreEqual(coins + Secrets.All[0].Reward, game.Progress.coins);
+            Assert.IsTrue(ProgressStore.Load(game.config).HasSecret(0), "A found secret is saved at once.");
+
+            // A deep secret sits in its own pocket and shows up once the player is near.
+            var statue = field.Items.Find(x => x.Secret == Secrets.Statue);
+            var inward = -new Vector3(Mathf.Sign(statue.Position.x), 0, Mathf.Sign(statue.Position.z)) * .55f;
+            game.DebugPlace(statue.Position + inward + Vector3.down * .3f, Mathf.Atan2(-inward.x, -inward.z) * Mathf.Rad2Deg, 50);
+            yield return new WaitForSeconds(.6f);
+            Assert.NotNull(statue.View, "The statue waits in its pocket.");
+            Shot("secret_statue");
+
+            // The buyer's order: bring the ore and the house opens on the order page.
+            Assert.IsTrue(game.Progress.HasQuest);
+            game.Progress.ores = new int[game.config.ores.Length];
+            game.Progress.ores[game.Progress.questOre] = game.Progress.questAmount;
+            game.DebugGoto("counter");
+            yield return Frames(5);
+            Assert.AreEqual(Station.Counter, game.Station);
+            game.OpenHouse();
+            yield return Frames(3);
+            Shot("ui_house_order_ready", true);
+            coins = game.Progress.coins;
+            int reward = game.Progress.questReward;
+            game.DeliverOrder();
+            Assert.AreEqual(coins + reward, game.Progress.coins);
+            Assert.AreEqual(0, game.Progress.OrePieces);
+            Assert.AreEqual(1, game.Progress.questNumber);
+
+            // A rewarded ad pauses the game, pays once and starts the cooldown.
+            game.GetComponent<MineHud>().ShowHouse(MineHud.SellPage);
+            yield return Frames(3);
+            Shot("ui_house_sell_ad", true);
+            Assert.IsTrue(game.AdAvailable);
+            coins = game.Progress.coins;
+            int adCoins = game.AdCoins;
+            game.WatchAd();
+            Assert.IsTrue(YandexBridge.Paused, "The game waits while the ad is on screen.");
+            game.WatchAd();
+            yield return new WaitForSecondsRealtime(1.5f);
+            Assert.IsFalse(YandexBridge.Paused);
+            Assert.AreEqual(coins + adCoins, game.Progress.coins, "One ad, one reward.");
+            Assert.IsFalse(game.AdAvailable, "The next ad waits for the cooldown.");
+            Assert.AreEqual(1, ProgressStore.Load(game.config).adRewards);
+
+            // Starting over asks first, then wipes everything but the sound setting.
+            game.Progress.expeditions = 1;
+            game.CloseHouse();
+            game.OpenMenu();
+            yield return Frames(2);
+            var hud = game.GetComponent<MineHud>();
+            typeof(MineHud).GetMethod("ConfirmRestart", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(hud, new object[] { true });
+            yield return Frames(3);
+            Shot("ui_restart_confirm", true);
+            game.Progress.muted = true;
+            game.RestartGame();
+            yield return Frames(10);
+            var fresh = Object.FindAnyObjectByType<MineGame>();
+            Assert.AreNotEqual(game, fresh);
+            Assert.AreEqual(0, fresh.Progress.coins);
+            Assert.AreEqual(0, fresh.Progress.secrets);
+            Assert.AreEqual(0, fresh.Progress.questNumber);
+            Assert.IsTrue(fresh.Progress.muted);
+            Assert.IsFalse(PlayerPrefs.HasKey(Key + ".backup"), "The old game cannot come back from the backup.");
+            Assert.AreEqual(0, ProgressStore.Load(fresh.config).coins);
+            GameAudio.SetMuted(false);
         }
 
         private static void PlayByTouch(MineGame game)

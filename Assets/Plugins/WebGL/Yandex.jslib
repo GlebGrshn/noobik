@@ -10,6 +10,21 @@ mergeInto(LibraryManager.library, {
       if (active) gameplay?.start(); else gameplay?.stop();
     }
   },
+  // Rewarded video. The ticket comes back with onRewarded so the game pays each ad once.
+  NubikShowRewarded: function (ticket) {
+    var id = String(ticket);
+    var send = function (method, value) { if (window.unityInstance) window.unityInstance.SendMessage('NubikGame', method, value); };
+    var adv = window.nubikSDK && window.nubikSDK.adv;
+    if (adv) {
+      adv.showRewardedVideo({ callbacks: {
+        onOpen: function () { send('OnAdOpen', ''); },
+        onRewarded: function () { send('OnAdRewarded', id); },
+        onClose: function () { send('OnAdClose', ''); },
+        onError: function () { send('OnAdError', ''); }
+      } });
+    } else if (window.nubikFakeAd) window.nubikFakeAd(id, send);
+    else setTimeout(function () { send('OnAdError', ''); }, 0);
+  },
   // 1: pointer locked, 2: the page cannot lock the pointer, 0: not locked yet.
   NubikPointerState: function () {
     if (document.pointerLockElement === document.getElementById('unity-canvas')) return 1;

@@ -7,7 +7,7 @@ namespace Nubik
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class UiGlyph : MaskableGraphic
     {
-        public enum Kind { Coin, Bag, Down, Shovel, Helmet, Shell, Crystal, Gear, Key, Lock, Heart, Jet, Radar, Cross, Gem, Menu, Fuel }
+        public enum Kind { Coin, Bag, Down, Shovel, Helmet, Shell, Crystal, Gear, Key, Lock, Heart, Jet, Radar, Cross, Gem, Menu, Fuel, Star, Play, Order }
         private Kind glyph;
         public Kind kind
         {
@@ -70,6 +70,21 @@ namespace Nubik
                     Tri(mesh, new Vector2(.3f, .86f), new Vector2(.7f, .86f), new Vector2(.86f, .62f)); break;
                 case Kind.Menu:
                     Box(mesh, .18f, .22f, .82f, .32f); Box(mesh, .18f, .45f, .82f, .55f); Box(mesh, .18f, .68f, .82f, .78f); break;
+                case Kind.Star:
+                    for (int i = 0; i < 5; i++)
+                    {
+                        float a = Mathf.PI / 2 + i * Mathf.PI * 2 / 5, l = a - Mathf.PI / 5, r = a + Mathf.PI / 5;
+                        var c = new Vector2(.5f, .47f);
+                        Tri(mesh, c + new Vector2(Mathf.Cos(l), Mathf.Sin(l)) * .19f, c + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * .44f, c + new Vector2(Mathf.Cos(r), Mathf.Sin(r)) * .19f);
+                    }
+                    Disc(mesh, .5f, .47f, .2f); break;
+                case Kind.Play:
+                    // A screen with a play mark: reads as "video" next to the ad button.
+                    Box(mesh, .1f, .2f, .9f, .27f); Box(mesh, .1f, .73f, .9f, .8f); Box(mesh, .1f, .2f, .17f, .8f); Box(mesh, .83f, .2f, .9f, .8f);
+                    Tri(mesh, new Vector2(.4f, .34f), new Vector2(.4f, .66f), new Vector2(.66f, .5f)); break;
+                case Kind.Order:
+                    Box(mesh, .2f, .1f, .8f, .17f); Box(mesh, .2f, .77f, .8f, .84f); Box(mesh, .2f, .1f, .27f, .84f); Box(mesh, .73f, .1f, .8f, .84f); Box(mesh, .38f, .8f, .62f, .92f);
+                    Line(mesh, .3f, .6f, .7f, .6f, .06f); Line(mesh, .3f, .44f, .7f, .44f, .06f); Line(mesh, .3f, .28f, .56f, .28f, .06f); break;
                 default:
                     Ring(mesh,.5f,.65f,.24f,.15f); Box(mesh,.2f,.15f,.8f,.57f); break;
             }

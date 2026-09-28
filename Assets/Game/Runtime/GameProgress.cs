@@ -59,6 +59,14 @@ namespace Nubik
         public float fuel = -1;
         public bool doorOpened, hasWeapon;
         public int worldWidth = 14;
+        /// <summary>Found secrets, one bit each.</summary>
+        public int secrets;
+        /// <summary>Buyer's order: questOre &lt; 0 means none yet. questRoll changes when the player asks for another one.</summary>
+        public int questNumber, questOre = -1, questAmount, questReward, questRoll;
+        /// <summary>Rewarded ads paid so far; a reward is granted only for the next number, once.</summary>
+        public int adRewards;
+        /// <summary>Unix seconds when the next rewarded ad may be offered.</summary>
+        public long adReadyAt;
 
         public static GameProgress New(MineConfig config) => new GameProgress { seed = config.seed, worldWidth = config.width, fuel = config.fuelTank[0].value };
 
@@ -76,6 +84,8 @@ namespace Nubik
             if (digCredit < 0 || digCredit >= 100 || found == null || found.Length > config.LootChunkCount || terrain == null) return false;
             if (collection < 0 || collection >= 1 << config.collection.Length || specials < 0) return false;
             if (sites < 0 || sites >= 1 << MineSites.All.Length) return false;
+            if (secrets < 0 || secrets >= 1 << Secrets.All.Length || adRewards < 0 || questNumber < 0 || questRoll < 0) return false;
+            if (questOre >= config.ores.Length || questOre >= 0 && (questAmount <= 0 || questReward <= 0)) return false;
             if (hasResume && !(IsFinite(resume) && resume.y > config.FloorY - 1)) return false;
             if (hasDive && !(IsFinite(dive) && dive.y > config.FloorY - 1)) return false;
             var chunks = new HashSet<int>();
@@ -130,6 +140,13 @@ namespace Nubik
                 keys |= 1 << item.Key;
                 return Pickup.Collected;
             }
+            if (item.Kind == LootKind.Secret)
+            {
+                if (item.Secret < 0 || item.Secret >= Secrets.All.Length || HasSecret(item.Secret)) return Pickup.Gone;
+                secrets |= 1 << item.Secret;
+                coins += Secrets.All[item.Secret].Reward;
+                return Pickup.Collected;
+            }
             if (item.Kind == LootKind.Collectible)
             {
                 if (item.Collectible < 0 || item.Collectible >= config.collection.Length || HasCollectible(item.Collectible)) return Pickup.Gone;
@@ -153,10 +170,17 @@ namespace Nubik
             return Pickup.Collected;
         }
 
+        /// <summary>What the buyer pays for the backpack now, with the statue bonus.</summary>
+        public int SaleValue(MineConfig config)
+        {
+            int value = BagValue(config);
+            return HasSecret(Secrets.Statue) ? Mathf.RoundToInt(value * (1 + Secrets.StatueBonus)) : value;
+        }
+
         /// <summary>Sells every ore piece; items stay. Returns the coins earned.</summary>
         public int Sell(MineConfig config)
         {
-            int sold = BagValue(config);
+            int sold = SaleValue(config);
             coins += sold;
             Array.Clear(ores, 0, ores.Length);
             return sold;
@@ -257,5 +281,86 @@ namespace Nubik
         public bool HasKey(int index) => index >= 0 && index < 5 && (keys & 1 << index) != 0;
         public int KeyCount { get { int n = 0; for (int bits = keys; bits != 0; bits &= bits - 1) n++; return n; } }
         public bool OpenDoor() { if (keys != 31) return false; doorOpened = true; return true; }
+        public bool HasSecret(int index) => index >= 0 && index < Secrets.All.Length && (secrets & 1 << index) != 0;
+
+        // ---------- Buyer's orders ----------
+
+        public bool HasQuest => questOre >= 0;
+
+        /// <summary>
+        /// Makes sure an order is waiting. Orders ask for ore from zones the player has reached, mostly the deepest one,
+        /// grow a little with every delivery and always fit in three quarters of the backpack.
+        /// </summary>
+        public void EnsureQuest(MineConfig config)
+        {
+            if (HasQuest) return;
+            int reached = config.ZoneIndex(maxDepth);
+            uint hash = config.Hash(questNumber, questRoll, 17, 613);
+            // Two times in three the order comes from the deepest zone reached, otherwise from any earlier one.
+            int zoneIndex = reached > 0 && hash % 3 == 0 ? (int)(hash / 3 % (uint)reached) : reached;
+            var zone = config.zones[zoneIndex];
+            int ore = config.PickOre(zone, hash / 7);
+            int weight = 0, top = 1;
+            foreach (var chance in zone.ores)
+            {
+                top = Mathf.Max(top, chance.weight);
+                if (chance.ore == ore) weight = Mathf.Max(weight, chance.weight);
+            }
+            float rarity = Mathf.Sqrt(Mathf.Max(1, weight) / (float)top);
+            int amount = Mathf.RoundToInt((3 + Mathf.Min(questNumber, 12) * 0.5f) * rarity);
+            int fits = Mathf.Max(2, Capacity(config) * 3 / 4 / Mathf.Max(1, config.ores[ore].slots));
+            questOre = ore;
+            questAmount = Mathf.Clamp(amount, 2, fits);
+            float bonus = 1.8f + 0.08f * Mathf.Min(questNumber, 12);
+            questReward = Mathf.Max(5, Mathf.RoundToInt(questAmount * config.ores[ore].value * bonus / 5f) * 5);
+        }
+
+        public bool CanDeliver => HasQuest && OreCount(questOre) >= questAmount;
+
+        /// <summary>Hands the ordered ore to the buyer. Returns the coins paid, or 0 when the order is not ready.</summary>
+        public int DeliverQuest(MineConfig config)
+        {
+            if (!CanDeliver) return 0;
+            ores[questOre] -= questAmount;
+            int paid = questReward;
+            coins += paid;
+            questNumber++;
+            questOre = -1;
+            EnsureQuest(config);
+            return paid;
+        }
+
+        /// <summary>Asks the buyer for another order of the same size class.</summary>
+        public void SkipQuest(MineConfig config)
+        {
+            questRoll++;
+            questOre = -1;
+            EnsureQuest(config);
+        }
+
+        // ---------- Rewarded ads ----------
+
+        public const int AdCooldown = 90;
+
+        public int UpgradeSteps => tool + bagLevel + jetLevel + fuelLevel + healthLevel;
+
+        /// <summary>Coins for one watched ad: grows with the upgrades bought, so it stays worth a look late in the game.</summary>
+        public int AdReward(MineConfig config) => Mathf.RoundToInt(30 * Mathf.Pow(1.13f, UpgradeSteps) / 5f) * 5;
+
+        public bool AdReady(long now) => now >= adReadyAt;
+
+        /// <summary>
+        /// Pays for the ad numbered <paramref name="ticket"/>. Only the next number pays, so a repeated or late
+        /// callback from the platform never pays twice. Returns the coins granted.
+        /// </summary>
+        public int GrantAd(int ticket, long now, MineConfig config)
+        {
+            if (ticket != adRewards + 1) return 0;
+            int reward = AdReward(config);
+            adRewards = ticket;
+            coins += reward;
+            adReadyAt = now + AdCooldown;
+            return reward;
+        }
     }
 }

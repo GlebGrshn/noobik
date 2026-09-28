@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.EventSystems;
+using UnityEngine.SceneManagement;
 
 namespace Nubik
 {
@@ -91,6 +92,7 @@ namespace Nubik
         private bool saveDirty, endingShown, wasActive, engaged, wantLock, wentDown;
         private int engagedFrame = -10;
         private string pendingDebugDig, pendingGoto;
+        private bool restarting;
 
         private sealed class ChunkView { public GameObject obj; public Mesh mesh; public MeshCollider collider; }
         private sealed class Flight { public Transform obj; public Vector3 from; public float t; }
@@ -108,12 +110,14 @@ namespace Nubik
             Input.simulateMouseWithTouches = false;
             TouchMode = Application.isMobilePlatform;
             Progress = ProgressStore.Load(config);
+            Progress.EnsureQuest(config);
             shapes = new Shapes(cubePrefab, spherePrefab, prototypeMaterial);
             terrain = new VoxelTerrain(config);
             foreach (var entry in Progress.terrain)
                 if (!terrain.Decode(entry.chunk, entry.data)) Debug.LogWarning("Skipped damaged terrain chunk " + entry.chunk);
             MineSites.Carve(terrain);
             Expedition.Prepare(terrain);
+            Secrets.Prepare(terrain);
             terrain.ClearDirty();
             mesher = new TerrainMesher(terrain);
             loot = new LootField(terrain);
@@ -122,6 +126,7 @@ namespace Nubik
             yard = new Yard(shapes, config);
             sites = new MineSites(shapes);
             Expedition.Decorate(shapes);
+            Secrets.Decorate(shapes);
             boss = new BossEncounter(shapes);
             BuildTerrain();
             BuildPlayer();
@@ -433,6 +438,7 @@ namespace Nubik
         {
             if (item.Kind == LootKind.Key) return Expedition.Keys[item.Key].Name + " · забрать";
             if (item.Kind == LootKind.Collectible) return "Что-то особенное!";
+            if (item.Kind == LootKind.Secret) return "Здесь что-то спрятано · ударь";
             var ore = config.ores[item.Ore];
             string space = item.Slots > 1 ? " · " + item.Slots + " " + Plural(item.Slots, "слот", "слота", "слотов") : "";
             return ore.nameRu + " · " + ore.value + " монет" + space + (Progress.FreeSlots(config) < item.Slots ? " · рюкзак полон" : "");
@@ -533,6 +539,13 @@ namespace Nubik
                         "Предмет навсегда в альбоме. +" + config.firstDiscoveryCoins + " монет");
                     hud.Popup(item.Position, def.nameRu, def.color);
                     break;
+                case LootKind.Secret:
+                    sound.Play("chest", 1, 1.15f, 0);
+                    var secret = Secrets.All[item.Secret];
+                    hud.Announce(UiGlyph.Kind.Star, secret.Color, "СЕКРЕТ НАЙДЕН · " + Secrets.Count(Progress) + " / " + Secrets.All.Length, secret.Name,
+                        secret.Note + " +" + secret.Reward + " монет");
+                    hud.Popup(item.Position, "+" + secret.Reward, Amber);
+                    break;
                 case LootKind.Chest:
                     sound.Play("chest", 1, 1, 0);
                     hud.Notify(config.ores[item.Ore].nameRu + " в рюкзаке · " + item.Value + " монет при продаже");
@@ -554,10 +567,12 @@ namespace Nubik
             root.rotation = Quaternion.Euler(h % 40, h % 360, h / 7 % 40);
             foreach (var site in MineSites.All)
                 if (item.Special == site.CacheId) { root.rotation = Quaternion.identity; break; }
+            if (item.Kind == LootKind.Secret) root.rotation = Quaternion.identity;
             var collider = root.gameObject.AddComponent<BoxCollider>();
             collider.isTrigger = true;
             collider.size = Vector3.one * item.Size * 2.2f;
             if (item.Kind == LootKind.Key) { collider.center = Vector3.up * .08f; collider.size = new Vector3(.6f, .85f, .4f); }
+            if (item.Kind == LootKind.Secret) collider.size = Vector3.one * .9f;
             float s = item.Size;
             switch (item.Kind)
             {
@@ -569,6 +584,9 @@ namespace Nubik
                     shapes.Box("Lid", new Vector3(0, 0.27f, 0), new Vector3(0.78f, 0.1f, 0.53f), new Color(0.42f, 0.25f, 0.14f), root);
                     shapes.Box("Band", new Vector3(0, 0.05f, 0), new Vector3(0.8f, 0.08f, 0.54f), item.Color, root, false, 0.25f);
                     shapes.Box("Lock", new Vector3(0, 0.16f, -0.27f), new Vector3(0.12f, 0.14f, 0.05f), new Color(1f, 0.8f, 0.3f), root, false, 0.3f);
+                    break;
+                case LootKind.Secret:
+                    BuildSecret(item, root);
                     break;
                 case LootKind.Collectible:
                     BuildCollectible(item, root);
@@ -620,6 +638,98 @@ namespace Nubik
                     shapes.Box("Key shaft", new Vector3(0, 0, 0.08f), new Vector3(0.07f, 0.07f, 0.4f), c, root, false, 0.4f);
                     shapes.Ball("Key ring", new Vector3(0, 0, -0.18f), new Vector3(0.24f, 0.07f, 0.24f), c, root, false, 0.4f);
                     shapes.Box("Key bit", new Vector3(0.07f, 0, 0.24f), new Vector3(0.1f, 0.06f, 0.08f), c, root, false, 0.4f);
+                    break;
+            }
+        }
+
+        /// <summary>Secrets face the middle of the yard, where the player comes from; +z is their front.</summary>
+        private void BuildSecret(LootItem item, Transform root)
+        {
+            var secret = Secrets.All[item.Secret];
+            var c = item.Color;
+            if (secret.Look != SecretLook.Letter) root.rotation = Quaternion.LookRotation(new Vector3(-item.Position.x, 0, -item.Position.z));
+            void Glow(Color color, float range, float intensity)
+            {
+                var light = new GameObject("Secret glow", typeof(Light)).GetComponent<Light>();
+                light.transform.SetParent(root, false);
+                light.transform.localPosition = new Vector3(0, .25f, .3f);
+                light.type = LightType.Point; light.range = range; light.intensity = intensity; light.color = color;
+            }
+            switch (secret.Look)
+            {
+                case SecretLook.Gnome:
+                    var coat = new Color(.2f, .38f, .78f);
+                    shapes.Ball("Gnome coat", new Vector3(0, -.08f, 0), new Vector3(.3f, .34f, .28f), coat, root);
+                    shapes.Box("Gnome belt", new Vector3(0, -.08f, 0), new Vector3(.29f, .04f, .27f), new Color(.2f, .14f, .1f), root);
+                    foreach (float x in new[] { -.075f, .075f })
+                        shapes.Ball("Gnome boot", new Vector3(x, -.23f, .04f), new Vector3(.1f, .06f, .14f), new Color(.18f, .12f, .09f), root);
+                    shapes.Ball("Gnome face", new Vector3(0, .12f, .02f), new Vector3(.17f, .17f, .16f), new Color(1f, .78f, .64f), root);
+                    shapes.Ball("Gnome nose", new Vector3(0, .12f, .1f), new Vector3(.055f, .05f, .05f), new Color(1f, .6f, .52f), root);
+                    shapes.Ball("Gnome beard", new Vector3(0, .03f, .08f), new Vector3(.17f, .17f, .09f), new Color(.96f, .95f, .92f), root);
+                    // A soft pointed cap: ever smaller layers leaning back.
+                    for (int i = 0; i < 5; i++)
+                        shapes.Ball("Gnome hat", new Vector3(0, .2f + i * .055f, -i * .012f), new Vector3(.2f - i * .037f, .1f, .2f - i * .037f), c, root);
+                    break;
+                case SecretLook.Letter:
+                    // Sticks out of the mailbox slot.
+                    shapes.Box("Letter paper", new Vector3(0, .13f, -.3f), new Vector3(.2f, .13f, .1f), Quaternion.Euler(0, 0, 8), c, root);
+                    shapes.Ball("Letter wax seal", new Vector3(0, .13f, -.355f), new Vector3(.04f, .04f, .015f), new Color(.75f, .12f, .12f), root);
+                    break;
+                case SecretLook.Capsule:
+                    shapes.Ball("Capsule metal", new Vector3(0, -.18f, 0), new Vector3(.3f, .3f, .62f), c, root);
+                    foreach (float z in new[] { -.15f, .15f })
+                        shapes.Box("Capsule band metal", new Vector3(0, -.18f, z), new Vector3(.31f, .31f, .04f), c * .7f, root);
+                    shapes.Ball("Capsule cap", new Vector3(0, -.18f, .3f), new Vector3(.22f, .22f, .1f), new Color(.8f, .25f, .2f), root);
+                    shapes.Box("Capsule label", new Vector3(0, -.03f, 0), new Vector3(.14f, .012f, .2f), new Color(.95f, .9f, .7f), root);
+                    break;
+                case SecretLook.Skull:
+                    shapes.Ball("Fossil skull", new Vector3(0, -.1f, 0), new Vector3(.6f, .45f, .72f), c, root);
+                    shapes.Box("Fossil jaw", new Vector3(0, -.28f, .22f), new Vector3(.4f, .1f, .38f), c * .9f, root);
+                    foreach (float x in new[] { -.14f, .14f })
+                    {
+                        shapes.Ball("Skull socket", new Vector3(x, -.02f, .3f), new Vector3(.16f, .14f, .1f), new Color(.1f, .08f, .07f), root);
+                        shapes.Box("Fossil horn", new Vector3(x * 1.9f, .15f, -.05f), new Vector3(.07f, .36f, .07f), Quaternion.Euler(-20, 0, x < 0 ? 28 : -28), c * .85f, root);
+                    }
+                    for (int i = 0; i < 5; i++)
+                        shapes.Box("Fossil tooth", new Vector3(-.14f + i * .07f, -.2f, .38f), new Vector3(.035f, .08f, .035f), new Color(.98f, .95f, .86f), root);
+                    break;
+                case SecretLook.Statue:
+                    shapes.Box("Statue plinth stone", new Vector3(0, -.25f, 0), new Vector3(.52f, .2f, .52f), new Color(.42f, .43f, .46f), root);
+                    foreach (float x in new[] { -.075f, .075f })
+                        shapes.Box("Golden foot metal", new Vector3(x, -.05f, 0), new Vector3(.12f, .2f, .15f), c * .8f, root, false, .06f);
+                    shapes.Box("Golden body metal", new Vector3(0, .2f, 0), new Vector3(.3f, .3f, .17f), c, root, false, .08f);
+                    foreach (float x in new[] { -.21f, .21f })
+                        shapes.Box("Golden arm metal", new Vector3(x, .2f, 0), new Vector3(.11f, .3f, .13f), c * .88f, root, false, .06f);
+                    shapes.Box("Golden head metal", new Vector3(0, .5f, 0), new Vector3(.3f, .3f, .3f), c, root, false, .1f);
+                    shapes.Box("Golden hair metal", new Vector3(0, .66f, -.02f), new Vector3(.32f, .05f, .3f), c * .75f, root, false, .05f);
+                    shapes.Box("Statue smile", new Vector3(0, .42f, .151f), new Vector3(.1f, .025f, .01f), new Color(.35f, .2f, .08f), root);
+                    foreach (float x in new[] { -.07f, .07f })
+                        shapes.Box("Statue eye", new Vector3(x, .52f, .151f), new Vector3(.05f, .06f, .01f), new Color(.2f, .12f, .05f), root);
+                    Glow(c, 3.2f, 1.4f);
+                    break;
+                case SecretLook.Mushroom:
+                    var stem = new Color(.9f, .95f, .88f);
+                    shapes.Box("Mushroom stem", new Vector3(0, -.15f, 0), new Vector3(.11f, .4f, .11f), stem, root, false, .2f);
+                    shapes.Ball("Mushroom cap", new Vector3(0, .07f, 0), new Vector3(.5f, .2f, .5f), c, root, false, .9f);
+                    for (int i = 0; i < 5; i++)
+                    {
+                        float a = i * 1.26f;
+                        shapes.Ball("Mushroom spot", new Vector3(Mathf.Cos(a) * .15f, .15f, Mathf.Sin(a) * .15f), Vector3.one * .06f, new Color(.95f, 1f, .95f), root, false, .5f);
+                    }
+                    foreach (var at in new[] { new Vector3(.27f, -.27f, .1f), new Vector3(-.22f, -.29f, .16f) })
+                    {
+                        shapes.Box("Mushroom stem", at, new Vector3(.04f, .12f, .04f), stem, root);
+                        shapes.Ball("Mushroom cap", at + Vector3.up * .07f, new Vector3(.14f, .06f, .14f), c, root, false, .9f);
+                    }
+                    Glow(c, 3.5f, 1.6f);
+                    break;
+                default: // old safe
+                    shapes.Box("Safe metal", new Vector3(0, -.05f, 0), new Vector3(.6f, .6f, .55f), c, root);
+                    shapes.Box("Safe door metal", new Vector3(0, -.05f, .28f), new Vector3(.48f, .48f, .03f), c * 1.25f, root);
+                    shapes.Ball("Safe dial", new Vector3(.06f, -.02f, .3f), new Vector3(.12f, .12f, .03f), new Color(.8f, .62f, .3f), root, false, .15f);
+                    shapes.Box("Safe handle metal", new Vector3(-.13f, -.05f, .31f), new Vector3(.03f, .16f, .03f), new Color(.75f, .72f, .66f), root);
+                    foreach (var at in new[] { new Vector3(-.2f, .15f, .29f), new Vector3(.18f, -.24f, .29f), new Vector3(.3f, .1f, .1f) })
+                        shapes.Ball("Rust", at, new Vector3(.12f, .08f, .04f), new Color(.55f, .28f, .13f), root);
                     break;
             }
         }
@@ -891,7 +1001,10 @@ namespace Nubik
                 Hint = "Здесь есть старый проход — ищи свет фонарей";
             else if (!HasJetpack && Depth > 6 && Depth < 10)
                 Hint = "Оставляй ступеньки для возвращения";
-            else Hint = Expedition.NextKey(Progress) >= 0 ? Expedition.Keys[Expedition.NextKey(Progress)].Clue : "Все ключи найдены · дверь на 120 м";
+            else if (Progress.CanDeliver && !Underground)
+                Hint = "Заказ скупщика собран · отнеси его в дом";
+            // Where the keys are is for the journal to tell, not the screen.
+            else Hint = "";
         }
 
         /// <summary>The click that starts or resumes mouse play; the page takes the pointer lock in the same click.</summary>
@@ -952,7 +1065,7 @@ namespace Nubik
         {
             ReleaseMouse();
             hud.ClearInput();
-            hud.ShowHouse(Station == Station.Counter ? 0 : 1);
+            hud.ShowHouse(Station == Station.Counter ? Progress.CanDeliver ? MineHud.OrderPage : MineHud.SellPage : MineHud.UpgradePage);
         }
 
         public void CloseHouse() => hud.ClosePanel();
@@ -964,6 +1077,25 @@ namespace Nubik
             SaveNow();
             sound.Play("sell", 1, 1, 0);
             hud.Notify("Руда продана: +" + amount + " монет");
+        }
+
+        public void DeliverOrder()
+        {
+            var ore = Progress.HasQuest ? config.ores[Progress.questOre] : null;
+            int paid = Progress.DeliverQuest(config);
+            if (paid <= 0) return;
+            SaveNow();
+            sound.Play("sell", 1, 1.1f, 0);
+            hud.Notify("Заказ выполнен: " + ore.nameRu + " · +" + paid + " монет");
+        }
+
+        public void SkipOrder()
+        {
+            if (!Progress.HasQuest) return;
+            Progress.SkipQuest(config);
+            SaveNow();
+            sound.Play("pickup", 0.6f, 0.8f, 0);
+            hud.Notify("Скупщик выдал другой заказ");
         }
 
         public void Buy(Track track)
@@ -1043,8 +1175,21 @@ namespace Nubik
             hud.Notify(Progress.muted ? "Звук выключен" : "Звук включён");
         }
 
+        /// <summary>
+        /// Wipes the save and loads the world again from scratch. Sound settings survive: they are not progress.
+        /// </summary>
+        public void RestartGame()
+        {
+            restarting = true;
+            if (InBoss) boss.Exit();
+            ProgressStore.Reset(config, Progress.muted);
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
         public void SaveNow()
         {
+            // A restart already wrote the fresh save; the old world must not overwrite it on the way out.
+            if (restarting) return;
             var feet = InBoss ? DoorLanding : body.transform.position;
             Progress.hasResume = Standable(feet);
             Progress.resume = feet;

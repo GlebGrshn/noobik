@@ -17,6 +17,8 @@
     progress::-webkit-progress-bar { background: #2b4241; }
     progress::-webkit-progress-value { background: #ffc451; border-radius: 5px; }
     #error { max-width: 36em; line-height: 1.5; }
+    #fake-ad { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: #05090b; color: #f7f2de; font-size: 18px; z-index: 5; }
+    #fake-ad b { color: #ffc451; letter-spacing: 2px; }
   </style>
 </head>
 <body>
@@ -37,6 +39,25 @@
       sdkScript.onerror = () => console.warn('Yandex SDK unavailable; running local prototype.');
       document.head.appendChild(sdkScript);
     }
+    // Localhost stands in for the ad network with a labelled three-second screen.
+    if (['localhost', '127.0.0.1'].includes(location.hostname)) window.nubikFakeAd = (id, send) => {
+      if (document.pointerLockElement) document.exitPointerLock();
+      const screen = document.createElement('div');
+      screen.id = 'fake-ad';
+      screen.innerHTML = '<b>РЕКЛАМА</b><div>Тестовый ролик вместо рекламы Яндекса</div><div id="fake-ad-time">3</div>';
+      document.body.appendChild(screen);
+      send('OnAdOpen', '');
+      let left = 3;
+      const tick = setInterval(() => {
+        left--;
+        document.getElementById('fake-ad-time').textContent = left;
+        if (left > 0) return;
+        clearInterval(tick);
+        screen.remove();
+        send('OnAdRewarded', id);
+        send('OnAdClose', '');
+      }, 1000);
+    };
     const canvas = document.getElementById('unity-canvas');
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     // Mouse look: collect deltas here; the game reads them each frame. Pointer lock is requested

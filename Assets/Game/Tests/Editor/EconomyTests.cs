@@ -246,7 +246,8 @@ namespace Nubik.Tests
             Assert.Greater(loot.Items.Count, 200);
             foreach (var item in loot.Items)
             {
-                if (item.Kind == LootKind.Key) continue; // The garden key belongs to the surface yard.
+                // The garden key and the lawn secrets belong to the surface yard.
+                if (item.Kind == LootKind.Key || item.Kind == LootKind.Secret && Secrets.All[item.Secret].OnSurface) continue;
                 Assert.Less(Mathf.Abs(item.Position.x), edge);
                 Assert.Less(Mathf.Abs(item.Position.z), edge);
                 Assert.Greater(item.Position.y, config.FloorY);

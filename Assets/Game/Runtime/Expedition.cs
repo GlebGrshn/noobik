@@ -28,7 +28,8 @@ namespace Nubik
         {
             if (progress.finished) return "Ктулху побеждён · двор спасён";
             int next = NextKey(progress);
-            return next >= 0 ? "Ключи " + progress.KeyCount + "/5 · " + (Keys[next].Depth == 0 ? "сад у дома" : Keys[next].Depth + " м")
+            // Only the count: where to look is written in the journal.
+            return next >= 0 ? "Ключи " + progress.KeyCount + "/5 · дверь на 120 м"
                 : progress.doorOpened ? "Вернись к порталу · 120 м" : "Открой дверь · 120 м";
         }
         public static void Prepare(VoxelTerrain terrain)

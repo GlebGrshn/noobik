@@ -14,9 +14,9 @@ namespace Nubik
         private readonly List<RectTransform> keyRows = new List<RectTransform>();
         private void BuildJournal()
         {
-            keysTab = Action(pages[3], "Пять ключей", Mint, () => JournalTab(true), Ink);
-            albumTab = Action(pages[3], "Коллекция и места", Inset, () => JournalTab(false), Cream);
-            journalKeys = Rect("Quest journal", pages[3]);
+            keysTab = Action(pages[JournalPage], "Пять ключей", Mint, () => JournalTab(true), Ink);
+            albumTab = Action(pages[JournalPage], "Коллекция и места", Inset, () => JournalTab(false), Cream);
+            journalKeys = Rect("Quest journal", pages[JournalPage]);
             journalTitle = Caption(journalKeys, "", 20, Cream, 0, 0, 500, 30, true);
             for (int i = 0; i < Expedition.Keys.Length; i++)
             {

@@ -121,6 +121,30 @@ namespace Nubik
 
         public static string Encode(GameProgress data) => JsonUtility.ToJson(data);
 
+        /// <summary>
+        /// Starts over on purpose: the old save and its backup are replaced by fresh progress, so a later
+        /// failed read cannot bring the old game back.
+        /// </summary>
+        public static GameProgress Reset(MineConfig config, bool muted)
+        {
+            var fresh = GameProgress.New(config);
+            fresh.muted = muted;
+            writable = true;
+            Status = "Новая игра";
+            try
+            {
+                PlayerPrefs.DeleteKey(Key + ".backup");
+                PlayerPrefs.SetString(Key, Encode(fresh));
+                PlayerPrefs.Save();
+            }
+            catch (Exception e)
+            {
+                Status = "Не удалось сохранить прогресс на устройстве";
+                Debug.LogWarning("Local save failed: " + e.Message);
+            }
+            return fresh;
+        }
+
         public static void Save(GameProgress data, MineConfig config)
         {
             if (!writable) return;

@@ -32,6 +32,10 @@ namespace Nubik
         private CanvasScaler scaler;
         private RectTransform root, coinCard, depthCard, bagCard, vitalsCard, actions, toolCard, targetCard, toastCard, depthTrack;
         private RectTransform startCard, touchControls, pad, digRect, jumpRect, scanRect, medkitRect, fuelRow;
+        private RectTransform orderCard, confirmCard;
+        private UiGlyph orderIcon;
+        private Text orderTitle, orderInfo;
+        private Button restartButton;
         private GameObject overlay, ending;
         private Button startButton, stationButton, menuButton, scanButton, medkitButton, rescueButton;
         private Text coins, depth, zone, backpack, bagCaption, record, target, hint, toast, toolName, toolKeys;
@@ -149,6 +153,14 @@ namespace Nubik
             fuelFill = Bar(fuelRow, 42, 11, 120, Amber);
             fuelText = Caption(fuelRow, "", 14, Cream, 170, 1, 58, 26, true);
 
+            orderCard = Panel("Order", root, Card);
+            orderIcon = Icon(orderCard, UiGlyph.Kind.Order, Amber, 12, 13, 30);
+            orderTitle = Caption(orderCard, "", 13, Muted, 52, 5, 172, 22, true);
+            orderInfo = Caption(orderCard, "", 16, Cream, 52, 25, 172, 26, true);
+            orderInfo.resizeTextForBestFit = true;
+            orderInfo.resizeTextMinSize = 11;
+            orderInfo.resizeTextMaxSize = 16;
+
             depthCard = Panel("Depth", root, Card);
             Icon(depthCard, UiGlyph.Kind.Down, Mint, 15, 17, 32);
             depth = Caption(depthCard, "", 24, Cream, 54, 5, 110, 40, true);
@@ -234,8 +246,28 @@ namespace Nubik
             startAction = startButton.GetComponentInChildren<Text>();
             rescueButton = Action(startCard, "Вызвать спасателей · руда останется в шахте", Inset, game.CallRescue, Cream);
             At((RectTransform)rescueButton.transform, 32, 306, 416, 48);
+            restartButton = Action(startCard, "Начать игру заново", Inset, () => ConfirmRestart(true), new Color(1f, .62f, .55f));
             startHelp = Caption(startCard, "", 14, Muted, 32, 364, 416, 92);
             startHelp.alignment = TextAnchor.MiddleCenter;
+
+            confirmCard = Panel("Restart confirm", overlay.transform, Ink);
+            Center(confirmCard, 0, 0, 480, 300);
+            Icon(confirmCard, UiGlyph.Kind.Heart, Red, 212, 22, 56);
+            var question = Caption(confirmCard, "Начать заново?", 30, Cream, 24, 88, 432, 44, true);
+            question.alignment = TextAnchor.MiddleCenter;
+            var warning = Caption(confirmCard, "Монеты, улучшения, ключи, секреты и выкопанная земля будут удалены. Отменить это нельзя.", 16, Muted, 32, 134, 416, 60);
+            warning.alignment = TextAnchor.MiddleCenter;
+            var wipe = Action(confirmCard, "Да, всё сначала", Red, game.RestartGame);
+            At((RectTransform)wipe.transform, 32, 212, 200, 58);
+            var keep = Action(confirmCard, "Отмена", Amber, () => ConfirmRestart(false));
+            At((RectTransform)keep.transform, 248, 212, 200, 58);
+            confirmCard.gameObject.SetActive(false);
+        }
+
+        private void ConfirmRestart(bool ask)
+        {
+            confirmCard.gameObject.SetActive(ask);
+            startCard.gameObject.SetActive(!ask);
         }
 
         private void BuildEnding()
@@ -326,6 +358,7 @@ namespace Nubik
             At(depthTrack, 18, 52, portrait ? 476 : 284, 6);
             At(record.rectTransform, 18, 62, portrait ? 476 : 284, 20);
             At(vitalsCard, edge, portrait ? 206 : 118, 232, 62);
+            At(orderCard, edge, portrait ? 276 : 188, 232, 56);
 
             float actionHeight = touch ? (portrait ? 64 : 72) : 56;
             Right(actions, edge, portrait ? 206 : 118, 246, actionHeight);
@@ -401,6 +434,7 @@ namespace Nubik
             depthCard.gameObject.SetActive(!modal);
             bagCard.gameObject.SetActive(!modal);
             vitalsCard.gameObject.SetActive(!modal);
+            UpdateOrder(progress, config, modal || waiting);
             actions.gameObject.SetActive(!modal && !waiting);
             stationButton.gameObject.SetActive(!string.IsNullOrEmpty(game.Interaction));
             stationText.text = game.Interaction + (game.TouchMode ? "" : "  ·  E");
@@ -419,7 +453,7 @@ namespace Nubik
             crosshair.rectTransform.sizeDelta = Vector2.one * (hit ? 11 : 7);
             hint.text = modal || waiting ? "" : game.Hint;
             UpdateAnnouncement(modal || waiting);
-            toastCard.gameObject.SetActive(Time.unscaledTime < toastUntil && !modal && !announceCard.gameObject.activeSelf);
+            toastCard.gameObject.SetActive(Time.unscaledTime < toastUntil && !modal && !waiting && !announceCard.gameObject.activeSelf);
             float fadeAge = (Time.unscaledTime - fadeStart) / fadeLength;
             fade.enabled = fadeAge < 1;
             if (fade.enabled) fade.color = new Color(0.02f, 0.04f, 0.05f, 1 - Mathf.SmoothStep(0, 1, fadeAge));
@@ -460,10 +494,24 @@ namespace Nubik
             bagFill.color = full || flash ? Red : Mint;
         }
 
+        private void UpdateOrder(GameProgress progress, MineConfig config, bool hidden)
+        {
+            bool show = !hidden && !game.InBoss && progress.HasQuest;
+            orderCard.gameObject.SetActive(show);
+            if (!show) return;
+            var ore = config.ores[progress.questOre];
+            int have = Mathf.Min(progress.OreCount(progress.questOre), progress.questAmount);
+            bool ready = progress.CanDeliver;
+            orderIcon.color = ready ? Mint : Amber;
+            orderTitle.text = "ЗАКАЗ · " + ore.nameRu.ToUpperInvariant();
+            orderInfo.text = ready ? "Готово · +" + progress.questReward + " в доме" : have + " / " + progress.questAmount + "  ·  +" + progress.questReward + " монет";
+            orderInfo.color = ready ? Mint : Cream;
+        }
+
         private void UpdateStart(GameProgress progress, MineConfig config, bool waiting)
         {
             overlay.SetActive(waiting);
-            if (!waiting) return;
+            if (!waiting) { if (confirmCard.gameObject.activeSelf) ConfirmRestart(false); return; }
             // Returning players see their progress instead of the tagline; the same card is the pause menu.
             bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
             startKicker.text = game.MenuOpen ? "ПАУЗА" : returning ? "С ВОЗВРАЩЕНИЕМ" : "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.";
@@ -471,6 +519,13 @@ namespace Nubik
                 : "Пять ключей. Дверь. Тайна глубины.";
             startAction.text = game.MenuOpen || returning ? "Продолжить" : "Начать вылазку";
             rescueButton.gameObject.SetActive(game.CanRescue);
+            restartButton.gameObject.SetActive(returning);
+            // Optional buttons stack under the main one; the card grows to fit them.
+            float y = 306;
+            if (game.CanRescue) { At((RectTransform)rescueButton.transform, 32, y, 416, 48); y += 56; }
+            if (returning) { At((RectTransform)restartButton.transform, 32, y, 416, 44); y += 52; }
+            At(startHelp.rectTransform, 32, y + 2, 416, 92);
+            startCard.sizeDelta = new Vector2(480, y + 108);
             startHelp.text = game.TouchMode ? "Стик — идти, справа — осмотр\n" +
                 (game.HasJetpack ? "Держи ПРЫЖОК в воздухе — джетпак\n" : "Копай ступеньки, чтобы вернуться наверх\n") + "Общий бензобак заправляется на базе"
                 : "WASD — идти · " + (game.FreeMouse ? "ПКМ — обзор" : "мышь — обзор") + "\nЛКМ — копать · пробел — прыжок" +
@@ -493,10 +548,11 @@ namespace Nubik
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(root, screen, null, out var local);
                 mark.rect.gameObject.SetActive(true);
                 Center(mark.rect, local.x, local.y, 26, 26);
-                mark.icon.kind = item.Kind == LootKind.Key || item.Kind == LootKind.Collectible ? UiGlyph.Kind.Key : item.Kind == LootKind.Chest ? UiGlyph.Kind.Bag : UiGlyph.Kind.Gem;
+                mark.icon.kind = item.Kind == LootKind.Secret ? UiGlyph.Kind.Star : item.Kind == LootKind.Key || item.Kind == LootKind.Collectible ? UiGlyph.Kind.Key
+                    : item.Kind == LootKind.Chest ? UiGlyph.Kind.Bag : UiGlyph.Kind.Gem;
                 float pulse = 0.75f + 0.25f * Mathf.Sin(Time.unscaledTime * 6 + i);
                 mark.icon.color = new Color(item.Color.r, item.Color.g, item.Color.b, pulse);
-                string name = item.Kind == LootKind.Key ? Expedition.Keys[item.Key].Name : item.Kind == LootKind.Collectible ? "???" : game.config.ores[item.Ore].nameRu;
+                string name = item.Kind == LootKind.Key ? Expedition.Keys[item.Key].Name : item.Ore < 0 ? "???" : game.config.ores[item.Ore].nameRu;
                 mark.label.text = name + " · " + Mathf.RoundToInt(screen.z) + " м";
             }
         }

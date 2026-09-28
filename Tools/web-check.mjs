@@ -125,19 +125,33 @@ try {
   await key('KeyE', 'e');
   await sleep(800);
   await shot('desktop_05_house');
+  // House card 880x680 in the middle of 1280x720; five tabs 158.4 wide from x 228, y 138.
+  step = 'orders';
+  await click(228 + 1 * 166.4 + 79, 138);
+  await sleep(500);
+  await shot('desktop_06_orders');
+  // Rewarded ad on the sale page: localhost shows a labelled three-second stand-in.
+  step = 'rewarded ad';
+  await click(228 + 79, 138);
+  await sleep(400);
+  await click(877, 578);
+  await sleep(500);
+  await shot('desktop_07_ad');
+  await sleep(3200);
+  await shot('desktop_08_ad_reward');
   await key('Escape', 'Escape');
   await sleep(400);
 
   // Drop to the stone zone, start, catch the zone announcement, then open the pause menu.
   step = 'loading at depth';
   await load(1280, 720, false, withParam('depth=35'));
-  await shot('desktop_06_welcome_back');
+  await shot('desktop_09_welcome_back');
   await click(640, 391);
   await sleep(700);
-  await shot('desktop_07_zone');
+  await shot('desktop_10_zone');
   await key('Escape', 'Escape');
   await sleep(500);
-  await shot('desktop_08_pause');
+  await shot('desktop_11_pause');
 
   await load(390, 844, true);
   await shot('phone_01_start');
@@ -163,11 +177,15 @@ try {
   await tap(365 * unit, 238 * unit);
   await sleep(600);
   await shot('phone_03_house');
+  // Five tabs, each (512 - 56 - 32) / 5 wide, 8 apart, from x 14 + 28.
   const tabY = ((844 / unit - 964) / 2 + 118) * unit;
-  await tap((14 + 28 + 116 + 54) * unit, tabY);
-  await shot('phone_04_upgrades');
-  await tap((14 + 28 + 3 * 116 + 54) * unit, tabY);
-  await shot('phone_05_journal');
+  const tabX = index => (14 + 28 + index * 92.8 + 42.4) * unit;
+  await tap(tabX(1), tabY);
+  await shot('phone_04_orders');
+  await tap(tabX(2), tabY);
+  await shot('phone_05_upgrades');
+  await tap(tabX(4), tabY);
+  await shot('phone_06_journal');
 } finally {
   writeFileSync(join(out, 'console.txt'), problems.join('\n'));
   console.log(problems.length ? problems.join('\n') : 'no console errors');
