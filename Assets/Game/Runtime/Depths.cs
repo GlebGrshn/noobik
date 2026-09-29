@@ -10,8 +10,13 @@ namespace Nubik
         public float Floor => Center.y - Half.y;
         /// <summary>Molten surface height; the player burns with feet below it.</summary>
         public float Surface => Floor + 0.4f;
+        /// <summary>Any part of the player (feet to head) touching the molten slab burns: walking in, or flying up into it from below.</summary>
         public bool Burns(Vector3 feet) =>
-            Mathf.Abs(feet.x - Center.x) < Half.x - 0.1f && Mathf.Abs(feet.z - Center.z) < Half.z - 0.1f && feet.y < Surface + 0.12f && feet.y > Floor - 0.6f;
+            Mathf.Abs(feet.x - Center.x) < Half.x - 0.1f && Mathf.Abs(feet.z - Center.z) < Half.z - 0.1f && feet.y < Surface + 0.12f && feet.y + PlayerHeight > Floor - 0.15f;
+        public const float PlayerHeight = 1.8f;
+        /// <summary>Inside the pool's hollow (where no loot may lie).</summary>
+        public bool InPocket(Vector3 p) =>
+            Mathf.Abs(p.x - Center.x) < Half.x && Mathf.Abs(p.z - Center.z) < Half.z && p.y > Floor - .05f && p.y < Center.y + Half.y + 1.2f;
     }
 
     /// <summary>
@@ -47,7 +52,8 @@ namespace Nubik
         /// <summary>Moves a generated find out of a lava pool or the crater into the nearest side wall.</summary>
         public static Vector3 Embed(Vector3 position)
         {
-            foreach (var pool in Lava) position = Push(position, pool.Center, pool.Half);
+            // The same hollow Prepare carves: the pool and the headroom above it.
+            foreach (var pool in Lava) position = Push(position, pool.Center + Vector3.up * .6f, pool.Half + Vector3.up * .6f);
             return Push(position, CraterCenter, CraterHalf);
         }
 

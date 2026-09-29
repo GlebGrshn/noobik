@@ -97,6 +97,55 @@ namespace Nubik.PlayTests
         }
 
         [UnityTest]
+        public IEnumerator ClosingTheHouseGoesBackToPlayAndRunningIsFaster()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>();
+            game.Engage();
+            yield return null;
+            game.DebugGoto("counter");
+            yield return new WaitForSeconds(.3f);
+            game.OpenHouse();
+            yield return null;
+            game.CloseHouse();
+            yield return null;
+            yield return null;
+            Assert.IsFalse(GameObject.Find("Start overlay") != null && GameObject.Find("Start overlay").activeInHierarchy,
+                "Closing the house with its button returns to play, not to the pause card.");
+
+            // Running: the stick held with a double tap (the phone) moves the player faster than walking.
+            typeof(MineGame).GetField("<TouchMode>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(game, true);
+            var stick = game.GetComponent<MineHud>().Stick;
+            var value = typeof(TouchStick).GetField("<Value>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+            var sprint = typeof(TouchStick).GetField("<Sprint>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+            // Switching to touch lays the HUD out again and recentres the stick; let that happen first.
+            yield return null;
+            yield return null;
+            float Walk(bool run)
+            {
+                game.DebugPlace(new Vector3(-9, .05f, -6), 180, 0);
+                value.SetValue(stick, Vector2.up);
+                sprint.SetValue(stick, run);
+                return 0;
+            }
+            Walk(false);
+            yield return new WaitForSeconds(.1f);
+            var body = GameObject.Find("Player").transform;
+            var from = body.position;
+            yield return new WaitForSeconds(1f);
+            value.SetValue(stick, Vector2.up);
+            float walked = Vector3.Distance(from, body.position);
+            Walk(true);
+            yield return new WaitForSeconds(.1f);
+            from = body.position;
+            yield return new WaitForSeconds(1f);
+            float ran = Vector3.Distance(from, body.position);
+            value.SetValue(stick, Vector2.zero);
+            sprint.SetValue(stick, false);
+            Assert.Greater(walked, 2);
+            Assert.Greater(ran, walked * 1.4f, "Running is clearly faster than walking.");
+        }
+
+        [UnityTest]
         public IEnumerator TheYardIsAlive()
         {
             var game = Object.FindAnyObjectByType<MineGame>();

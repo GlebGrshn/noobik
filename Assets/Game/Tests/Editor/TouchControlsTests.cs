@@ -20,6 +20,24 @@ namespace Nubik.Tests
         private PointerEventData Finger(int id, Vector2 position, Vector2 delta = default) =>
             new PointerEventData(system) { pointerId = id, position = position, delta = delta };
 
+        [Test] public void DoubleTapOnTheStickRunsUntilTheFingerLifts()
+        {
+            var stick = area.AddComponent<TouchStick>();
+            stick.baseRect = new GameObject("Base", typeof(RectTransform)).GetComponent<RectTransform>();
+            stick.baseRect.SetParent(area.transform, false); stick.baseRect.sizeDelta = new Vector2(160, 160);
+            stick.knob = new GameObject("Knob", typeof(RectTransform)).GetComponent<RectTransform>();
+            stick.knob.SetParent(stick.baseRect, false); stick.SetHome();
+            stick.OnPointerDown(Finger(1, Vector2.zero));
+            Assert.IsFalse(stick.Sprint, "One tap walks.");
+            stick.OnPointerUp(Finger(1, Vector2.zero));
+            stick.OnPointerDown(Finger(2, Vector2.zero));
+            Assert.IsTrue(stick.Sprint, "A quick second tap runs.");
+            stick.OnDrag(Finger(2, new Vector2(150, 0)));
+            Assert.IsTrue(stick.Sprint, "…while the finger stays down.");
+            stick.OnPointerUp(Finger(2, Vector2.zero));
+            Assert.IsFalse(stick.Sprint);
+        }
+
         [Test] public void DigKeepsItsFingerOutsideButtonAndCanTurnWhileHeld()
         {
             var look = area.AddComponent<TouchLook>();

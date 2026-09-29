@@ -270,8 +270,18 @@ namespace Nubik
             }
         }
 
+        private RectTransform resumeCard;
+        private Image knobImage;
+
         private void BuildStart()
         {
+            // After a window closes, a single click on the view goes on playing: a small prompt, not the pause card.
+            resumeCard = Panel("Resume prompt", root, Ink);
+            Center(resumeCard, 0, -40, 400, 60);
+            Icon(resumeCard, UiGlyph.Kind.Down, Mint, 18, 15, 30);
+            var resume = Caption(resumeCard, "Кликни, чтобы продолжить", 20, Cream, 60, 10, 320, 40, true);
+            resume.alignment = TextAnchor.MiddleCenter;
+            resumeCard.gameObject.SetActive(false);
             overlay = Backdrop("Start overlay");
             startCard = Panel("Start card", overlay.transform, Ink);
             Center(startCard, 0, 0, 480, 470);
@@ -497,7 +507,9 @@ namespace Nubik
             }
             int keysShown = (game.InBoss ? 1 : 0) | (drill ? 2 : 0) | (game.FreeMouse ? 4 : 0) | (game.HasJetpack ? 8 : 0) | (progress.scanner ? 16 : 0) |
                 (progress.medkits > 0 ? 32 : 0) | (progress.dynamite > 0 ? 64 : 0);
-            if (Changed(toolKeys, keysShown)) toolKeys.text = (game.InBoss ? "ЛКМ стрелять" : game.UsingDrill ? "ЛКМ бурить" : "ЛКМ копать") + (game.FreeMouse ? " · ПКМ обзор" : "") + " · ПРОБЕЛ " +
+            if (knobImage == null) knobImage = Stick.knob.GetComponent<Image>();
+            knobImage.color = Stick.Sprint ? Amber : Mint;
+            if (Changed(toolKeys, keysShown)) toolKeys.text = (game.InBoss ? "ЛКМ стрелять" : game.UsingDrill ? "ЛКМ бурить" : "ЛКМ копать") + (game.FreeMouse ? " · ПКМ обзор" : "") + " · SHIFT бег · ПРОБЕЛ " +
                 (game.HasJetpack ? "прыжок / полёт" : "прыжок") + (progress.scanner ? " · F скан" : "") +
                 (progress.medkits > 0 ? " · Q аптечка" : "") + (progress.dynamite > 0 ? " · G динамит" : "");
 
@@ -601,8 +613,10 @@ namespace Nubik
 
         private void UpdateStart(GameProgress progress, MineConfig config, bool waiting)
         {
-            overlay.SetActive(waiting && !SettingsOpen);
-            if (!waiting) { if (confirmCard.gameObject.activeSelf) ConfirmRestart(false); return; }
+            bool prompt = waiting && game.AwaitingClick;
+            resumeCard.gameObject.SetActive(prompt && !SettingsOpen);
+            overlay.SetActive(waiting && !SettingsOpen && !prompt);
+            if (!waiting || prompt) { if (confirmCard.gameObject.activeSelf) ConfirmRestart(false); return; }
             // Returning players see their progress instead of the tagline; the same card is the pause menu.
             bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
             startKicker.text = game.MenuOpen ? "ПАУЗА" : returning ? "С ВОЗВРАЩЕНИЕМ" : "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.";
@@ -617,9 +631,9 @@ namespace Nubik
             if (returning) { At((RectTransform)restartButton.transform, 32, y, 416, 44); y += 52; }
             At(startHelp.rectTransform, 32, y + 2, 416, 92);
             startCard.sizeDelta = new Vector2(480, y + 108);
-            startHelp.text = game.TouchMode ? "Слева — плавающий стик\nКОПАТЬ справа: держи и веди для осмотра\n" +
+            startHelp.text = game.TouchMode ? "Слева — плавающий стик, двойной тап по нему — бег\nКОПАТЬ справа: держи и веди для осмотра\n" +
                 (game.HasJetpack ? "Держи ПРЫЖОК в воздухе — джетпак\n" : "Копай ступеньки, чтобы вернуться наверх\n") + "Общий бензобак заправляется на базе"
-                : "WASD — идти · " + (game.FreeMouse ? "ПКМ — обзор" : "мышь — обзор") + "\nЛКМ — копать · пробел — прыжок" +
+                : "WASD — идти · Shift — бег · " + (game.FreeMouse ? "ПКМ — обзор" : "мышь — обзор") + "\nЛКМ — копать · пробел — прыжок" +
                   (game.HasJetpack ? " / полёт" : "") + "\nE — скупка и мастерская в доме · Esc — пауза" +
                   (progress.scanner || progress.medkits > 0 || progress.dynamite > 0 ? "\n" + (progress.scanner ? "F — сканер  " : "") +
                    (progress.medkits > 0 ? "Q — аптечка  " : "") + (progress.dynamite > 0 ? "G — динамит" : "") : "");

@@ -121,6 +121,7 @@ try {
   if(Math.abs(insets[0] - 47/844) > .001 || Math.abs(insets[1] - 21/390) > .001) throw new Error('Safe-area bridge failed');
   await shot('06_iphone_safe_area');
   await evaluate(`document.getElementById('safe-area').style.padding='0px';`);
+  // Turned upright the game is covered by the "turn the phone" prompt and paused.
   await send('Emulation.setDeviceMetricsOverride', {width:390,height:844,deviceScaleFactor:1,mobile:true});
   await sleep(1200);
   await shot('07_portrait');

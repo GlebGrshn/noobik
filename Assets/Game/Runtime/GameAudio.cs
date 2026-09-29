@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace Nubik
@@ -10,8 +12,10 @@ namespace Nubik
     /// name (wav, ogg or mp3).
     ///
     /// Music follows depth: each track has a weight that changes smoothly with the depth, and every change of weight is
-    /// eased over several seconds, so tracks blend into each other instead of switching. Tracks loop by cross-fading
-    /// their end into their own beginning, which also hides the seam that AAC leaves at the start of a clip.
+    /// eased over several seconds, so tracks blend into each other instead of switching. The tracks themselves are plain
+    /// MP3 files in StreamingAssets/Music played by the page (Yandex.jslib) as streamed media through Web Audio gains:
+    /// Unity would decode them whole in Chrome (hundreds of MB) and could not start them on an iPhone outside a tap.
+    /// In the editor only the weights run.
     /// </summary>
     public sealed class GameAudio : MonoBehaviour
     {
@@ -24,16 +28,7 @@ namespace Nubik
 
         private const float AmbientFade = 3f, AmbientLevel = .5f, MusicLevel = .75f;
         /// <summary>Seconds for a track to rise from silence to full weight (or back), and for a loop to cross-fade.</summary>
-        private const float MusicFade = 8f, LoopOverlap = 5f;
-
-        private sealed class Track
-        {
-            public AudioClip clip;
-            public readonly AudioSource[] voices = new AudioSource[2];
-            public int lead;
-            public float weight, target, loopFade = -1;
-            public bool paused;
-        }
+        private const float MusicFade = 8f;
 
         private sealed class Emitted { public AudioSource source; public float volume; }
 
@@ -46,7 +41,13 @@ namespace Nubik
         private readonly List<AudioSource> spots = new List<AudioSource>();
         private readonly List<Emitted> emitters = new List<Emitted>();
         private readonly AudioSource[] ambience = new AudioSource[2];
-        private readonly List<Track> tracks = new List<Track>();
+        private readonly float[] musicWeight = new float[4], musicTarget = new float[4], musicSent = { -1, -1, -1, -1 };
+        private bool musicPaused;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")] private static extern void NubikMusicInit(string urls);
+        [DllImport("__Internal")] private static extern void NubikMusicLevel(int index, float level);
+        [DllImport("__Internal")] private static extern void NubikMusicPause(int paused);
+#endif
         private AudioSource loop;
         private float loopVolume = 1;
         private int next, nextSpot, current;
@@ -85,21 +86,11 @@ namespace Nubik
                 Setup3D(spot, 18);
                 spots.Add(spot);
             }
-            foreach (var name in Music)
-            {
-                var track = new Track { clip = Resources.Load<AudioClip>("Music/" + name) };
-                for (int v = 0; v < 2; v++)
-                {
-                    var voice = gameObject.AddComponent<AudioSource>();
-                    voice.playOnAwake = false;
-                    voice.loop = false;
-                    voice.spatialBlend = 0;
-                    voice.volume = 0;
-                    voice.clip = track.clip;
-                    track.voices[v] = voice;
-                }
-                tracks.Add(track);
-            }
+#if UNITY_WEBGL && !UNITY_EDITOR
+            var urls = new List<string>();
+            foreach (var name in Music) urls.Add(Application.streamingAssetsPath + "/Music/" + name + ".mp3");
+            NubikMusicInit(string.Join(",", urls));
+#endif
             GameSettings.Changed += ApplyVolumes;
             ApplyVolumes();
         }
@@ -234,8 +225,7 @@ namespace Nubik
 
         private void SetTargets(float a, float b, float c, float d)
         {
-            if (tracks.Count < 4) return;
-            tracks[0].target = a; tracks[1].target = b; tracks[2].target = c; tracks[3].target = d;
+            musicTarget[0] = a; musicTarget[1] = b; musicTarget[2] = c; musicTarget[3] = d;
         }
 
         /// <summary>Master mute (the M key) that keeps the slider value.</summary>
@@ -252,51 +242,35 @@ namespace Nubik
                 source.volume = Mathf.MoveTowards(source.volume, i == current && source.clip != null ? ambientTarget : 0, step);
                 if (i != current && source.volume <= 0 && source.isPlaying) source.Stop();
             }
-            // Music does not move while the whole game is paused (tab hidden, ad): AudioListener.pause holds it.
-            if (!AudioListener.pause) foreach (var track in tracks) UpdateTrack(track, dt);
-        }
-
-        private void UpdateTrack(Track track, float dt)
-        {
-            if (track.clip == null) return;
-            track.weight = Mathf.MoveTowards(track.weight, track.target, dt / MusicFade);
-            var lead = track.voices[track.lead];
-            var other = track.voices[1 - track.lead];
-            if (track.weight <= .001f)
+            // Music waits while the whole game is paused (tab hidden, ad): the page pauses its players too.
+            bool paused = AudioListener.pause;
+            if (paused != musicPaused)
             {
-                if (lead.isPlaying || other.isPlaying) { lead.Pause(); other.Pause(); track.paused = true; }
-                return;
+                musicPaused = paused;
+#if UNITY_WEBGL && !UNITY_EDITOR
+                NubikMusicPause(paused ? 1 : 0);
+#endif
             }
-            if (!lead.isPlaying && !other.isPlaying)
+            if (paused) return;
+            float master = muted ? 0 : GameSettings.Current.master;
+            for (int i = 0; i < musicWeight.Length; i++)
             {
-                if (track.paused) { lead.UnPause(); if (track.loopFade >= 0) other.UnPause(); track.paused = false; }
-                else { lead.time = 0; lead.Play(); }
+                musicWeight[i] = Mathf.MoveTowards(musicWeight[i], musicTarget[i], dt / MusicFade);
+                // Equal-power gain keeps the sum of two blending tracks at the same loudness.
+                float level = Mathf.Sqrt(musicWeight[i]) * MusicLevel * GameSettings.Current.music * master;
+                if (Mathf.Abs(level - musicSent[i]) < .002f && !(level == 0 && musicSent[i] != 0)) continue;
+                musicSent[i] = level;
+#if UNITY_WEBGL && !UNITY_EDITOR
+                NubikMusicLevel(i, level);
+#endif
             }
-            // Equal-power gain keeps the sum of two blending tracks at the same loudness.
-            float gain = Mathf.Sqrt(track.weight) * MusicLevel * GameSettings.Current.music;
-            if (track.loopFade < 0 && lead.isPlaying && track.clip.length - lead.time < LoopOverlap)
-            {
-                other.time = 0;
-                other.Play();
-                track.loopFade = 0;
-            }
-            if (track.loopFade >= 0)
-            {
-                track.loopFade += dt;
-                float k = Mathf.Clamp01(track.loopFade / LoopOverlap);
-                lead.volume = gain * Mathf.Sqrt(1 - k);
-                other.volume = gain * Mathf.Sqrt(k);
-                if (k < 1) return;
-                lead.Stop();
-                track.lead = 1 - track.lead;
-                track.loopFade = -1;
-            }
-            else lead.volume = gain;
         }
 
         /// <summary>Current weight of each music track (tests, debugging).</summary>
-        public float MusicWeight(int track) => track < tracks.Count ? tracks[track].weight : 0;
-        public bool MusicLoaded(int track) => track < tracks.Count && tracks[track].clip != null;
+        public float MusicWeight(int track) => track < musicWeight.Length ? musicWeight[track] : 0;
+        /// <summary>The track's file ships with the game (the page streams it).</summary>
+        public bool MusicLoaded(int track) =>
+            track < Music.Length && File.Exists(Path.Combine(Application.streamingAssetsPath, "Music", Music[track] + ".mp3"));
 
         private void OnDestroy()
         {

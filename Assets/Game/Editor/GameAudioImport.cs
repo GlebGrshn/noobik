@@ -8,7 +8,6 @@ public sealed class GameAudioImport : AssetPostprocessor
     private void OnPreprocessAudio()
     {
         if (assetPath.StartsWith("Assets/Game/Resources/Audio/")) Configure((AudioImporter)assetImporter);
-        else if (assetPath.StartsWith("Assets/Game/Resources/Music/")) ConfigureMusic((AudioImporter)assetImporter);
     }
 
     /// <summary>
@@ -54,7 +53,7 @@ public sealed class GameAudioImport : AssetPostprocessor
     /// <summary>Reimports only clips whose settings differ from the rules above (called by Prepare and the build).</summary>
     public static void EnsureConfigured()
     {
-        foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Game/Resources/Audio", "Assets/Game/Resources/Music" }))
+        foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Game/Resources/Audio" }))
         {
             var path = AssetDatabase.GUIDToAssetPath(guid);
             var importer = (AudioImporter)AssetImporter.GetAtPath(path);
@@ -73,7 +72,7 @@ public sealed class GameAudioImport : AssetPostprocessor
     [MenuItem("Nubik/Configure audio compression")]
     public static void ReimportAll()
     {
-        foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Game/Resources/Audio", "Assets/Game/Resources/Music" }))
+        foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/Game/Resources/Audio" }))
         {
             var path = AssetDatabase.GUIDToAssetPath(guid);
             var importer = (AudioImporter)AssetImporter.GetAtPath(path);

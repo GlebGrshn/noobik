@@ -33,6 +33,12 @@ namespace Nubik
         public bool MenuOpen { get; private set; }
         /// <summary>Mouse play needs a click first; afterwards a lost pointer lock asks for another click.</summary>
         public bool NeedsClick => MenuOpen || !TouchMode && !hud.PanelOpen && !(engaged && (WebInput.Locked || WebInput.LockUnavailable));
+        /// <summary>
+        /// A window was just closed with the mouse and the lock is not back yet: one click on the view continues, so the HUD
+        /// shows a short prompt instead of the pause card.
+        /// </summary>
+        public bool AwaitingClick => resumeAfterPanel && NeedsClick && !MenuOpen;
+        public bool Sprinting { get; private set; }
         public bool FreeMouse => !TouchMode && WebInput.LockUnavailable;
         public bool Active => !hud.PanelOpen && !YandexBridge.Paused && !NeedsClick;
         public float Health => Progress.Health(config);
@@ -98,7 +104,9 @@ namespace Nubik
         private string rockLabel, fuelHint, cueHint;
         private int lastStep;
         private float lowFuelBeepAt;
-        private bool wasThrusting;
+        private bool wasThrusting, resumeAfterPanel, panelWasOpen;
+        private float sprintView;
+        public const float SprintFactor = 1.65f;
 
         /// <summary>The ambience of where the player is now.</summary>
         private string AmbienceName
@@ -317,7 +325,9 @@ namespace Nubik
             UpdateFlights();
             yard.Animate(Time.deltaTime);
             // Narrow portrait screens get a wider vertical view so the shovel and HUD leave room for the world.
-            view.fieldOfView = Mathf.Lerp(88, 70, Mathf.InverseLerp(0.5f, 1.3f, view.aspect));
+            // Running widens the view a little.
+            sprintView = Mathf.MoveTowards(sprintView, Sprinting ? 1 : 0, Time.deltaTime * 4);
+            view.fieldOfView = Mathf.Lerp(88, 70, Mathf.InverseLerp(0.5f, 1.3f, view.aspect)) + sprintView * 6;
             UpdateDebris();
             if (YandexBridge.Paused) { hud.ClearInput(); sound.Loop("jet", false); return; }
             // Esc closes a window or pauses; E also closes the house it opened.
@@ -334,6 +344,15 @@ namespace Nubik
             if (want != wantLock) { wantLock = want; WebInput.WantLock(want); }
             bool active = Active;
             if (active != wasActive) { wasActive = active; platform.SetInMine(active); }
+            // Closing the house or the settings with the mouse continues play; the lock usually returns at once.
+            if (panelWasOpen && !hud.PanelOpen && !MenuOpen && engaged && !TouchMode) resumeAfterPanel = true;
+            panelWasOpen = hud.PanelOpen;
+            if (resumeAfterPanel && (WebInput.Locked || MenuOpen || hud.PanelOpen))
+            {
+                // The click that brought the lock back must not also dig.
+                if (WebInput.Locked) engagedFrame = Time.frameCount;
+                resumeAfterPanel = false;
+            }
             if (active)
             {
                 Look();
@@ -396,7 +415,9 @@ namespace Nubik
         private void Move(float dt)
         {
             var input = Vector2.ClampMagnitude(new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical")) + hud.Stick.Value, 1);
-            var horizontal = Quaternion.Euler(0, yaw, 0) * new Vector3(input.x, 0, input.y) * config.moveSpeed;
+            // Run with Shift, or on the phone with a double tap on the stick held down.
+            Sprinting = input.magnitude > .2f && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift) || hud.Stick.Sprint);
+            var horizontal = Quaternion.Euler(0, yaw, 0) * new Vector3(input.x, 0, input.y) * config.moveSpeed * (Sprinting ? SprintFactor : 1);
             bool jump = Input.GetKeyDown(KeyCode.Space) | hud.ConsumeJump();
             bool grounded = body.isGrounded;
             if (grounded)
@@ -421,7 +442,7 @@ namespace Nubik
             SmoothEye(feetBefore, grounded && body.isGrounded, dt);
             if (!grounded && body.isGrounded && impact > config.safeFallSpeed) Land(impact);
             if (!grounded && body.isGrounded && impact > 4) sound.Play("land", Mathf.Clamp01(impact / 14f) * .8f);
-            walkCycle += input.magnitude * dt * 9;
+            walkCycle += input.magnitude * dt * 9 * (Sprinting ? 1.35f : 1);
             // A footstep every half cycle: grass and boards at home, stone that deepens with depth below.
             int step = Mathf.FloorToInt(walkCycle / Mathf.PI);
             if (step != lastStep && body.isGrounded && input.magnitude > .2f)
@@ -1240,6 +1261,14 @@ namespace Nubik
             if (spot == "counter") DebugPlace(Yard.CounterPoint + Vector3.up * 0.15f, 0, 5);
             else if (spot == "workbench") DebugPlace(Yard.WorkbenchPoint + Vector3.up * 0.15f, 0, 5);
             else DebugPlace(Yard.SurfaceSpawn, Yard.SurfaceYaw, 8);
+        }
+
+        /// <summary>Localhost-only test helper: opens the house on a page (0 sale … 4 journal).</summary>
+        public void DebugHouse(string page)
+        {
+            if (hud == null || !int.TryParse(page, out int index)) return;
+            ReleaseMouse();
+            hud.ShowHouse(Mathf.Clamp(index, 0, 4));
         }
 
         /// <summary>Test helper: places the player without touching progress.</summary>

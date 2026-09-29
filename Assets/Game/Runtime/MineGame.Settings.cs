@@ -26,7 +26,10 @@ namespace Nubik
             // The pipeline asset is shared project data in the editor; only a player may change it at run time.
             if (pipeline == null) pipeline = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
             if (pipeline == null) return;
-            pipeline.renderScale = level == GameSettings.Low ? .65f : level == GameSettings.Normal ? .85f : 1f;
+            // The canvas runs at the screen's full density so text stays sharp; the 3D view aims at a pixel density per
+            // level instead (Low 0.8, Normal 1.3, Ultra 2 pixels per CSS pixel), which on a phone is well below its native one.
+            float density = level == GameSettings.Low ? .8f : level == GameSettings.Normal ? 1.3f : 2f;
+            pipeline.renderScale = Mathf.Clamp(density / WebInput.PixelRatio, .35f, 1f);
             pipeline.msaaSampleCount = level == GameSettings.Ultra ? 4 : 1;
             pipeline.supportsHDR = false;
             pipeline.shadowDistance = level == GameSettings.Ultra ? 70 : 45;

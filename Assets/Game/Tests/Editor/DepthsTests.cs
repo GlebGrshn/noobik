@@ -19,6 +19,7 @@ namespace Nubik.Tests
                 Assert.IsTrue(pool.Burns(at - Vector3.up * .3f));
                 Assert.IsFalse(pool.Burns(at + Vector3.up * 1.5f));
                 Assert.IsFalse(pool.Burns(at - Vector3.up * 3));
+                Assert.IsTrue(pool.Burns(new Vector3(pool.Center.x, pool.Floor - 1.7f, pool.Center.z)), "Flying up into the lava from below burns too.");
                 Assert.IsFalse(pool.Burns(at + Vector3.right * pool.Half.x));
                 Assert.IsFalse(pool.Burns(at + Vector3.forward * pool.Half.z));
             }
@@ -63,7 +64,7 @@ namespace Nubik.Tests
             var loot = new LootField(loaded);
             foreach (var item in loot.Items.Where(x => !x.Meteor && x.Kind == LootKind.Find))
             {
-                foreach (var pool in Depths.Lava) Assert.IsFalse(pool.Burns(item.Position), "Random loot must not spawn in lava.");
+                foreach (var pool in Depths.Lava) Assert.IsFalse(pool.InPocket(item.Position), "Random loot must not spawn in lava.");
                 var d = item.Position - Depths.CraterCenter;
                 Assert.IsFalse(Mathf.Abs(d.x)<Depths.CraterHalf.x && Mathf.Abs(d.y)<Depths.CraterHalf.y && Mathf.Abs(d.z)<Depths.CraterHalf.z);
             }

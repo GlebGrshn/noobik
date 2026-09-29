@@ -6,7 +6,10 @@ namespace Nubik
     public sealed class TouchStick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler, IInitializePotentialDragHandler
     {
         public Vector2 Value { get; private set; }
+        /// <summary>Double tap and hold: running until the finger is lifted.</summary>
+        public bool Sprint { get; private set; }
         public RectTransform knob;
+        private float lastUp = -10;
         public RectTransform baseRect;
         private Vector2 origin, home;
         private int pointer = int.MinValue;
@@ -16,6 +19,7 @@ namespace Nubik
         {
             if (pointer != int.MinValue) return;
             pointer = e.pointerId;
+            Sprint = Time.unscaledTime - lastUp < .3f;
             var rect = (RectTransform)transform;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rect, e.position, e.pressEventCamera, out origin);
             baseRect.localPosition = ClampBase(origin);
@@ -43,8 +47,8 @@ namespace Nubik
             return new Vector2(Mathf.Clamp(point.x, bounds.xMin + inset, bounds.xMax - inset),
                 Mathf.Clamp(point.y, bounds.yMin + inset, bounds.yMax - inset));
         }
-        public void OnPointerUp(PointerEventData e) { if (e.pointerId == pointer) ResetInput(); }
-        public void ResetInput() { pointer = int.MinValue; Value = Vector2.zero; if (knob) knob.anchoredPosition = Vector2.zero; if (baseRect) baseRect.localPosition = home; }
+        public void OnPointerUp(PointerEventData e) { if (e.pointerId == pointer) { ResetInput(); lastUp = Time.unscaledTime; } }
+        public void ResetInput() { pointer = int.MinValue; Value = Vector2.zero; Sprint = false; if (knob) knob.anchoredPosition = Vector2.zero; if (baseRect) baseRect.localPosition = home; }
         private void OnDisable() => ResetInput();
     }
 

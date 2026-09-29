@@ -5,7 +5,7 @@
 //   node Tools/web-check.mjs [url] [outDir]
 //
 // Steps: desktop start screen, start, dig, the house at the ore buyer, zone announcement at 35 m,
-// pause menu; then a portrait phone layout with touch controls and the house window.
+// pause menu; then an upright phone (turn prompt) and a landscape phone with touch controls and the house window.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -80,7 +80,8 @@ async function key(code, text) {
   await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: text, windowsVirtualKeyCode: keyCode });
 }
 async function load(width, height, mobile, address = url) {
-  await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
+  // Phones at 2x density: text must stay sharp at the screen's own resolution.
+  await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile });
   await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
   await send('Emulation.setUserAgentOverride', {
     userAgent: mobile ? 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36' : '',
@@ -153,7 +154,11 @@ try {
   await sleep(500);
   await shot('desktop_11_pause');
 
+  // The phone held upright only shows the "turn the phone" screen: the game is landscape only.
   await load(390, 844, true);
+  await shot('phone_00_upright');
+
+  await load(844, 390, true);
   await shot('phone_01_start');
   const start = await evaluate(`(() => { const c = document.getElementById('unity-canvas').getBoundingClientRect(); return [c.width, c.height]; })()`);
   await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: start[0] / 2, y: start[1] * 0.56 }] });
@@ -162,30 +167,15 @@ try {
   await sleep(1000);
   await shot('phone_02_playing');
 
-  // Narrow phone: the house window must fit five upgrade rows and the journal.
+  // Landscape phone house: open pages through the localhost test helper.
   step = 'phone house';
-  const tap = async (x, y) => {
-    await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
-    await sleep(90);
-    await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await sleep(500);
-  };
-  await load(390, 844, true, withParam('at=counter'));
+  await load(844, 390, true, withParam('at=counter'));
   await sleep(2500);
-  // Canvas units (540 wide, scale 390/540) to screen pixels.
-  const unit = 390 / 540;
-  await tap(365 * unit, 238 * unit);
-  await sleep(600);
-  await shot('phone_03_house');
-  // Five tabs, each (512 - 56 - 32) / 5 wide, 8 apart, from x 14 + 28.
-  const tabY = ((844 / unit - 964) / 2 + 118) * unit;
-  const tabX = index => (14 + 28 + index * 92.8 + 42.4) * unit;
-  await tap(tabX(1), tabY);
-  await shot('phone_04_orders');
-  await tap(tabX(2), tabY);
-  await shot('phone_05_upgrades');
-  await tap(tabX(4), tabY);
-  await shot('phone_06_journal');
+  for (const [page, name] of [[0, 'phone_03_house'], [1, 'phone_04_orders'], [2, 'phone_05_upgrades'], [4, 'phone_06_journal']]) {
+    await evaluate(`window.unityInstance && window.unityInstance.SendMessage('NubikGame', 'DebugHouse', '${page}')`);
+    await sleep(700);
+    await shot(name);
+  }
 } finally {
   writeFileSync(join(out, 'console.txt'), problems.join('\n'));
   console.log(problems.length ? problems.join('\n') : 'no console errors');

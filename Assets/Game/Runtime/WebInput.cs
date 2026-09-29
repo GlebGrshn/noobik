@@ -26,6 +26,9 @@ namespace Nubik
         }
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")] private static extern float NubikSafeInset(int side);
+        [DllImport("__Internal")] private static extern float NubikPixelRatio();
+        /// <summary>Physical pixels per CSS pixel of the game's canvas.</summary>
+        public static float PixelRatio => Mathf.Max(1, NubikPixelRatio());
         [DllImport("__Internal")] private static extern int NubikPointerState();
         [DllImport("__Internal")] private static extern void NubikWantLock(int want);
         [DllImport("__Internal")] private static extern float NubikTakeMouseX();
@@ -36,6 +39,7 @@ namespace Nubik
         /// <summary>Mouse movement in screen pixels since the last call, y up.</summary>
         public static Vector2 TakeMouseDelta() => new Vector2(NubikTakeMouseX(), -NubikTakeMouseY());
 #else
+        public static float PixelRatio => 1;
         public static bool Locked => Cursor.lockState == CursorLockMode.Locked;
         public static bool LockUnavailable => false;
         public static void WantLock(bool want)
