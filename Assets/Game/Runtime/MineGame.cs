@@ -372,7 +372,7 @@ namespace Nubik
             UpdateHint();
         }
 
-        private bool DigHeld => TouchMode ? hud.Dig.Held : Input.GetMouseButton(0);
+        private bool DigHeld => TouchMode ? hud.DigHeld : Input.GetMouseButton(0);
         private bool JumpHeld => Input.GetKey(KeyCode.Space) || hud.Jump.Held;
 
         private void Look()
@@ -1061,7 +1061,7 @@ namespace Nubik
             }
             int free = Progress.FreeSlots(config);
             if (Progress.coins == 0 && Progress.OrePieces == 0 && Progress.maxDepth == 0)
-                Hint = TouchMode ? "Наведи прицел на землю и держи КОПАТЬ"
+                Hint = TouchMode ? "Держи КОПАТЬ и веди пальцем — копай и осматривайся"
                     : FreeMouse ? "ЛКМ — копать, зажатая ПКМ — осмотреться" : "Наведи прицел на землю и держи ЛКМ";
             else if (Station == Station.Counter)
                 Hint = TouchMode ? "Нажми «Скупка»" : "E — скупка руды";
@@ -1289,8 +1289,8 @@ namespace Nubik
             nextAutosave = Time.unscaledTime + 6;
         }
 
-        private void OnApplicationPause(bool paused) { if (paused && body != null) SaveNow(); }
-        private void OnApplicationFocus(bool focused) { if (!focused && body != null) SaveNow(); }
+        private void OnApplicationPause(bool paused) { if (paused && body != null) { hud.ClearInput(); SaveNow(); } }
+        private void OnApplicationFocus(bool focused) { if (!focused && body != null) { hud.ClearInput(); SaveNow(); } }
         private void OnApplicationQuit() { if (body != null) SaveNow(); }
         private void OnDestroy()
         {

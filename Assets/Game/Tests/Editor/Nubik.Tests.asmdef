@@ -1,6 +1,6 @@
 {
   "name": "Nubik.Tests",
-  "references": ["Nubik.Runtime"],
+  "references": ["Nubik.Runtime", "Unity.ugui"],
   "includePlatforms": ["Editor"],
   "optionalUnityReferences": ["TestAssemblies"]
 }

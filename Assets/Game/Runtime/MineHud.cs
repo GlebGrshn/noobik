@@ -11,6 +11,8 @@ namespace Nubik
         public TouchStick Stick { get; private set; }
         public TouchLook Look { get; private set; }
         public HoldButton Dig { get; private set; }
+        public HoldButton LeftDig { get; private set; }
+        public bool DigHeld => Dig.Held || LeftDig.Held;
         public HoldButton Jump { get; private set; }
         public bool PanelOpen => house.activeSelf || ending.activeSelf || SettingsOpen;
 
@@ -31,7 +33,8 @@ namespace Nubik
         private readonly List<Texture2D> textures = new List<Texture2D>();
         private CanvasScaler scaler;
         private RectTransform root, coinCard, depthCard, bagCard, vitalsCard, actions, toolCard, targetCard, toastCard, depthTrack;
-        private RectTransform startCard, touchControls, pad, digRect, jumpRect, scanRect, medkitRect, dynamiteRect, fuelRow;
+        private RectTransform startCard, touchControls, pad, digRect, leftDigRect, jumpRect, scanRect, medkitRect, dynamiteRect, fuelRow;
+        private Rect lastSafe;
         private Button dynamiteButton;
         private Text dynamiteText;
         private RectTransform orderCard, confirmCard;
@@ -129,25 +132,40 @@ namespace Nubik
             Stretch(touchControls);
             var look = Panel("Look area", touchControls, Color.clear, false);
             Stretch(look);
-            look.anchorMin = new Vector2(0.34f, 0);
             Look = look.gameObject.AddComponent<TouchLook>();
-            pad = Panel("Movement stick", touchControls, Card);
+            var moveArea = Panel("Movement area", touchControls, Color.clear, false);
+            Stretch(moveArea);
+            moveArea.anchorMax = new Vector2(.42f, .48f);
+            Stick = moveArea.gameObject.AddComponent<TouchStick>();
+            pad = Panel("Movement stick", moveArea, Card);
             pad.GetComponent<Image>().sprite = circle;
             pad.GetComponent<Image>().type = Image.Type.Simple;
             var ring = Panel("Stick ring", pad, new Color(Mint.r, Mint.g, Mint.b, 0.18f), false);
             ring.GetComponent<Image>().sprite = circle;
             Center(ring, 0, 0, 104, 104);
-            Stick = pad.gameObject.AddComponent<TouchStick>();
+            Stick.baseRect = pad;
             Stick.knob = Panel("Stick knob", pad, Mint, false);
             Stick.knob.GetComponent<Image>().sprite = circle;
             Center(Stick.knob, 0, 0, 58, 58);
             var dig = Action(touchControls, "КОПАТЬ", Amber, null);
             digRect = (RectTransform)dig.transform;
             Dig = dig.gameObject.AddComponent<HoldButton>();
+            Dig.look = Look;
+            var leftDig = Action(touchControls, "КОПАТЬ", new Color(Amber.r, Amber.g, Amber.b, .78f), null);
+            leftDigRect = (RectTransform)leftDig.transform;
+            LeftDig = leftDig.gameObject.AddComponent<HoldButton>();
             // Tap to jump; keep holding in the air to fire the jetpack.
             var jump = Action(touchControls, "ПРЫЖОК", Inset, null, Cream);
             jumpRect = (RectTransform)jump.transform;
             Jump = jump.gameObject.AddComponent<HoldButton>();
+            Jump.look = Look;
+            foreach (var button in new[] { dig, leftDig, jump })
+            {
+                var image = button.GetComponent<Image>();
+                image.sprite = circle;
+                image.type = Image.Type.Simple;
+                image.raycastPadding = new Vector4(-12, -12, -12, -12);
+            }
             scanButton = Action(touchControls, "СКАН", Inset, game.Scan, Cream);
             scanRect = (RectTransform)scanButton.transform;
             scanText = scanButton.GetComponentInChildren<Text>();
@@ -385,34 +403,42 @@ namespace Nubik
             At(record.rectTransform, 18, 62, portrait ? 476 : 284, 20);
             At(vitalsCard, edge, portrait ? 206 : 118, 232, 62);
             At(orderCard, edge, portrait ? 276 : 188, 232, 56);
+            if (wideTouch) Right(orderCard, edge, 210, 280, 66);
 
-            float actionHeight = touch ? (portrait ? 64 : 72) : 56;
+            float actionHeight = touch ? (portrait ? 72 : 84) : 56;
             Right(actions, edge, portrait ? 206 : 118, 246, actionHeight);
             At((RectTransform)stationButton.transform, 0, 0, touch ? 170 : 246, actionHeight);
-            At((RectTransform)menuButton.transform, 180, 0, 66, actionHeight);
+            At((RectTransform)menuButton.transform, 168, 0, 78, actionHeight);
+            if (touch) At((RectTransform)stationButton.transform, 0, 0, 152, actionHeight);
 
             BottomLeft(toolCard, 24, 24, 500, 60);
-            BottomCenter(hint.rectTransform, touch ? 206 : 96, portrait ? 492 : 700, 48);
+            BottomCenter(hint.rectTransform, touch ? (portrait ? 410 : 210) : 96, portrait ? 450 : 700, 48);
             Center(targetCard, 0, -54, 424, 42);
             Center(crosshair.rectTransform, 0, 0, 7, 7);
             CenterTop(toastCard, portrait ? 300 : 194, portrait ? 504 : 500, 68);
             CenterTop(announceCard, portrait ? 300 : 170, 470, 118);
-            BottomLeft(pad, 24, 28, 150, 150);
-            BottomRight(digRect, 24, 28, 156, 132);
+            BottomLeft(pad, portrait ? 48 : 112, portrait ? 66 : 72, portrait ? 156 : 176, portrait ? 156 : 176);
+            pad.pivot = new Vector2(.5f, .5f);
+            pad.anchoredPosition += pad.sizeDelta * .5f;
+            BottomLeft(leftDigRect, portrait ? 72 : 146, portrait ? 266 : 284, 108, 108);
+            BottomRight(digRect, portrait ? 36 : 72, 64, 164, 164);
             if (portrait)
             {
-                BottomRight(jumpRect, 24, 174, 156, 64);
-                BottomRight(scanRect, 190, 110, 104, 56);
-                BottomRight(medkitRect, 190, 174, 104, 56);
-                BottomRight(dynamiteRect, 190, 238, 104, 56);
+                BottomRight(jumpRect, 58, 266, 120, 120);
+                BottomRight(scanRect, 230, 72, 100, 80);
+                BottomRight(medkitRect, 230, 180, 100, 80);
+                BottomRight(dynamiteRect, 230, 288, 100, 80);
             }
             else
             {
-                BottomRight(jumpRect, 196, 28, 124, 88);
-                BottomRight(scanRect, 24, 174, 110, 58);
-                BottomRight(medkitRect, 144, 174, 124, 58);
-                BottomRight(dynamiteRect, 278, 174, 130, 58);
+                BottomRight(jumpRect, 272, 78, 120, 120);
+                BottomRight(scanRect, 72, 264, 120, 82);
+                BottomRight(medkitRect, 216, 264, 120, 82);
+                BottomRight(dynamiteRect, 360, 264, 130, 82);
             }
+            Canvas.ForceUpdateCanvases();
+            Stick.SetHome();
+            ClearInput();
             At((RectTransform)startButton.transform, 32, 236, 416, wideTouch ? 64 : 60);
             LayoutHouse(portrait, wideTouch);
         }
@@ -420,10 +446,17 @@ namespace Nubik
         private void Update()
         {
             if (game == null || game.Progress == null) return;
-            var safe = Screen.safeArea;
+            var safe = WebInput.SafeArea;
             root.anchorMin = new Vector2(safe.xMin / Screen.width, safe.yMin / Screen.height);
             root.anchorMax = new Vector2(safe.xMax / Screen.width, safe.yMax / Screen.height);
-            if (lastWidth != Screen.width || lastHeight != Screen.height || lastTouch != game.TouchMode) Layout();
+            if (lastWidth != Screen.width || lastHeight != Screen.height || lastTouch != game.TouchMode || lastSafe != safe)
+            {
+                lastSafe = safe; Layout();
+                // The HUD avoids the notch, but atmosphere and transitions still cover the whole view.
+                FitFullScreen(vignette.rectTransform, safe);
+                FitFullScreen(fade.rectTransform, safe);
+                FitFullScreen(flash.rectTransform, safe);
+            }
 
             var progress = game.Progress;
             var config = game.config;
@@ -457,7 +490,11 @@ namespace Nubik
             if (Changed(toolName, armed ? -1 : progress.tool * 2 + (drill ? 1 : 0)))
                 toolName.text = armed ? "Древний гарпун" : progress.tool == config.tools.Length - 1 && !drill ? "Лопата · бак пуст" : game.Tool.nameRu;
             if (digLabel == null) digLabel = digRect.GetComponentInChildren<Text>();
-            if (Changed(digLabel, game.InBoss ? 2 : drill ? 1 : 0)) digLabel.text = game.InBoss ? "СТРЕЛЯТЬ" : drill ? "БУРИТЬ" : "КОПАТЬ";
+            if (Changed(digLabel, game.InBoss ? 2 : drill ? 1 : 0))
+            {
+                digLabel.text = game.InBoss ? "СТРЕЛЯТЬ" : drill ? "БУРИТЬ" : "КОПАТЬ";
+                leftDigRect.GetComponentInChildren<Text>().text = digLabel.text;
+            }
             int keysShown = (game.InBoss ? 1 : 0) | (drill ? 2 : 0) | (game.FreeMouse ? 4 : 0) | (game.HasJetpack ? 8 : 0) | (progress.scanner ? 16 : 0) |
                 (progress.medkits > 0 ? 32 : 0) | (progress.dynamite > 0 ? 64 : 0);
             if (Changed(toolKeys, keysShown)) toolKeys.text = (game.InBoss ? "ЛКМ стрелять" : game.UsingDrill ? "ЛКМ бурить" : "ЛКМ копать") + (game.FreeMouse ? " · ПКМ обзор" : "") + " · ПРОБЕЛ " +
@@ -508,6 +545,13 @@ namespace Nubik
             UpdateScanMarks();
             if (house.activeSelf) UpdateHouse();
             if (SettingsOpen) UpdateSettings();
+        }
+
+        private static void FitFullScreen(RectTransform rect, Rect safe)
+        {
+            float w = Mathf.Max(1, safe.width), h = Mathf.Max(1, safe.height);
+            rect.anchorMin = new Vector2(-safe.xMin / w, -safe.yMin / h);
+            rect.anchorMax = new Vector2((Screen.width - safe.xMin) / w, (Screen.height - safe.yMin) / h);
         }
 
         private void UpdateVitals()
@@ -573,7 +617,7 @@ namespace Nubik
             if (returning) { At((RectTransform)restartButton.transform, 32, y, 416, 44); y += 52; }
             At(startHelp.rectTransform, 32, y + 2, 416, 92);
             startCard.sizeDelta = new Vector2(480, y + 108);
-            startHelp.text = game.TouchMode ? "Стик — идти, справа — осмотр\n" +
+            startHelp.text = game.TouchMode ? "Слева — плавающий стик\nКОПАТЬ справа: держи и веди для осмотра\n" +
                 (game.HasJetpack ? "Держи ПРЫЖОК в воздухе — джетпак\n" : "Копай ступеньки, чтобы вернуться наверх\n") + "Общий бензобак заправляется на базе"
                 : "WASD — идти · " + (game.FreeMouse ? "ПКМ — обзор" : "мышь — обзор") + "\nЛКМ — копать · пробел — прыжок" +
                   (game.HasJetpack ? " / полёт" : "") + "\nE — скупка и мастерская в доме · Esc — пауза" +
@@ -624,7 +668,7 @@ namespace Nubik
             ClearInput(); ending.SetActive(true);
         }
 
-        public void ClearInput() { Stick.ResetInput(); Dig.ResetInput(); Look.ResetInput(); Jump.ResetInput(); jumpQueued = false; }
+        public void ClearInput() { Stick.ResetInput(); Dig.ResetInput(); LeftDig.ResetInput(); Look.ResetInput(); Jump.ResetInput(); jumpQueued = false; }
         public bool ConsumeJump() { bool value = jumpQueued; jumpQueued = false; return value; }
         public void Notify(string message) { toast.text = message; toastUntil = Time.unscaledTime + 3.6f; }
         public void HitFeedback() => hitUntil = Time.unscaledTime + 0.13f;

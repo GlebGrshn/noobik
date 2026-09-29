@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
@@ -196,12 +197,18 @@ namespace Nubik.PlayTests
             yield return new WaitForSeconds(0.5f);
             float start = Body(game).transform.position.y;
             var jump = game.GetComponent<MineHud>().Jump;
-            jump.OnPointerDown(null);
+            var finger = new PointerEventData(EventSystem.current) { pointerId = 7 };
+            jump.OnPointerDown(finger);
+            jump.OnPointerExit(finger);
+            jump.OnPointerUp(new PointerEventData(EventSystem.current) { pointerId = 8 });
             yield return new WaitForSeconds(1.2f);
             float top = Body(game).transform.position.y;
-            jump.OnPointerUp(null);
+            jump.OnPointerUp(finger);
             Assert.Greater(top - start, 2.5f, "The jetpack climbs out of the shaft.");
             Assert.Less(game.Fuel, game.FuelMax);
+            jump.OnPointerDown(finger);
+            jump.enabled = false;
+            Assert.IsFalse(jump.Held, "Disabled controls must release their finger.");
         }
 
         [UnityTest]

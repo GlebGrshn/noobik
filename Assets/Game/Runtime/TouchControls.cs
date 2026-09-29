@@ -3,35 +3,58 @@ using UnityEngine.EventSystems;
 
 namespace Nubik
 {
-    public sealed class TouchStick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
+    public sealed class TouchStick : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler, IInitializePotentialDragHandler
     {
         public Vector2 Value { get; private set; }
         public RectTransform knob;
+        public RectTransform baseRect;
+        private Vector2 origin, home;
         private int pointer = int.MinValue;
+        public void SetHome() { home = baseRect.localPosition; ResetInput(); }
+        public void OnInitializePotentialDrag(PointerEventData e) => e.useDragThreshold = false;
         public void OnPointerDown(PointerEventData e)
         {
             if (pointer != int.MinValue) return;
             pointer = e.pointerId;
-            OnDrag(e);
+            var rect = (RectTransform)transform;
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(rect, e.position, e.pressEventCamera, out origin);
+            baseRect.localPosition = ClampBase(origin);
+            Value = Vector2.zero;
         }
         public void OnDrag(PointerEventData e)
         {
             if (e.pointerId != pointer) return;
             var rect = (RectTransform)transform;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(rect, e.position, e.pressEventCamera, out var point);
-            Value = Vector2.ClampMagnitude(point / (rect.rect.width * 0.32f), 1);
-            knob.anchoredPosition = Value * rect.rect.width * 0.25f;
+            float radius = baseRect.rect.width * .32f;
+            var travel = point - origin;
+            // Follow an overreaching thumb so changing direction does not require a long return swipe.
+            if (travel.magnitude > radius) origin = point - travel.normalized * radius;
+            baseRect.localPosition = ClampBase(origin);
+            var raw = Vector2.ClampMagnitude((point - origin) / radius, 1);
+            float amount = Mathf.InverseLerp(.10f, 1, raw.magnitude);
+            Value = raw.normalized * amount;
+            knob.anchoredPosition = raw * baseRect.rect.width * .25f;
+        }
+        private Vector2 ClampBase(Vector2 point)
+        {
+            var bounds = ((RectTransform)transform).rect;
+            float inset = baseRect.rect.width * .5f;
+            return new Vector2(Mathf.Clamp(point.x, bounds.xMin + inset, bounds.xMax - inset),
+                Mathf.Clamp(point.y, bounds.yMin + inset, bounds.yMax - inset));
         }
         public void OnPointerUp(PointerEventData e) { if (e.pointerId == pointer) ResetInput(); }
-        public void ResetInput() { pointer = int.MinValue; Value = Vector2.zero; if (knob) knob.anchoredPosition = Vector2.zero; }
+        public void ResetInput() { pointer = int.MinValue; Value = Vector2.zero; if (knob) knob.anchoredPosition = Vector2.zero; if (baseRect) baseRect.localPosition = home; }
         private void OnDisable() => ResetInput();
     }
 
     /// <summary>Drag anywhere on this area to turn the camera. Collects the delta until read.</summary>
-    public sealed class TouchLook : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler
+    public sealed class TouchLook : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerUpHandler, IInitializePotentialDragHandler
     {
         private int pointer = int.MinValue;
         private Vector2 pending;
+        public void OnInitializePotentialDrag(PointerEventData e) => e.useDragThreshold = false;
+        public void AddDelta(Vector2 delta) => pending += delta;
         public void OnPointerDown(PointerEventData e) { if (pointer == int.MinValue) pointer = e.pointerId; }
         public void OnDrag(PointerEventData e) { if (e.pointerId == pointer) pending += e.delta; }
         public void OnPointerUp(PointerEventData e) { if (e.pointerId == pointer) pointer = int.MinValue; }
@@ -41,13 +64,22 @@ namespace Nubik
         private void OnDisable() => ResetInput();
     }
 
-    public sealed class HoldButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
+    public sealed class HoldButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler, IDragHandler, IInitializePotentialDragHandler
     {
         public bool Held { get; private set; }
-        public void OnPointerDown(PointerEventData e) => Held = true;
-        public void OnPointerUp(PointerEventData e) => Held = false;
-        public void OnPointerExit(PointerEventData e) => Held = false;
-        public void ResetInput() => Held = false;
+        public TouchLook look;
+        private int pointer = int.MinValue;
+        public void OnInitializePotentialDrag(PointerEventData e) => e.useDragThreshold = false;
+        public void OnPointerDown(PointerEventData e)
+        {
+            if (pointer != int.MinValue) return;
+            pointer = e.pointerId; Held = true;
+        }
+        public void OnDrag(PointerEventData e) { if (e.pointerId == pointer && look) look.AddDelta(e.delta); }
+        public void OnPointerUp(PointerEventData e) { if (e.pointerId == pointer) ResetInput(); }
+        // The press belongs to this finger until release, including outside the visible circle.
+        public void OnPointerExit(PointerEventData e) { }
+        public void ResetInput() { pointer = int.MinValue; Held = false; }
         private void OnDisable() => ResetInput();
     }
 }

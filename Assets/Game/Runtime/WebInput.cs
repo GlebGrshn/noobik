@@ -9,7 +9,23 @@ namespace Nubik
     /// </summary>
     public static class WebInput
     {
+        /// <summary>Unity's native safe area intersected with browser CSS safe-area insets.</summary>
+        public static Rect SafeArea
+        {
+            get
+            {
+                var safe = Screen.safeArea;
 #if UNITY_WEBGL && !UNITY_EDITOR
+                float left = NubikSafeInset(0) * Screen.width, bottom = NubikSafeInset(1) * Screen.height;
+                float right = (1 - NubikSafeInset(2)) * Screen.width, top = (1 - NubikSafeInset(3)) * Screen.height;
+                safe = Rect.MinMaxRect(Mathf.Max(safe.xMin, left), Mathf.Max(safe.yMin, bottom),
+                    Mathf.Min(safe.xMax, right), Mathf.Min(safe.yMax, top));
+#endif
+                return safe;
+            }
+        }
+#if UNITY_WEBGL && !UNITY_EDITOR
+        [DllImport("__Internal")] private static extern float NubikSafeInset(int side);
         [DllImport("__Internal")] private static extern int NubikPointerState();
         [DllImport("__Internal")] private static extern void NubikWantLock(int want);
         [DllImport("__Internal")] private static extern float NubikTakeMouseX();

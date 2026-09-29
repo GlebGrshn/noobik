@@ -9,6 +9,8 @@
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #112024; color: #f7f2de; font-family: system-ui, sans-serif;
       overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
     #unity-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    #safe-area { position: fixed; inset: 0; visibility: hidden; pointer-events: none;
+      padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
     #loading { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; background: radial-gradient(ellipse at 50% 25%, #304f43, #112024 70%); gap: 22px; padding: 24px; }
     #loading .badge { color: #70d7b7; font-size: 12px; font-weight: 700; letter-spacing: 3px; }
     #loading .mark { width: 72px; height: 72px; border: 2px solid #ffc451; border-radius: 22px; display: grid; place-items: center; color: #ffc451; font-size: 44px; }
@@ -23,6 +25,7 @@
   </style>
 </head>
 <body>
+  <div id="safe-area" aria-hidden="true"></div>
   <canvas id="unity-canvas" tabindex="0" aria-label="Нубик Шахтёр. WASD — движение, ЛКМ — копать, пробел — прыжок и джетпак, E — дом, F — сканер, Q — аптечка, Esc — пауза"></canvas>
   <div id="loading"><div class="mark" aria-hidden="true">↓</div><div class="badge">НАВСТРЕЧУ НАХОДКАМ</div><h1>НУБИК ШАХТЁР</h1><div class="caption">Готовим твою следующую вылазку…</div><progress id="progress" aria-label="Загрузка игры" value="0" max="1"></progress><div id="error" role="alert"></div></div>
   <script>
@@ -66,6 +69,18 @@
       }, 1000);
     };
     const canvas = document.getElementById('unity-canvas');
+    // Safari exposes the notch/home indicator in CSS pixels; send normalized canvas insets to Unity.
+    const updateSafeArea = () => {
+      const style = getComputedStyle(document.getElementById('safe-area'));
+      const bounds = canvas.getBoundingClientRect();
+      const px = name => parseFloat(style[name]) || 0;
+      window.nubikSafeInsets = [px('paddingLeft') / Math.max(1, bounds.width), px('paddingBottom') / Math.max(1, bounds.height),
+        px('paddingRight') / Math.max(1, bounds.width), px('paddingTop') / Math.max(1, bounds.height)];
+    };
+    updateSafeArea();
+    window.addEventListener('resize', updateSafeArea);
+    window.visualViewport?.addEventListener('resize', updateSafeArea);
+    window.addEventListener('orientationchange', () => { updateSafeArea(); setTimeout(updateSafeArea, 300); });
     canvas.addEventListener('contextmenu', event => event.preventDefault());
     // Mouse look: collect deltas here; the game reads them each frame. Pointer lock is requested
     // inside the click itself (a user gesture) and may be refused, e.g. in some embedded frames.

@@ -1,4 +1,7 @@
 mergeInto(LibraryManager.library, {
+  NubikSafeInset: function (side) {
+    return (window.nubikSafeInsets || [0, 0, 0, 0])[side] || 0;
+  },
   NubikReady: function () {
     window.nubikReady = true;
     if (window.nubikSDK) window.nubikSDK.features.LoadingAPI?.ready();
