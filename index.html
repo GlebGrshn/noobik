@@ -20,12 +20,18 @@
     progress::-webkit-progress-bar { background: #2b4241; }
     progress::-webkit-progress-value { background: #ffc451; border-radius: 5px; }
     #error { max-width: 36em; line-height: 1.5; }
+    #rotate { position: fixed; inset: 0; z-index: 10; display: none; place-content: center; justify-items: center; gap: 22px; text-align: center; padding: 24px;
+      background: radial-gradient(ellipse at 50% 30%, #304f43, #112024 70%); color: #f7f2de; font-size: 20px; font-weight: 700; }
+    #rotate .phone { width: 58px; height: 96px; border: 4px solid #ffc451; border-radius: 12px; animation: turn 2.2s ease-in-out infinite; }
+    #rotate .note { color: #b0c5bf; font-size: 15px; font-weight: 400; }
+    @keyframes turn { 0%, 30% { transform: rotate(0deg); } 60%, 100% { transform: rotate(-90deg); } }
     #fake-ad { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: #05090b; color: #f7f2de; font-size: 18px; z-index: 5; }
     #fake-ad b { color: #ffc451; letter-spacing: 2px; }
   </style>
 </head>
 <body>
   <div id="safe-area" aria-hidden="true"></div>
+  <div id="rotate" role="alert"><div class="phone" aria-hidden="true"></div><div>Поверни телефон горизонтально</div><div class="note">Игра рассчитана на горизонтальный экран</div></div>
   <canvas id="unity-canvas" tabindex="0" aria-label="Нубик Шахтёр. WASD — движение, ЛКМ — копать, пробел — прыжок и джетпак, E — дом, F — сканер, Q — аптечка, Esc — пауза"></canvas>
   <div id="loading"><div class="mark" aria-hidden="true">↓</div><div class="badge">НАВСТРЕЧУ НАХОДКАМ</div><h1>НУБИК ШАХТЁР</h1><div class="caption">Готовим твою следующую вылазку…</div><progress id="progress" aria-label="Загрузка игры" value="0" max="1"></progress><div id="error" role="alert"></div></div>
   <script>
@@ -69,6 +75,23 @@
       }, 1000);
     };
     const canvas = document.getElementById('unity-canvas');
+    // The game is landscape only: on a phone held upright a prompt covers it and the game pauses.
+    const touchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    const upright = () => touchDevice && window.matchMedia('(orientation: portrait)').matches;
+    let wasUpright = null;
+    const checkOrientation = () => {
+      const now = upright();
+      document.getElementById('rotate').style.display = now ? 'grid' : 'none';
+      if (now === wasUpright || !window.unityInstance) return;
+      wasUpright = now;
+      window.unityInstance.SendMessage('NubikGame', 'OnOrientation', now ? '1' : '0');
+    };
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 200));
+    window.matchMedia('(orientation: portrait)').addEventListener?.('change', checkOrientation);
+    // Android can lock the orientation once the page is full screen; elsewhere this quietly does nothing.
+    window.addEventListener('touchend', () => { try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (error) {} }, { once: true });
+    checkOrientation();
     // Safari exposes the notch/home indicator in CSS pixels; send normalized canvas insets to Unity.
     const updateSafeArea = () => {
       const style = getComputedStyle(document.getElementById('safe-area'));
@@ -96,41 +119,54 @@
       window.nubikMouseX += dx; window.nubikMouseY += dy;
     });
     document.addEventListener('touchmove', event => { if (event.target === canvas) event.preventDefault(); }, { passive: false });
-    document.addEventListener('pointerlockerror', () => { window.nubikLockFailed = true; });
-    canvas.addEventListener('mousedown', () => {
-      if (!window.nubikWantLock || window.nubikLockFailed || document.pointerLockElement === canvas) return;
-      try {
-        // Raw mouse movement where the browser supports it: no OS acceleration and fewer spikes.
-        let request;
-        try { request = canvas.requestPointerLock({ unadjustedMovement: true }); } catch (error) { request = canvas.requestPointerLock(); }
-        if (request && request.catch) request.catch(() => {
-          const retry = canvas.requestPointerLock();
-          if (retry && retry.catch) retry.catch(() => { window.nubikLockFailed = true; });
-        });
-      } catch (error) { window.nubikLockFailed = true; }
+    // A refusal is usually temporary: Chrome refuses a new lock right after the player left one with Esc, and some
+    // browsers refuse raw movement. Only three refusals in a row with no success switch the game to the
+    // right-button fallback; any successful lock clears the count.
+    let lockFailures = 0, rawMovement = true, promiseLocks = false;
+    const lockFailed = () => { if (++lockFailures >= 3) window.nubikLockFailed = true; };
+    document.addEventListener('pointerlockchange', () => {
+      if (document.pointerLockElement === canvas) { lockFailures = 0; window.nubikLockFailed = false; }
     });
+    document.addEventListener('pointerlockerror', () => { if (!promiseLocks) lockFailed(); });
+    window.nubikRequestLock = () => {
+      if (!window.nubikWantLock || document.pointerLockElement === canvas) return;
+      let request;
+      try { request = rawMovement ? canvas.requestPointerLock({ unadjustedMovement: true }) : canvas.requestPointerLock(); }
+      catch (error) { rawMovement = false; try { request = canvas.requestPointerLock(); } catch (inner) { lockFailed(); return; } }
+      if (request && request.catch) {
+        promiseLocks = true;
+        request.catch(error => {
+          // No raw movement here: use the plain lock from the next click, not a refusal.
+          if (rawMovement && error && error.name === 'NotSupportedError') { rawMovement = false; return; }
+          lockFailed();
+        });
+      }
+    };
+    canvas.addEventListener('mousedown', () => window.nubikRequestLock());
     // Keep a refused pointer lock from reaching Unity's global error handler.
     window.addEventListener('unhandledrejection', event => {
       const reason = String(event.reason && (event.reason.name + ' ' + event.reason.message));
       if (!/pointer ?lock|WrongDocumentError/i.test(reason)) return;
-      window.nubikLockFailed = true;
+      lockFailed();
       event.preventDefault();
       event.stopImmediatePropagation();
     });
     const loader = document.createElement('script');
-    loader.src = 'Build/WebGL.loader.js?v=72a29b9b';
+    loader.src = 'Build/WebGL.loader.js?v=f492a63e';
     loader.onload = () => createUnityInstance(canvas, {
-      dataUrl: 'Build/WebGL.data?v=72a29b9b',
-      frameworkUrl: 'Build/WebGL.framework.js?v=72a29b9b',
-      codeUrl: 'Build/WebGL.wasm?v=72a29b9b',
+      dataUrl: 'Build/WebGL.data?v=f492a63e',
+      frameworkUrl: 'Build/WebGL.framework.js?v=f492a63e',
+      codeUrl: 'Build/WebGL.wasm?v=f492a63e',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: 'GlebGrshn', productName: 'Nubik Miner', productVersion: '0.1.0',
       // Saves (PlayerPrefs) live in persistentDataPath; let Unity sync it to IndexedDB on every change.
       autoSyncPersistentDataPath: true,
-      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5)
+      // Full screen density for crisp text on phones; the 3D view scales itself down per graphics level.
+      devicePixelRatio: window.nubikPixelRatio = Math.min(window.devicePixelRatio || 1, 3)
     }, value => document.getElementById('progress').value = value).then(instance => {
       window.unityInstance = instance;
       if (window.nubikPlatformPaused) instance.SendMessage('NubikGame', 'OnPlatformPause', '1');
+      wasUpright = null; checkOrientation();
       document.getElementById('loading').remove();
       const visibility = () => instance.SendMessage('NubikGame', 'OnVisibility', document.hidden ? '0' : '1');
       document.addEventListener('visibilitychange', visibility);
