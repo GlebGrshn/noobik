@@ -8,7 +8,7 @@ namespace Nubik
     public sealed class YandexBridge : MonoBehaviour
     {
         public static bool Paused { get; private set; }
-        /// <summary>A rewarded ad is on screen: the game, its timers and its sound stay paused.</summary>
+        /// <summary>An ad is pending/on screen: game time and sound stay paused.</summary>
         public bool AdShowing { get; private set; }
         /// <summary>Called with the ticket once the platform confirms the reward.</summary>
         public event Action<int> AdRewarded;
@@ -18,10 +18,16 @@ namespace Nubik
         private bool focused = true;
         private bool visible = true;
         private bool platformPaused, upright;
+        public const float InterstitialInterval = 240f;
+        public float ActivePlaySeconds { get; private set; }
+        public bool InterstitialDue => ActivePlaySeconds >= InterstitialInterval;
+        private bool rewardedAd;
+        private int rewardTicket;
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")] private static extern void NubikReady();
         [DllImport("__Internal")] private static extern void NubikGameplay(int active);
         [DllImport("__Internal")] private static extern void NubikShowRewarded(int ticket);
+        [DllImport("__Internal")] private static extern void NubikShowInterstitial();
 #endif
         public void Ready()
         {
@@ -34,6 +40,9 @@ namespace Nubik
         /// <summary>Asks the platform for a rewarded video; the reward arrives through <see cref="AdRewarded"/>.</summary>
         public void ShowRewarded(int ticket)
         {
+            if (AdShowing || Paused) return;
+            rewardedAd = true;
+            rewardTicket = ticket;
             AdShowing = true;
             Apply();
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -46,24 +55,50 @@ namespace Nubik
 
         private IEnumerator FakeAd(int ticket)
         {
-            OnAdOpen("");
             yield return new WaitForSecondsRealtime(1f);
-            OnAdRewarded(ticket.ToString());
-            OnAdClose("");
+            if (ticket > 0) { OnAdRewarded(ticket.ToString()); OnAdClose(""); }
+            else OnInterstitialClose("");
+        }
+
+        public void AdvancePlayTime(float seconds, bool active)
+        {
+            if (active && !Paused && !AdShowing && seconds > 0 && !float.IsInfinity(seconds))
+                ActivePlaySeconds = Mathf.Min(InterstitialInterval, ActivePlaySeconds + seconds);
+        }
+
+        /// <summary>Call only at a natural break after four minutes of active play.</summary>
+        public bool TryShowInterstitial()
+        {
+            if (!InterstitialDue || AdShowing || Paused) return false;
+            rewardedAd = false;
+            AdShowing = true;
+            Apply();
+#if UNITY_WEBGL && !UNITY_EDITOR
+            NubikShowInterstitial();
+#else
+            StartCoroutine(FakeAd(0));
+#endif
+            return true;
         }
 
         // Messages from the page (Yandex.jslib / index.html).
-        public void OnAdOpen(string _) { AdShowing = true; Apply(); }
-        public void OnAdRewarded(string ticket) { if (int.TryParse(ticket, out int value)) AdRewarded?.Invoke(value); }
-        public void OnAdClose(string _) => EndAd(false);
-        public void OnAdError(string _) => EndAd(true);
+        public void OnAdOpen(string _) { if (AdShowing && rewardedAd) Apply(); }
+        public void OnAdRewarded(string ticket)
+        { if (AdShowing && rewardedAd && int.TryParse(ticket, out int value) && value == rewardTicket) AdRewarded?.Invoke(value); }
+        public void OnAdClose(string _) { if (rewardedAd) EndAd(false); }
+        public void OnAdError(string _) { if (rewardedAd) EndAd(true); }
+        public void OnInterstitialOpen(string _) { if (AdShowing && !rewardedAd) Apply(); }
+        public void OnInterstitialClose(string _) { if (!rewardedAd) EndAd(false); }
+        public void OnInterstitialError(string _) { if (!rewardedAd) EndAd(true); }
 
         private void EndAd(bool failed)
         {
             if (!AdShowing) return;
             AdShowing = false;
+            // Rewarded views also start a fresh interval; failed requests cannot retry every frame.
+            ActivePlaySeconds = 0;
             Apply();
-            AdFinished?.Invoke(failed);
+            if (rewardedAd) AdFinished?.Invoke(failed);
         }
 
         public void SetInMine(bool value) { inMine = value; Apply(); }

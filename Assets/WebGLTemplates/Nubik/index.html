@@ -70,7 +70,7 @@
         if (left > 0) return;
         clearInterval(tick);
         screen.remove();
-        send('OnAdRewarded', id);
+        if (id != null) send('OnAdRewarded', id);
         send('OnAdClose', '');
       }, 1000);
     };

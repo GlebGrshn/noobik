@@ -270,6 +270,7 @@ namespace Nubik
             ending.SetActive(false);
             ClearInput();
             SelectTab(page);
+            game.TryAdvertisingBreak();
         }
 
         private void SelectTab(int index)

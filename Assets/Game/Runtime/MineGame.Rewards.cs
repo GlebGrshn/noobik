@@ -18,6 +18,15 @@ namespace Nubik
         public int AdWait => (int)Math.Max(0, Progress.adReadyAt - Now);
         public int AdCoins => Progress.AdReward(config);
 
+        // A due interstitial waits for a deliberate break, never a swing, flight or boss attack.
+        public void TryAdvertisingBreak()
+        {
+            if (InBoss || platform == null || !platform.InterstitialDue || platform.AdShowing || YandexBridge.Paused) return;
+            SaveNow();
+            hud.ClearInput();
+            platform.TryShowInterstitial();
+        }
+
         public void WatchAd()
         {
             if (!AdAvailable) return;

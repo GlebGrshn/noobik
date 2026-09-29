@@ -320,7 +320,8 @@ namespace Nubik
         {
             if (body == null) return;
             UpdateAmbience();
-            sound.SetAmbience(AmbienceName);
+            // Temporary noise-bed ambiences are disabled; music and positional sounds remain.
+            platform.AdvancePlayTime(Time.deltaTime, Active);
             sound.SetMusicDepth(Yard.InsideHouse(body.transform.position) ? 0 : Mathf.Max(0, -body.transform.position.y), InBoss);
             UpdateFlights();
             yard.Animate(Time.deltaTime);
@@ -1126,6 +1127,7 @@ namespace Nubik
             MenuOpen = true;
             hud.ClearInput();
             ReleaseMouse();
+            TryAdvertisingBreak();
         }
 
         private void ReleaseMouse()
@@ -1201,7 +1203,7 @@ namespace Nubik
         }
 
         /// <summary>Testing aid: the workshop shows a free upgrade button on every track. Turn off before release.</summary>
-        public const bool TestUpgrades = true;
+        public const bool TestUpgrades = false;
 
         public void Buy(Track track) => Upgrade(track, false);
 

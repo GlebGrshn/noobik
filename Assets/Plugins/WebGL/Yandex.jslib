@@ -81,6 +81,30 @@ mergeInto(LibraryManager.library, {
       if (active) gameplay?.start(); else gameplay?.stop();
     }
   },
+  // Periodic interstitials never share reward callbacks with the voluntary videos.
+  NubikShowInterstitial: function () {
+    var ended = false;
+    var send = function (method) { if (window.unityInstance) window.unityInstance.SendMessage('NubikGame', method, ''); };
+    var finish = function (failed) {
+      if (ended) return;
+      ended = true;
+      send(failed ? 'OnInterstitialError' : 'OnInterstitialClose');
+    };
+    var adv = window.nubikSDK && window.nubikSDK.adv;
+    try {
+      if (adv) adv.showFullscreenAdv({ callbacks: {
+        onOpen: function () { if (!ended) send('OnInterstitialOpen'); },
+        onClose: function () { finish(false); },
+        onError: function () { finish(true); }
+      } });
+      else if (window.nubikFakeAd) window.nubikFakeAd(null, function (method) {
+        if (method === 'OnAdOpen') send('OnInterstitialOpen');
+        else if (method === 'OnAdClose') finish(false);
+        else if (method === 'OnAdError') finish(true);
+      });
+      else finish(true);
+    } catch (error) { finish(true); }
+  },
   // Rewarded video. The ticket comes back with onRewarded so the game pays each ad once.
   NubikShowRewarded: function (ticket) {
     var id = String(ticket);
