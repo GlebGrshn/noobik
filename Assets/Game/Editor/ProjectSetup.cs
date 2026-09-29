@@ -42,6 +42,7 @@ public static class ProjectSetup
         }
         AssignRockDetail(material, terrainMaterial);
         AssignSurfaces(material);
+        GameAudioImport.EnsureConfigured();
         var cube = PrimitivePrefab("Cube", PrimitiveType.Cube, material);
         var skyMaterial = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Config/Sky.mat");
         if (skyMaterial == null)
@@ -140,13 +141,14 @@ public static class ProjectSetup
     {
         const string path = "Assets/Game/Textures/Surfaces.png";
         if (AssetImporter.GetAtPath(path) is TextureImporter importer &&
-            (importer.textureShape != TextureImporterShape.Texture2DArray || importer.sRGBTexture || importer.textureCompression != TextureImporterCompression.Uncompressed))
+            (importer.textureShape != TextureImporterShape.Texture2DArray || importer.sRGBTexture || importer.textureCompression != TextureImporterCompression.Uncompressed ||
+             importer.maxTextureSize < 2048 || FlipbookColumns(importer) != 5))
         {
             var settings = new TextureImporterSettings();
             importer.ReadTextureSettings(settings);
             settings.textureShape = TextureImporterShape.Texture2DArray;
             settings.flipbookRows = 4;
-            settings.flipbookColumns = 4;
+            settings.flipbookColumns = 5;
             settings.sRGBTexture = false;
             settings.alphaIsTransparency = false;
             settings.mipmapEnabled = true;
@@ -155,7 +157,7 @@ public static class ProjectSetup
             settings.aniso = 4;
             importer.SetTextureSettings(settings);
             importer.textureCompression = TextureImporterCompression.Uncompressed;
-            importer.maxTextureSize = 1024;
+            importer.maxTextureSize = 2048;
             importer.SaveAndReimport();
         }
         var surfaces = AssetDatabase.LoadAssetAtPath<Texture2DArray>(path);
@@ -163,6 +165,13 @@ public static class ProjectSetup
         if (props.GetTexture("_Surfaces") == surfaces) return;
         props.SetTexture("_Surfaces", surfaces);
         EditorUtility.SetDirty(props);
+    }
+
+    private static int FlipbookColumns(TextureImporter importer)
+    {
+        var settings = new TextureImporterSettings();
+        importer.ReadTextureSettings(settings);
+        return settings.flipbookColumns;
     }
 
     private static GameObject PrimitivePrefab(string name, PrimitiveType type, Material material)

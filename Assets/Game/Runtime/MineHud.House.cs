@@ -58,7 +58,7 @@ namespace Nubik
                 pages.Add(Rect("Page " + TabNames[i], houseCard));
             }
             houseFooter = Caption(houseCard, "", 15, Muted, 0, 0, 400, 48);
-            soundButton = Action(houseCard, "", Inset, game.ToggleSound, Cream);
+            soundButton = Action(houseCard, "Настройки", Inset, OpenSettings, Cream);
             soundText = soundButton.GetComponentInChildren<Text>();
             closeButton = Action(houseCard, "Закрыть  ·  Esc", Amber, game.CloseHouse);
 
@@ -290,7 +290,7 @@ namespace Nubik
             int used = progress.UsedSlots(config), capacity = progress.Capacity(config);
             houseFooter.text = Time.unscaledTime < toastUntil ? toast.text : "Рюкзак: " + used + " / " + capacity + " слотов";
             houseFooter.color = Time.unscaledTime < toastUntil ? Amber : Muted;
-            soundText.text = progress.muted ? "Звук: выкл" : "Звук: вкл";
+            soundText.text = "Настройки";
             switch (tab)
             {
                 case SellPage: UpdateSell(progress, config); break;

@@ -12,7 +12,7 @@ namespace Nubik
         public TouchLook Look { get; private set; }
         public HoldButton Dig { get; private set; }
         public HoldButton Jump { get; private set; }
-        public bool PanelOpen => house.activeSelf || ending.activeSelf;
+        public bool PanelOpen => house.activeSelf || ending.activeSelf || SettingsOpen;
 
         private static readonly Color Ink = new Color(0.065f, 0.105f, 0.12f, 0.98f);
         private static readonly Color Card = new Color(0.08f, 0.135f, 0.15f, 0.92f);
@@ -61,6 +61,17 @@ namespace Nubik
         private float toastUntil, hitUntil, pulseUntil, shownCoins;
 
         private sealed class FloatingText { public Text label; public Vector3 world; public float age = 1; }
+
+        // Texts are rebuilt only when what they show changes: building strings every frame fed the garbage collector,
+        // whose pauses showed as hitches in the browser.
+        private readonly Dictionary<Text, int> textKeys = new Dictionary<Text, int>();
+        private Text digLabel;
+        private bool Changed(Text label, int key)
+        {
+            if (textKeys.TryGetValue(label, out int last) && last == key) return false;
+            textKeys[label] = key;
+            return true;
+        }
         private sealed class ScanMark { public RectTransform rect; public UiGlyph icon; public Text label; }
 
         public void Setup(MineGame owner)
@@ -99,6 +110,7 @@ namespace Nubik
             BuildHouse();
             BuildEnding();
             BuildAnnouncement();
+            BuildSettings();
             // Toasts sit above modals: sale feedback stays readable in the house.
             toastCard = Panel("Notification", root, Ink);
             Icon(toastCard, UiGlyph.Kind.Coin, Amber, 14, 16, 28);
@@ -106,7 +118,8 @@ namespace Nubik
             // Only buttons, touch areas and modal backdrops catch the pointer.
             foreach (var image in root.GetComponentsInChildren<Image>(true))
                 image.raycastTarget = image.GetComponent<Button>() != null || image.GetComponent<TouchStick>() != null ||
-                    image.GetComponent<TouchLook>() != null || image.gameObject == overlay || image.gameObject == house || image.gameObject == ending;
+                    image.GetComponent<TouchLook>() != null || image.gameObject == overlay || image.gameObject == house || image.gameObject == ending ||
+                    image.gameObject == settings || image.GetComponentInParent<Slider>(true) != null;
             Layout();
         }
 
@@ -259,6 +272,9 @@ namespace Nubik
             restartButton = Action(startCard, "Начать игру заново", Inset, () => ConfirmRestart(true), new Color(1f, .62f, .55f));
             startHelp = Caption(startCard, "", 14, Muted, 32, 364, 416, 92);
             startHelp.alignment = TextAnchor.MiddleCenter;
+            startGear = Action(startCard, "", Inset, OpenSettings, Cream);
+            At((RectTransform)startGear.transform, 416, 16, 48, 48);
+            Center(Icon(startGear.transform, UiGlyph.Kind.Gear, Cream, 0, 0, 30).rectTransform, 0, 0, 30, 30);
 
             confirmCard = Panel("Restart confirm", overlay.transform, Ink);
             Center(confirmCard, 0, 0, 480, 300);
@@ -420,11 +436,14 @@ namespace Nubik
             }
             // Coins roll towards the new total instead of jumping.
             shownCoins = Mathf.MoveTowards(shownCoins, progress.coins, Mathf.Max(30, Mathf.Abs(progress.coins - shownCoins) * 10) * Time.unscaledDeltaTime);
-            coins.text = Mathf.RoundToInt(shownCoins).ToString("N0");
+            int shown = Mathf.RoundToInt(shownCoins);
+            if (Changed(coins, shown)) coins.text = shown.ToString("N0");
             coins.color = Time.unscaledTime < pulseUntil ? Amber : Cream;
-            depth.text = game.InBoss ? "КТУЛХУ" : metres + " м";
-            zone.text = game.InBoss ? (game.Battle.Enraged ? "ЯРОСТЬ" : "ДРЕВНИЙ") : config.zones[zoneIndex].nameRu.ToUpperInvariant();
-            record.text = game.InBoss ? "Голова уязвима между атаками" : game.ExpeditionGoal;
+            if (Changed(depth, game.InBoss ? -1 : metres)) depth.text = game.InBoss ? "КТУЛХУ" : metres + " м";
+            if (Changed(zone, game.InBoss ? (game.Battle.Enraged ? -2 : -1) : zoneIndex))
+                zone.text = game.InBoss ? (game.Battle.Enraged ? "ЯРОСТЬ" : "ДРЕВНИЙ") : config.zones[zoneIndex].nameRu.ToUpperInvariant();
+            if (Changed(record, game.InBoss ? -1 : (progress.finished ? 1000 : 0) + progress.KeyCount * 10 + (progress.doorOpened ? 1 : 0)))
+                record.text = game.InBoss ? "Голова уязвима между атаками" : game.ExpeditionGoal;
             depthFill.rectTransform.anchorMax = new Vector2(game.InBoss ? game.Battle.Health / BossBattle.MaxHealth : Mathf.Clamp01(metres / (float)config.depth), 1);
             depthFill.color = game.InBoss ? Red : Mint;
             for (int i = 0; i < zoneTicks.Count; i++)
@@ -434,9 +453,14 @@ namespace Nubik
             }
             UpdateVitals();
             UpdateBag(progress, config);
-            toolName.text = game.InBoss && progress.hasWeapon ? "Древний гарпун" : progress.tool == config.tools.Length - 1 && !game.UsingDrill ? "Лопата · бак пуст" : game.Tool.nameRu;
-            digRect.GetComponentInChildren<Text>().text = game.InBoss ? "СТРЕЛЯТЬ" : game.UsingDrill ? "БУРИТЬ" : "КОПАТЬ";
-            toolKeys.text = (game.InBoss ? "ЛКМ стрелять" : game.UsingDrill ? "ЛКМ бурить" : "ЛКМ копать") + (game.FreeMouse ? " · ПКМ обзор" : "") + " · ПРОБЕЛ " +
+            bool armed = game.InBoss && progress.hasWeapon, drill = game.UsingDrill;
+            if (Changed(toolName, armed ? -1 : progress.tool * 2 + (drill ? 1 : 0)))
+                toolName.text = armed ? "Древний гарпун" : progress.tool == config.tools.Length - 1 && !drill ? "Лопата · бак пуст" : game.Tool.nameRu;
+            if (digLabel == null) digLabel = digRect.GetComponentInChildren<Text>();
+            if (Changed(digLabel, game.InBoss ? 2 : drill ? 1 : 0)) digLabel.text = game.InBoss ? "СТРЕЛЯТЬ" : drill ? "БУРИТЬ" : "КОПАТЬ";
+            int keysShown = (game.InBoss ? 1 : 0) | (drill ? 2 : 0) | (game.FreeMouse ? 4 : 0) | (game.HasJetpack ? 8 : 0) | (progress.scanner ? 16 : 0) |
+                (progress.medkits > 0 ? 32 : 0) | (progress.dynamite > 0 ? 64 : 0);
+            if (Changed(toolKeys, keysShown)) toolKeys.text = (game.InBoss ? "ЛКМ стрелять" : game.UsingDrill ? "ЛКМ бурить" : "ЛКМ копать") + (game.FreeMouse ? " · ПКМ обзор" : "") + " · ПРОБЕЛ " +
                 (game.HasJetpack ? "прыжок / полёт" : "прыжок") + (progress.scanner ? " · F скан" : "") +
                 (progress.medkits > 0 ? " · Q аптечка" : "") + (progress.dynamite > 0 ? " · G динамит" : "");
 
@@ -449,15 +473,17 @@ namespace Nubik
             UpdateOrder(progress, config, modal || waiting);
             actions.gameObject.SetActive(!modal && !waiting);
             stationButton.gameObject.SetActive(!string.IsNullOrEmpty(game.Interaction));
-            stationText.text = game.Interaction + (game.TouchMode ? "" : "  ·  E");
+            var interaction = game.Interaction;
+            if (Changed(stationText, (interaction ?? "").GetHashCode() ^ (game.TouchMode ? 1 : 0))) stationText.text = interaction + (game.TouchMode ? "" : "  ·  E");
             menuButton.gameObject.SetActive(game.TouchMode);
             touchControls.gameObject.SetActive(game.TouchMode && !modal && !waiting);
             scanButton.gameObject.SetActive(progress.scanner);
-            scanText.text = game.ScanWait > 0 ? "СКАН " + Mathf.CeilToInt(game.ScanWait) : "СКАН";
+            int wait = Mathf.CeilToInt(game.ScanWait);
+            if (Changed(scanText, wait)) scanText.text = wait > 0 ? "СКАН " + wait : "СКАН";
             medkitButton.gameObject.SetActive(progress.medkits > 0);
-            medkitText.text = "АПТЕЧКА ×" + progress.medkits;
+            if (Changed(medkitText, progress.medkits)) medkitText.text = "АПТЕЧКА ×" + progress.medkits;
             dynamiteButton.gameObject.SetActive(progress.dynamite > 0 && !game.InBoss);
-            dynamiteText.text = "ДИНАМИТ ×" + progress.dynamite;
+            if (Changed(dynamiteText, progress.dynamite)) dynamiteText.text = "ДИНАМИТ ×" + progress.dynamite;
             toolCard.gameObject.SetActive(!game.TouchMode && !modal && !waiting);
             targetCard.gameObject.SetActive(game.Active && !string.IsNullOrEmpty(game.TargetText));
             target.text = game.TargetText;
@@ -481,6 +507,7 @@ namespace Nubik
             UpdatePopups();
             UpdateScanMarks();
             if (house.activeSelf) UpdateHouse();
+            if (SettingsOpen) UpdateSettings();
         }
 
         private void UpdateVitals()
@@ -488,14 +515,16 @@ namespace Nubik
             float health = game.Health, max = game.MaxHealth;
             healthFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(health / max), 1);
             healthFill.color = health < max * 0.3f ? Color.Lerp(Red, Cream, Mathf.PingPong(Time.unscaledTime * 3, 1) * 0.5f) : Red;
-            healthText.text = Mathf.CeilToInt(health).ToString();
+            int hp = Mathf.CeilToInt(health);
+            if (Changed(healthText, hp)) healthText.text = hp.ToString();
             bool jet = game.HasJetpack;
             fuelRow.gameObject.SetActive(jet);
             vitalsCard.sizeDelta = new Vector2(232, jet ? 62 : 36);
             if (!jet) return;
             fuelFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(game.Fuel / Mathf.Max(0.01f, game.FuelMax)), 1);
             fuelFill.color = game.Fuel < game.FuelMax * .2f ? Red : game.Refuelling ? Mint : Amber;
-            fuelText.text = Mathf.FloorToInt(game.Fuel) + " л";
+            int litres = Mathf.FloorToInt(game.Fuel);
+            if (Changed(fuelText, litres)) fuelText.text = litres + " л";
         }
 
         private void UpdateBag(GameProgress progress, MineConfig config)
@@ -503,10 +532,10 @@ namespace Nubik
             int used = progress.UsedSlots(config), capacity = progress.Capacity(config);
             bool full = used >= capacity;
             bool flash = Time.unscaledTime - bagFullAt < 0.8f;
-            bagCaption.text = full ? "РЮКЗАК ПОЛОН" : "РЮКЗАК  ·  " + used + " / " + capacity;
+            if (Changed(bagCaption, full ? -1 : used * 1000 + capacity)) bagCaption.text = full ? "РЮКЗАК ПОЛОН" : "РЮКЗАК  ·  " + used + " / " + capacity;
             bagCaption.color = full || flash ? Red : Muted;
             int value = progress.BagValue(config);
-            backpack.text = value + " " + MineGame.Plural(value, "монета", "монеты", "монет");
+            if (Changed(backpack, value)) backpack.text = value + " " + MineGame.Plural(value, "монета", "монеты", "монет");
             bagFill.rectTransform.anchorMax = new Vector2(Mathf.Clamp01(used / (float)Mathf.Max(1, capacity)), 1);
             bagFill.color = full || flash ? Red : Mint;
         }
@@ -520,14 +549,15 @@ namespace Nubik
             int have = Mathf.Min(progress.OreCount(progress.questOre), progress.questAmount);
             bool ready = progress.CanDeliver;
             orderIcon.color = ready ? Mint : Amber;
-            orderTitle.text = "ЗАКАЗ · " + ore.nameRu.ToUpperInvariant();
-            orderInfo.text = ready ? "Готово · +" + progress.questReward + " в доме" : have + " / " + progress.questAmount + "  ·  +" + progress.questReward + " монет";
+            if (Changed(orderTitle, progress.questOre)) orderTitle.text = "ЗАКАЗ · " + ore.nameRu.ToUpperInvariant();
+            if (Changed(orderInfo, (ready ? 1 : 0) + have * 2 + progress.questAmount * 2000 + progress.questReward * 2000000))
+                orderInfo.text = ready ? "Готово · +" + progress.questReward + " в доме" : have + " / " + progress.questAmount + "  ·  +" + progress.questReward + " монет";
             orderInfo.color = ready ? Mint : Cream;
         }
 
         private void UpdateStart(GameProgress progress, MineConfig config, bool waiting)
         {
-            overlay.SetActive(waiting);
+            overlay.SetActive(waiting && !SettingsOpen);
             if (!waiting) { if (confirmCard.gameObject.activeSelf) ConfirmRestart(false); return; }
             // Returning players see their progress instead of the tagline; the same card is the pause menu.
             bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
@@ -577,6 +607,8 @@ namespace Nubik
 
         public void ClosePanel()
         {
+            // The settings sit over the house or the pause card: close only them first.
+            if (SettingsOpen) { CloseSettings(); return; }
             house.SetActive(false);
             ending.SetActive(false);
             ClearInput();

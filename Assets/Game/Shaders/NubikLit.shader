@@ -16,6 +16,8 @@ Shader "Nubik/Lit"
         _Surfaces("Surface set (normal xy, albedo, mask)", 2DArray) = "" {}
         _SurfaceScale("Surface texture density", Float) = 1
         _Lava("Molten lava surface", Range(0, 1)) = 0
+        _Water("Water surface", Range(0, 1)) = 0
+        _Sway("Wind sway (grass 1, crowns less)", Range(0, 1)) = 0
         _Detail("Rock detail (normal xy, height, cracks)", 2D) = "gray" {}
         _DetailStrength("Rock detail strength", Range(0, 1)) = 0
         _DetailScale("Rock detail tiles per metre", Float) = 0.6
@@ -37,6 +39,8 @@ Shader "Nubik/Lit"
             half _Surface;
             half _SurfaceScale;
             half _Lava;
+            half _Water;
+            half _Sway;
             half _DetailStrength;
             float _DetailScale;
         CBUFFER_END
@@ -58,6 +62,8 @@ Shader "Nubik/Lit"
             #pragma require 2darray
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
+            float _NubikLowDetail; // graphics "Low": one texture sample instead of three, no bump on mapped props and rock
+
             float Hash2(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
 
             float ValueNoise(float2 p)
@@ -69,11 +75,12 @@ Shader "Nubik/Lit"
             }
 
             // Per layer (surface - 1): texture tiles per metre, bump strength, highlight tightness and strength.
-            // Wood, masonry, metal, cloth, crystal, skin, plaster, roof, planks, painted, rubber, wallpaper, rug, leather, bark, brick.
-            static const float SurfaceTiles[16] = { 2, .8, 2, 4, 1.6, 1.2, .66, 1, 1, 2, 10, 1.66, .7, 3, 1.2, 1.1 };
-            static const half SurfaceBump[16] = { .7, 1, .55, .7, 1, .9, .55, .9, .85, .7, .8, .5, .6, .8, 1, .9 };
-            static const half SurfaceGloss[16] = { 24, 12, 48, 6, 90, 30, 8, 20, 18, 56, 10, 12, 4, 24, 6, 10 };
-            static const half SurfaceShine[16] = { .05, .03, .45, 0, .6, .25, .02, .08, .05, .3, .06, .04, 0, .12, 0, .03 };
+            // Wood, masonry, metal, cloth, crystal, skin, plaster, roof, planks, painted, rubber, wallpaper, rug, leather, bark, brick,
+            // grass, leaves, soil, fur.
+            static const float SurfaceTiles[20] = { 2, .8, 2, 4, 1.6, 1.2, .66, 1, 1, 2, 10, 1.66, .7, 3, 1.2, 1.1, 1.8, 1.4, 1.2, 4 };
+            static const half SurfaceBump[20] = { .7, 1, .55, .7, 1, .9, .55, .9, .85, .7, .8, .5, .6, .8, 1, .9, .7, .9, .9, .5 };
+            static const half SurfaceGloss[20] = { 24, 12, 48, 6, 90, 30, 8, 20, 18, 56, 10, 12, 4, 24, 6, 10, 8, 14, 6, 6 };
+            static const half SurfaceShine[20] = { .05, .03, .45, 0, .6, .25, .02, .08, .05, .3, .06, .04, 0, .12, 0, .03, .02, .05, 0, 0 };
 
             half4 SampleSurface(float2 uv, int layer) { return SAMPLE_TEXTURE2D_ARRAY(_Surfaces, sampler_Surfaces, uv, layer); }
 
@@ -91,6 +98,13 @@ Shader "Nubik/Lit"
                     half3 tangent = normalize(tangentWS.xyz - normal * dot(normal, tangentWS.xyz));
                     half3 bitangent = cross(normal, tangent) * (tangentWS.w < 0 ? -1 : 1);
                     normal = normalize(tangent * t.x + bitangent * t.y + normal);
+                }
+                else if (_NubikLowDetail > .5)
+                {
+                    // One sample along the main axis, no bump.
+                    float3 p = positionOS * tiles;
+                    half3 a = abs(normalOS);
+                    s = SampleSurface(a.x > a.y && a.x > a.z ? p.zy : a.y > a.z ? p.xz : p.xy, layer);
                 }
                 else
                 {
@@ -119,12 +133,23 @@ Shader "Nubik/Lit"
                 else if (layer == 11) albedo = lerp(albedo, albedo * 1.12 + .07, mask);          // wallpaper motif
                 else if (layer == 12) albedo = lerp(albedo, half3(.88, .72, .44), mask);         // rug ornament
                 else if (layer == 15) albedo = lerp(albedo, half3(.56, .54, .5), mask);          // brick mortar
+                else if (layer == 16) albedo *= 1 + mask * .2;                                   // sunlit blade tips
+                else if (layer == 17) albedo *= lerp(.82, 1.18, mask);                           // one leaf lighter than the next
+                else if (layer == 18) albedo = lerp(albedo, half3(.55, .52, .48), mask * .7);    // pebbles in the soil
             }
 
             /// Triplanar rock relief: bends the normal, darkens hollows and fractures. Three samples, only where needed.
             half RockRelief(float3 p, inout half3 normal, inout half3 albedo, half amount)
             {
                 float3 uv = p * _DetailScale;
+                if (_NubikLowDetail > .5)
+                {
+                    half3 a = abs(normal);
+                    half4 one = SAMPLE_TEXTURE2D(_Detail, sampler_Detail, a.x > a.y && a.x > a.z ? uv.zy : a.y > a.z ? uv.xz : uv.xy);
+                    half flat = one.a * smoothstep(0.3, 0.7, ValueNoise(p.xz * 0.23 + p.y * 0.31)) * amount * amount;
+                    albedo *= lerp(1, 0.74 + 0.38 * one.b, amount) * (1 - flat * 0.6);
+                    return flat;
+                }
                 half3 blend = pow(abs(normal), 4);
                 blend /= blend.x + blend.y + blend.z;
                 half4 sx = SAMPLE_TEXTURE2D(_Detail, sampler_Detail, uv.zy);
@@ -173,9 +198,16 @@ Shader "Nubik/Lit"
             Varyings Vert(Attributes input)
             {
                 Varyings output;
-                VertexPositionInputs position = GetVertexPositionInputs(input.positionOS.xyz);
-                output.positionCS = position.positionCS;
-                output.positionWS = position.positionWS;
+                float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                if (_Sway > 0)
+                {
+                    // Wind: blades bend from the ground up, crowns rock a little; gusts roll across the yard.
+                    float t = _Time.y;
+                    float2 gust = float2(sin(t * 1.7 + positionWS.x * .6 + positionWS.z * .35), cos(t * 1.3 + positionWS.z * .5 - positionWS.x * .3));
+                    positionWS.xz += gust * (.06 * _Sway * saturate(positionWS.y * 2.5) * (.7 + .3 * sin(t * .4 + positionWS.x * .05)));
+                }
+                output.positionCS = TransformWorldToHClip(positionWS);
+                output.positionWS = positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.color = input.color;
                 output.uv = input.uv;
@@ -190,12 +222,24 @@ Shader "Nubik/Lit"
             half4 Frag(Varyings input) : SV_Target
             {
                 half3 normal = normalize(input.normalWS);
+                half3 view = normalize(_WorldSpaceCameraPos - input.positionWS);
                 half3 albedo = _BaseColor.rgb * lerp(half3(1, 1, 1), input.color.rgb, _VertexColor);
+                if (_Water > .5)
+                {
+                    // Pond: drifting ripples bend the normal; at a grazing angle the water mirrors the sky.
+                    float2 w = input.positionWS.xz;
+                    float t = _Time.y;
+                    half2 ripple = half2(ValueNoise(w * 3 + t * .5) - ValueNoise(w * 3 + float2(.7, .3) + t * .5),
+                        ValueNoise(w * 2.3 - t * .4) - ValueNoise(w * 2.3 + float2(.2, .9) - t * .4));
+                    normal = normalize(half3(ripple.x * .4, 1, ripple.y * .4));
+                    half fresnel = pow(1 - saturate(dot(normal, view)), 3);
+                    albedo = lerp(albedo, half3(.66, .8, .88), fresnel * .85);
+                }
                 int layer = -1;
                 half mask = 0;
                 if (_Surface > .5)
                 {
-                    layer = clamp((int)round(_Surface) - 1, 0, 15);
+                    layer = clamp((int)round(_Surface) - 1, 0, 19);
                     SurfaceTexture(input.uv, input.tangentWS, input.positionOS, input.normalOS, layer, normal, albedo, mask);
                 }
                 // Per-pixel grass keeps a crisp lawn edge around holes instead of a vertex-colour smear.
@@ -222,7 +266,8 @@ Shader "Nubik/Lit"
                 if (relief > 0.01) cracks = RockRelief(input.positionWS, normal, albedo, relief);
                 // Near the bottom the cracks of dug rock glow with magma, breathing slowly.
                 half heat = _NubikMagma.y > _NubikMagma.x ? _VertexColor * saturate((-input.positionWS.y - _NubikMagma.x) / (_NubikMagma.y - _NubikMagma.x)) : 0;
-                half3 magma = heat * saturate(cracks * 2.2) * half3(1, .34, .06) * (1.1 + .5 * sin(_Time.y * 1.6 + dot(input.positionWS, float3(.7, .4, .9))));
+                half hot = smoothstep(.42, .72, ValueNoise(input.positionWS.xz * .35 + input.positionWS.y * .21));
+                half3 magma = heat * hot * saturate(cracks * 1.4) * half3(1, .34, .06) * (.75 + .35 * sin(_Time.y * 1.6 + dot(input.positionWS, float3(.7, .4, .9))));
                 // Lava: dark crust drifting over a bright molten flow.
                 half3 molten = 0;
                 if (_Lava > .5)
@@ -243,6 +288,23 @@ Shader "Nubik/Lit"
                 half stripe = frac(ground.x * 0.21 + 0.3) > 0.5 ? 0.045 : -0.035;
                 albedo *= 1.0 + lawn * (patches * 0.28 + blades * 0.12 + stripe);
                 albedo = lerp(albedo, albedo * half3(1.14, 1.08, 0.78), lawn * saturate(patches * 2.2));
+                if (lawn > 0)
+                {
+                    // Blades of grass from the surface set, then clover patches, sun-dried spots and scattered flowers.
+                    half4 blade = SampleSurface(ground * 1.8, 16);
+                    albedo *= lerp(1, blade.b * 2, lawn * .85);
+                    if (_NubikLowDetail < .5) normal = normalize(normal + half3(blade.x * 2 - 1, 0, blade.y * 2 - 1) * (.6 * lawn));
+                    half clover = smoothstep(.6, .72, ValueNoise(ground * .9 + 11.3));
+                    albedo *= lerp(half3(1, 1, 1), half3(.8, 1.03, .84), lawn * clover * .8);
+                    half dry = smoothstep(.68, .8, ValueNoise(ground * .42 + 5.7));
+                    albedo = lerp(albedo, albedo * half3(1.25, 1.12, .7), lawn * dry * .55);
+                    float2 cell = floor(ground * 5.5);
+                    float pick = Hash2(cell);
+                    float2 centre = (float2(Hash2(cell + 3.1), Hash2(cell + 7.7)) - .5) * .5;
+                    half bloom = (1 - smoothstep(.035, .07, length(frac(ground * 5.5) - .5 - centre))) * step(.975, pick) * lawn;
+                    half3 petal = pick > .99 ? half3(1, .84, .3) : half3(.94, .93, .88);
+                    albedo = lerp(albedo, petal, bloom * .75);
+                }
 
                 Light mainLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half shadow = lerp(.25, 1, mainLight.shadowAttenuation);
@@ -250,8 +312,8 @@ Shader "Nubik/Lit"
                 light += _NubikAmbient.rgb * (0.7 + 0.3 * normal.y);
                 // Highlights: metal, fresh paint, crystal and wet skin catch the sun and the headlamp.
                 half3 shine = 0;
-                half3 view = normalize(_WorldSpaceCameraPos - input.positionWS);
                 half gloss = 0, strength = 0;
+                if (_Water > .5) { gloss = 140; strength = .9; shine = mainLight.color * pow(saturate(dot(normal, normalize(mainLight.direction + view))), gloss) * strength * shadow; }
                 if (layer >= 0)
                 {
                     gloss = SurfaceGloss[layer];

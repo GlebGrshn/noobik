@@ -230,9 +230,42 @@ def main():
     write('boom', boom, peak=0.95)
 
 
+def yard_audio():
+    # Its own seed again: sounds above stay byte-for-byte the same.
+    rng = random.Random(30092026)
+    jump = add(noise(.18, .05, 1500, rng, highpass=True), tone(210, .16, .05, sweep=.6), gain=.5)
+    write('jump', jump, .45)
+    beep = silence(.02)
+    for i in range(2):
+        add(beep, tone(1245, .09, .05, ((1, 1), (2, .2))), at=i * .14)
+    write('low_fuel', beep, .4)
+    # Snoring dog: a slow in-breath hiss and a low buzzing out-breath, looped.
+    snore = silence(3.2)
+    add(snore, noise(1.1, 1e9, 700, rng, attack=.5), at=.1, gain=.25)
+    rattle = tone(62, 1.2, 1e9, ((1, 1), (2, .5), (3, .3)), attack=.25)
+    for i in range(len(rattle)):
+        rattle[i] *= (.6 + .4 * math.sin(i / RATE * 2 * math.pi * 23)) * min(1, (len(rattle) - i) / (RATE * .4))
+    add(snore, rattle, at=1.5, gain=.6)
+    write('snore', snore, .5, True)
+    croak = silence(.02)
+    for i in range(3):
+        c = tone(160, .09, .04, ((1, 1), (2, .6), (3, .4), (5, .2)), attack=.008, sweep=-.2)
+        for k in range(len(c)):
+            c[k] *= .5 + .5 * math.sin(k / RATE * 2 * math.pi * 55)
+        add(croak, c, at=i * .11)
+    write('croak', croak, .6)
+    tweet = silence(.02)
+    for i in range(rng.randint(3, 5)):
+        add(tweet, tone(rng.uniform(2800, 4200), .08, .03, attack=.005, sweep=rng.uniform(-.4, .4)), at=i * .09 + rng.uniform(0, .03))
+    write('tweet', tweet, .45)
+    splash = add(noise(.45, .12, 2200, rng), noise(.3, .09, 500, rng), gain=.8)
+    write('splash', splash, .55)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--force-ambience', action='store_true', help='Regenerate temporary ambience WAVs, replacing existing WAVs.')
     args = parser.parse_args()
     main()
     new_audio(args.force_ambience)
+    yard_audio()

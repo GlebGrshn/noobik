@@ -24,7 +24,8 @@ namespace Nubik
         {
             new LavaPool(new Vector3(-3.8f, -103.2f, -3.6f), new Vector3(1.7f, 1f, 1.5f)),
             new LavaPool(new Vector3(3.9f, -110.5f, -3.2f), new Vector3(1.6f, 1f, 1.7f)),
-            new LavaPool(new Vector3(-3.4f, -117.1f, -1f), new Vector3(1.8f, 0.9f, 1.4f)),
+            // Well clear of the door chamber, so the molten slab never pokes into it.
+            new LavaPool(new Vector3(-4.4f, -116.6f, -2.2f), new Vector3(1.5f, 0.9f, 1.4f)),
         };
 
         /// <summary>The meteorite rests half-sunk in the floor of its crater.</summary>

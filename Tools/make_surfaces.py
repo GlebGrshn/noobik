@@ -1,6 +1,6 @@
 """Generates the tileable surface set into Assets/Game/Textures/Surfaces.png.
 
-A 4 x 4 grid of 256 px tiles, imported by Unity as a 16-layer Texture2DArray (Nubik -> Prepare prototype).
+A 5 x 4 grid of 256 px tiles, imported by Unity as a 20-layer Texture2DArray (Nubik -> Prepare prototype).
 Layer = the material's _Surface - 1. Channels: R/G - tangent-space normal (x, y), B - albedo multiplier
 (128 = x1.0, range x0..x2), A - mask read by the shader per surface (board gaps, mortar, chipped paint,
 wallpaper and rug ornament, brick mortar, scratches, sparkles). U runs along grain, boards and siding; V is across.
@@ -14,7 +14,7 @@ import struct
 import zlib
 
 SIZE = 256
-GRID = 4
+COLS, ROWS = 5, 4
 OUT = os.path.join(os.path.dirname(__file__), '..', 'Assets', 'Game', 'Textures', 'Surfaces.png')
 TAU = math.pi * 2
 
@@ -466,12 +466,98 @@ def brick(rng):
     return px
 
 
+def grass(rng):
+    # Seen from above: many short blades pointing every way, tips lighter, gaps between the tufts darker.
+    blades = []
+    for _ in range(2600):
+        x, y, a = rng.random(), rng.random(), rng.random() * math.pi
+        blades.append((x, y, math.cos(a), math.sin(a), .016 + rng.random() * .026, rng.random()))
+    grid = {}
+    for b in blades:
+        grid.setdefault((int(b[0] * 16), int(b[1] * 16)), []).append(b)
+    clumps = Fbm(rng, [(4, 4, .6), (8, 8, .4)])
+
+    def px(u, v):
+        h, tip = 0.0, 0.0
+        cx, cy = int(u * 16), int(v * 16)
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for x, y, c, sn, length, shade in grid.get(((cx + dx) % 16, (cy + dy) % 16), ()):
+                    ex, ey = wrap(u - x), wrap(v - y)
+                    along = ex * c + ey * sn
+                    if abs(along) > length:
+                        continue
+                    across = abs(-ex * sn + ey * c)
+                    w = (1 - smoothstep(0.0015, 0.0045, across)) * (1 - abs(along) / length * .6)
+                    if w > h:
+                        h, tip = w, shade * (along / length * .5 + .5)
+        c = clumps(u, v)
+        height = h * .75 + c * .25
+        albedo = .62 + h * .45 + tip * .15 + (c - .5) * .3
+        return height, albedo, tip * h
+    return px
+
+
+def leaves(rng):
+    cells = Cells(rng, 9, .9)
+    veins = Noise(rng, 48)
+
+    def px(u, v):
+        f1, f2, cell, near = cells(u, v)
+        # Each cell is a leaf: an ellipse bulging in the middle, with a central vein and dark gaps around it.
+        r = random.Random(round(cell, 6))
+        a = r.random() * math.pi
+        x, y = near
+        lx, ly = x * math.cos(a) + y * math.sin(a), -x * math.sin(a) + y * math.cos(a)
+        ellipse = math.hypot(lx / .55, ly / .32)
+        body = 1 - smoothstep(.75, 1.0, ellipse)
+        vein = (1 - smoothstep(0.0, .03, abs(ly))) * body
+        gap = 1 - smoothstep(0.0, .08, f2 - f1)
+        height = body * (1 - ellipse * .4) - gap * .4 - vein * .15 + veins(u, v) * .05
+        albedo = .7 + body * .35 + (r.random() - .5) * .3 - gap * .4 + vein * .15
+        return height, albedo, body * r.random()
+    return px
+
+
+def soil(rng):
+    clods = Cells(rng, 14, .9)
+    grains = Noise(rng, 128)
+    damp = Fbm(rng, [(3, 3, .6), (6, 6, .4)])
+    pebbles = Cells(rng, 22, .8)
+
+    def px(u, v):
+        f1, f2, cell, _ = clods(u, v)
+        clod = 1 - smoothstep(0.0, .7, f1)
+        crack = 1 - smoothstep(0.0, .06, f2 - f1)
+        p1, _, pc, _ = pebbles(u, v)
+        pebble = (1 - smoothstep(.12, .2, p1)) * (1 if pc > .7 else 0)
+        g = grains(u, v)
+        height = clod * .5 - crack * .4 + pebble * .6 + g * .12
+        albedo = .8 + clod * .15 - crack * .3 + (damp(u, v) - .5) * .35 + (g - .5) * .12 + pebble * .35
+        return height, albedo, pebble
+    return px
+
+
+def fur(rng):
+    strands = Noise(rng, 6, 180)
+    tufts = Fbm(rng, [(4, 8, .6), (8, 16, .4)])
+
+    def px(u, v):
+        s1 = strands(u, v)
+        t = tufts(u, v)
+        height = s1 * .7 + t * .3
+        albedo = .82 + (s1 - .5) * .35 + (t - .5) * .2
+        return height, albedo, 0.0
+    return px
+
+
 # Order matters: layer = _Surface - 1, as numbered in Shapes.Surface and NubikLit.shader.
 MATERIALS = [
     ('wood', wood, 7), ('masonry', masonry, 9), ('metal', metal, 5), ('cloth', cloth, 5),
     ('crystal', crystal, 10), ('skin', skin, 7), ('plaster', plaster, 4), ('roof', roof, 8),
     ('planks', planks, 8), ('painted', painted, 6), ('rubber', rubber, 6), ('wallpaper', wallpaper, 3),
     ('rug', rug, 5), ('leather', leather, 5), ('bark', bark, 8), ('brick', brick, 8),
+    ('grass', grass, 6), ('leaves', leaves, 7), ('soil', soil, 7), ('fur', fur, 4),
 ]
 
 
@@ -497,11 +583,11 @@ def encode(height, albedo, mask, strength):
 
 
 def main():
-    atlas = [[(128, 128, 128, 0)] * (SIZE * GRID) for _ in range(SIZE * GRID)]
+    atlas = [[(128, 128, 128, 0)] * (SIZE * COLS) for _ in range(SIZE * ROWS)]
     for index, (name, make, strength) in enumerate(MATERIALS):
         rng = random.Random(29092026 + index * 101)
         pixels = encode(*layer(make(rng)), strength)
-        ox, oy = index % GRID * SIZE, index // GRID * SIZE
+        ox, oy = index % COLS * SIZE, index // COLS * SIZE
         for y in range(SIZE):
             atlas[oy + y][ox:ox + SIZE] = pixels[y]
         print('layer', index, name)
@@ -513,8 +599,8 @@ def main():
     def chunk(kind, data):
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff)
 
-    width = SIZE * GRID
-    png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, width, 8, 6, 0, 0, 0))
+    width, height = SIZE * COLS, SIZE * ROWS
+    png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
     png += chunk(b'IDAT', zlib.compress(b''.join(rows), 9)) + chunk(b'IEND', b'')
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     with open(OUT, 'wb') as file:

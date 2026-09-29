@@ -93,7 +93,11 @@ namespace Nubik
         private int engagedFrame = -10;
         private string pendingDebugDig, pendingGoto;
         private bool restarting;
+        private RockDef labelRock;
+        private int labelHits, hintFuel = -1, hintCue = -1;
+        private string rockLabel, fuelHint, cueHint;
         private int lastStep;
+        private float lowFuelBeepAt;
 
         /// <summary>The ambience of where the player is now.</summary>
         private string AmbienceName
@@ -123,7 +127,6 @@ namespace Nubik
 
         private void Start()
         {
-            Application.targetFrameRate = 60;
             Input.simulateMouseWithTouches = false;
             TouchMode = Application.isMobilePlatform;
             Progress = ProgressStore.Load(config);
@@ -149,7 +152,11 @@ namespace Nubik
             BuildTerrain();
             BuildPlayer();
             BuildDepths();
+            ApplyGraphics();
+            GameSettings.Changed += ApplyGraphics;
             boss.Sound = (name, volume) => sound.Play(name, volume, 1, .05f);
+            yard.Sound = (name, at, volume) => sound.PlayAt(name, at, volume);
+            if (yard.Dog != null) sound.Emitter(yard.Dog, "snore", .5f, 9);
             hud = gameObject.AddComponent<MineHud>();
             hud.Setup(this);
             SpawnAtStart();
@@ -215,7 +222,7 @@ namespace Nubik
             view.clearFlags = CameraClearFlags.SolidColor; view.backgroundColor = Sky;
             if (skyMaterial != null) { RenderSettings.skybox = skyMaterial; view.clearFlags = CameraClearFlags.Skybox; }
             sound = cameraObj.AddComponent<GameAudio>();
-            GameAudio.SetMuted(Progress.muted);
+            sound.Mute(Progress.muted);
 
             lamp = new GameObject("Headlamp", typeof(Light)).GetComponent<Light>();
             lamp.transform.SetParent(view.transform, false);
@@ -292,6 +299,7 @@ namespace Nubik
             body.transform.position = feet;
             body.enabled = true;
             verticalSpeed = 0;
+            eyeLift = 0;
             Physics.SyncTransforms();
         }
 
@@ -302,6 +310,7 @@ namespace Nubik
             if (body == null) return;
             UpdateAmbience();
             sound.SetAmbience(AmbienceName);
+            sound.SetMusicDepth(Yard.InsideHouse(body.transform.position) ? 0 : Mathf.Max(0, -body.transform.position.y), InBoss);
             UpdateFlights();
             yard.Animate(Time.deltaTime);
             // Narrow portrait screens get a wider vertical view so the shovel and HUD leave room for the world.
@@ -387,10 +396,11 @@ namespace Nubik
             {
                 if (verticalSpeed < 0) verticalSpeed = -2;
                 // A plain jump first; holding on lights the jetpack a moment later.
-                if (jump) { verticalSpeed = config.jumpSpeed; jetDelay = 0.2f; }
+                if (jump) { verticalSpeed = config.jumpSpeed; jetDelay = 0.2f; sound.Play("jump", .35f); }
             }
             jetDelay -= dt;
             Thrusting = !grounded && JumpHeld && HasJetpack && Fuel > 0 && jetDelay <= 0;
+            if (Thrusting && Fuel < FuelMax * .2f && Time.time > lowFuelBeepAt) { sound.Play("low_fuel", .5f, 1, 0); lowFuelBeepAt = Time.time + 1.3f; }
             if (Thrusting)
             {
                 verticalSpeed = Mathf.Min(verticalSpeed + config.jetThrust * dt, config.jetMaxRise);
@@ -399,8 +409,9 @@ namespace Nubik
             }
 
             verticalSpeed = Mathf.Max(verticalSpeed - config.gravity * dt, -40);
-            float impact = -verticalSpeed;
+            float impact = -verticalSpeed, feetBefore = body.transform.position.y;
             body.Move((horizontal + Vector3.up * verticalSpeed) * dt);
+            SmoothEye(feetBefore, grounded && body.isGrounded, dt);
             if (!grounded && body.isGrounded && impact > config.safeFallSpeed) Land(impact);
             if (!grounded && body.isGrounded && impact > 4) sound.Play("land", Mathf.Clamp01(impact / 14f) * .8f);
             walkCycle += input.magnitude * dt * 9;
@@ -466,7 +477,9 @@ namespace Nubik
             {
                 var rock = config.Rock(hit.point - hit.normal * 0.25f);
                 int hits = config.HitsToClear(rock, Progress.tool);
-                TargetText = rock.nameRu + " · " + hits + " " + Plural(hits, "удар", "удара", "ударов");
+                // Built once per rock and hit count, not every frame.
+                if (rock != labelRock || hits != labelHits) { labelRock = rock; labelHits = hits; rockLabel = rock.nameRu + " · " + hits + " " + Plural(hits, "удар", "удара", "ударов"); }
+                TargetText = rockLabel;
             }
         }
 
@@ -1022,9 +1035,21 @@ namespace Nubik
 
         private void UpdateHint()
         {
-            if (InBoss) { Hint = boss.Battle.Cue + (Battle.Phase == BattlePhase.Warning ? " · " + Battle.Remaining.ToString("0.0") + " с" : ""); return; }
+            if (InBoss)
+            {
+                int cue = Battle.Phase == BattlePhase.Warning ? 100000 + Battle.Pattern * 1000 + Mathf.CeilToInt(Battle.Remaining * 10) : (int)Battle.Phase;
+                if (cue != hintCue) { hintCue = cue; cueHint = boss.Battle.Cue + (Battle.Phase == BattlePhase.Warning ? " · " + Battle.Remaining.ToString("0.0") + " с" : ""); }
+                Hint = cueHint;
+                return;
+            }
             if (NearDoor) { Hint = Progress.finished ? "Печать снята · Ктулху побеждён" : Progress.KeyCount == 5 ? "E — открыть дверь пяти печатей" : "Дверь ждёт ключи: " + Progress.KeyCount + " / 5"; return; }
-            if (Refuelling) { Hint = "База · заправка бензином " + Mathf.FloorToInt(Fuel) + " / " + FuelMax + " л"; return; }
+            if (Refuelling)
+            {
+                int litres = Mathf.FloorToInt(Fuel) * 1000 + Mathf.RoundToInt(FuelMax);
+                if (litres != hintFuel) { hintFuel = litres; fuelHint = "База · заправка бензином " + Mathf.FloorToInt(Fuel) + " / " + FuelMax + " л"; }
+                Hint = fuelHint;
+                return;
+            }
             int free = Progress.FreeSlots(config);
             if (Progress.coins == 0 && Progress.OrePieces == 0 && Progress.maxDepth == 0)
                 Hint = TouchMode ? "Наведи прицел на землю и держи КОПАТЬ"
@@ -1145,7 +1170,7 @@ namespace Nubik
         }
 
         /// <summary>Testing aid: the workshop shows a free upgrade button on every track. Turn off before release.</summary>
-        public const bool TestUpgrades = true;
+        public const bool TestUpgrades = false;
 
         public void Buy(Track track) => Upgrade(track, false);
 
@@ -1224,7 +1249,7 @@ namespace Nubik
         public void ToggleSound()
         {
             Progress.muted = !Progress.muted;
-            GameAudio.SetMuted(Progress.muted);
+            sound.Mute(Progress.muted);
             SaveNow();
             hud.Notify(Progress.muted ? "Звук выключен" : "Звук включён");
         }
@@ -1258,6 +1283,11 @@ namespace Nubik
         private void OnApplicationPause(bool paused) { if (paused && body != null) SaveNow(); }
         private void OnApplicationFocus(bool focused) { if (!focused && body != null) SaveNow(); }
         private void OnApplicationQuit() { if (body != null) SaveNow(); }
-        private void OnDestroy() { boss?.Dispose(); sites?.Dispose(); yard?.Dispose(); shapes?.Dispose(); if (lavaMaterial != null) Destroy(lavaMaterial); }
+        private void OnDestroy()
+        {
+            GameSettings.Changed -= ApplyGraphics;
+            boss?.Dispose(); sites?.Dispose(); yard?.Dispose(); shapes?.Dispose();
+            if (lavaMaterial != null) Destroy(lavaMaterial);
+        }
     }
 }

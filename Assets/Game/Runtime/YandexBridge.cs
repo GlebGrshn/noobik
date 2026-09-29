@@ -17,6 +17,7 @@ namespace Nubik
         private bool inMine = true;
         private bool focused = true;
         private bool visible = true;
+        private bool platformPaused;
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")] private static extern void NubikReady();
         [DllImport("__Internal")] private static extern void NubikGameplay(int active);
@@ -67,14 +68,17 @@ namespace Nubik
 
         public void SetInMine(bool value) { inMine = value; Apply(); }
         public void OnVisibility(string value) { visible = value == "1"; Apply(); }
+        /// <summary>game_api_pause / game_api_resume from the Yandex SDK.</summary>
+        public void OnPlatformPause(string value) { platformPaused = value == "1"; Apply(); }
         private void OnApplicationFocus(bool value) { focused = value; Apply(); }
         private void Apply()
         {
-            Paused = !focused || !visible || AdShowing;
+            Paused = !focused || !visible || AdShowing || platformPaused;
             Time.timeScale = Paused ? 0 : 1;
             AudioListener.pause = Paused;
 #if UNITY_WEBGL && !UNITY_EDITOR
-            NubikGameplay(inMine && !Paused ? 1 : 0);
+            // Gameplay markup follows the game's own states; the platform marks its own pauses itself.
+            NubikGameplay(inMine && focused && visible && !AdShowing ? 1 : 0);
 #endif
         }
         private void OnDestroy() { Paused = false; Time.timeScale = 1; AudioListener.pause = false; }

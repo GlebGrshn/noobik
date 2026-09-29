@@ -12,6 +12,7 @@ namespace Nubik
         private readonly GameObject cube, sphere;
         private readonly Material template;
         private readonly Dictionary<long, Material> materials = new Dictionary<long, Material>();
+        private readonly Dictionary<Color, Material> waters = new Dictionary<Color, Material>();
         private readonly Dictionary<Vector3Int, Mesh> boxes = new Dictionary<Vector3Int, Mesh>();
         private Mesh ball;
 
@@ -21,11 +22,12 @@ namespace Nubik
         }
 
         /// <summary>Material with a base colour, optional glow, immunity to the headlamp, the lawn pattern and a surface texture.</summary>
-        public Material Mat(Color color, float glow = 0, bool extraLights = true, bool lawn = false, int surface = 0)
+        public Material Mat(Color color, float glow = 0, bool extraLights = true, bool lawn = false, int surface = 0, float sway = 0)
         {
             Color32 c = color;
+            int swayStep = Mathf.RoundToInt(Mathf.Clamp01(sway) * 10);
             long key = (long)c.r << 24 | (long)c.g << 16 | (long)c.b << 8 | (long)Mathf.RoundToInt(Mathf.Clamp01(glow) * 100) << 32 |
-                (extraLights ? 0L : 1L << 40) | (lawn ? 1L << 41 : 0L) | ((long)surface << 44);
+                (extraLights ? 0L : 1L << 40) | (lawn ? 1L << 41 : 0L) | ((long)surface << 44) | ((long)swayStep << 50);
             if (materials.TryGetValue(key, out var material)) return material;
             material = new Material(template) { name = "Nubik " + ColorUtility.ToHtmlStringRGB(color) };
             material.SetColor("_BaseColor", color);
@@ -35,8 +37,30 @@ namespace Nubik
             material.SetFloat("_Surface", surface);
             // Only the hand-held view models ignore the headlamp; they are small and right at the eye, so denser texture.
             material.SetFloat("_SurfaceScale", extraLights ? 1 : 3);
+            material.SetFloat("_Sway", swayStep / 10f);
             materials[key] = material;
             return material;
+        }
+
+        /// <summary>Still water with ripples and a sky reflection (the pond).</summary>
+        public Material Water(Color color)
+        {
+            if (waters.TryGetValue(color, out var material)) return material;
+            material = new Material(template) { name = "Water" };
+            material.SetColor("_BaseColor", color);
+            material.SetFloat("_Water", 1);
+            waters[color] = material;
+            return material;
+        }
+
+        /// <summary>How much an object bends in the wind: grass and reeds fully, flowers nearly, tree crowns and hedges a little.</summary>
+        public static float Sway(string name)
+        {
+            string n = name.ToLowerInvariant();
+            if (n.Contains("grass tuft") || n.Contains("reed")) return 1;
+            if (n.Contains("flower")) return .8f;
+            if (n.Contains("crown") || n.Contains("hedge")) return .3f;
+            return 0;
         }
 
         public GameObject Box(string name, Vector3 position, Vector3 scale, Color color, Transform parent = null, bool collider = false, float glow = 0) =>
@@ -51,14 +75,20 @@ namespace Nubik
         public GameObject Ball(string name, Vector3 position, Vector3 scale, Color color, Transform parent = null, bool collider = false, float glow = 0) =>
             Make(name, sphere, position, scale, Quaternion.identity, Mat(color, glow), parent, collider);
 
+        public GameObject Ball(string name, Vector3 position, Vector3 scale, Quaternion rotation, Material material, Transform parent = null, bool collider = false) =>
+            Make(name, sphere, position, scale, rotation, material, parent, collider);
+
         public GameObject Make(string name, GameObject prefab, Vector3 position, Vector3 scale, Quaternion rotation, Material material, Transform parent, bool collider)
         {
             int surface = Surface(name);
-            if (surface != 0 && material.GetFloat("_Surface") < .5f && material.GetFloat("_Lawn") < .5f)
+            float sway = Sway(name);
+            bool plain = material.GetFloat("_Surface") < .5f && material.GetFloat("_Lawn") < .5f && material.GetFloat("_Sway") <= 0 &&
+                material.GetFloat("_Water") < .5f && material.GetFloat("_Lava") < .5f;
+            if ((surface != 0 || sway > 0) && plain)
             {
                 var color = material.GetColor("_BaseColor");
                 float glow = material.GetColor("_Emission").maxColorComponent / Mathf.Max(.001f, color.maxColorComponent);
-                material = Mat(color, glow, material.GetFloat("_ExtraLights") > .5f, false, surface);
+                material = Mat(color, glow, material.GetFloat("_ExtraLights") > .5f, false, surface, sway);
             }
             // Serialized prefab references keep native mesh/collider types in stripped WebGL builds.
             var obj = Object.Instantiate(prefab);
@@ -127,6 +157,8 @@ namespace Nubik
         {
             foreach (var material in materials.Values) Object.Destroy(material);
             materials.Clear();
+            foreach (var material in waters.Values) Object.Destroy(material);
+            waters.Clear();
             foreach (var mesh in boxes.Values) Object.Destroy(mesh);
             boxes.Clear();
             if (ball != null) Object.Destroy(ball);
@@ -134,7 +166,8 @@ namespace Nubik
 
         // Surface texture layers (layer = surface - 1), as generated by Tools/make_surfaces.py.
         public const int Wood = 1, Masonry = 2, Metal = 3, Cloth = 4, Crystal = 5, Skin = 6, Plaster = 7, Roof = 8,
-            Planks = 9, Painted = 10, Rubber = 11, Wallpaper = 12, Rug = 13, Leather = 14, Bark = 15, Brick = 16;
+            Planks = 9, Painted = 10, Rubber = 11, Wallpaper = 12, Rug = 13, Leather = 14, Bark = 15, Brick = 16,
+            Grass = 17, Leaves = 18, Soil = 19, Fur = 20;
 
         // First match wins: exceptions first, then glow and effects without texture, then materials.
         private static readonly (string[] words, int surface)[] Rules =
@@ -145,6 +178,8 @@ namespace Nubik
             (new[] { "timber cap", "crate ore", "safe door" }, Metal),
             (new[] { "counter top", "bench top" }, Wood),
             (new[] { "meteor crust" }, Leather),
+            (new[] { "garden soil", "wheelbarrow dirt" }, Soil),
+            (new[] { "dog body", "dog head", "dog muzzle", "dog ear", "dog paw", "dog tail" }, Fur),
             (new[] { "eye", "pupil", "lamp", "light", "warning", "trail", "wax", "label", "smile", "socket", "rust", "keyhole",
                 "waymark", "rune", "puff", "hill", "grass", "flower", "lump", "debris", "mushroom", "face", "nose", "lawn" }, 0),
             (new[] { "cthulhu" }, Skin),
@@ -157,12 +192,12 @@ namespace Nubik
             (new[] { "grip", "hose", "tire" }, Rubber),
             (new[] { "glove", "belt", "boot", "leather", "backpack" }, Leather),
             (new[] { "blanket", "pillow", "cuff", "umbrella", "doormat", "coat", "gnome hat", "beard", "cloth", "map", "paper" }, Cloth),
-            (new[] { "crown", "hedge" }, Skin),
+            (new[] { "crown", "hedge" }, Leaves),
             (new[] { "ceiling" }, Plaster),
             (new[] { "sealed", "door frame", "lintel", "stone", "slab", "carved", "sanctum", "rubble", "pillar", "pedestal", "plinth",
                 "fossil", "shell", "rib", "pebble" }, Masonry),
             (new[] { "pump", "jetpack", "motor", "stock", "mailbox", "pole", "tank", "shutter", "window frame", "mullion", "transom",
-                "stake tip", "capsule cap", "sign", "helmet", "brim", "meter" }, Painted),
+                "stake tip", "capsule cap", "sign", "helmet", "brim", "meter", "painted" }, Painted),
             (new[] { "metal", "iron", "rail", "cart", "band", "lock", "blade", "drill", "spiral", "barrel", "vise", "nozzle", "collar",
                 "prong", "gear", "axle", "scale", "lantern", "hook", "strap", "safe", "capsule", "nugget", "golden", "tool", "key" }, Metal),
             (new[] { "wood", "timber", "support", "beam", "brace", "leg", "chair", "bed", "table", "shelf", "lid", "shaft", "frame",

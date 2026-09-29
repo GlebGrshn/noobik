@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Nubik
 {
     /// <summary>Temporary backyard and the sealed door, built from primitives until Blender art arrives.</summary>
-    public sealed class Yard
+    public sealed partial class Yard
     {
         public static readonly Vector3 FirstSpawn = new Vector3(0, 0.05f, -4.6f);
         public static readonly Vector3 SurfaceSpawn = new Vector3(-6.6f, 0.05f, -9.2f);
@@ -129,8 +129,10 @@ namespace Nubik
             DoorLight.range = 7;
             DoorLight.intensity = 1.6f;
             DressYard(s, root, half);
+            DressGarden(s, root);
             CombineScenery(root);
             BuildClouds(s);
+            BuildLiving(s);
         }
 
         private void DressYard(Shapes s, Transform root, float half)
@@ -177,7 +179,9 @@ namespace Nubik
             float Range(float min, float max) => min + (float)random.NextDouble() * (max - min);
             bool Free(float x, float z) =>
                 !(Mathf.Abs(x) < half + 0.7f && Mathf.Abs(z) < half + 0.7f) && !(Mathf.Abs(x) < 1.3f && z > half) &&
-                !(z > 13.6f && x > -14.5f && x < 12.5f) && Mathf.Abs(x) < 17.4f && z > -15.6f && z < 17;
+                !(z > 13.6f && x > -14.5f && x < 12.5f) && Mathf.Abs(x) < 17.4f && z > -15.6f && z < 17 &&
+                Vector2.Distance(new Vector2(x, z), new Vector2(PondCenter.x, PondCenter.z)) > PondRadius + .3f &&
+                !(x > 9.9f && x < 14.1f && z > -4.3f && z < -1.7f) && !(x > 10.8f && x < 14.1f && z > 3.3f && z < 5.1f);
             // Tufts gather along the fence, hedges, trees and the patch border, with a few in the open lawn.
             var anchors = new List<Vector2>();
             for (int i = 0; i < 40; i++) anchors.Add(new Vector2(Range(-17, 17), -15.2f));
@@ -366,6 +370,7 @@ namespace Nubik
         /// <summary>Drifts the clouds across the sky and wraps them around.</summary>
         public void Animate(float deltaTime)
         {
+            AnimateLiving(deltaTime);
             foreach (Transform cloud in clouds)
             {
                 var position = cloud.localPosition + Vector3.right * 0.8f * deltaTime;
