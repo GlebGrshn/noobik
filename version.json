@@ -1,6 +1,7 @@
 {
-  "builtAt": "2026-09-29T01:58:12.2263345Z",
-  "channel": "phone-playtest",
-  "sourceCommit": "a16ae945f46d553d12efb6f3c790ad93fdb9335e",
-  "publishedAt": "2026-09-29T11:33:14.9223785Z"
+  "sourceCommit": "b0e7764dd7707988d9d995fb1144537c46f43ca3",
+  "publishedAt": "2026-09-29T12:18:40.0901591Z",
+  "cacheKey": "b0e7764d",
+  "channel": "mobile-controls",
+  "builtAt": "2026-09-29T12:18:11.1321060Z"
 }
