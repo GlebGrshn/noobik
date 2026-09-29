@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Нубик Шахтёр</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #112024; color: #f7f2de; font-family: system-ui, sans-serif;
+      overscroll-behavior: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    #unity-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; text-align: center; background: radial-gradient(ellipse at 50% 25%, #304f43, #112024 70%); gap: 22px; padding: 24px; }
+    #loading .badge { color: #70d7b7; font-size: 12px; font-weight: 700; letter-spacing: 3px; }
+    #loading .mark { width: 72px; height: 72px; border: 2px solid #ffc451; border-radius: 22px; display: grid; place-items: center; color: #ffc451; font-size: 44px; }
+    h1 { color: #f7f2de; margin: 0; font-size: clamp(26px, 5vw, 44px); letter-spacing: -1px; }
+    #loading .caption { color: #b0c5bf; }
+    progress { width: min(320px, 80vw); height: 7px; border: 0; border-radius: 5px; overflow: hidden; accent-color: #ffc451; background: #2b4241; }
+    progress::-webkit-progress-bar { background: #2b4241; }
+    progress::-webkit-progress-value { background: #ffc451; border-radius: 5px; }
+    #error { max-width: 36em; line-height: 1.5; }
+    #fake-ad { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 14px; background: #05090b; color: #f7f2de; font-size: 18px; z-index: 5; }
+    #fake-ad b { color: #ffc451; letter-spacing: 2px; }
+  </style>
+</head>
+<body>
+  <canvas id="unity-canvas" tabindex="0" aria-label="Нубик Шахтёр. WASD — движение, ЛКМ — копать, пробел — прыжок и джетпак, E — дом, F — сканер, Q — аптечка, Esc — пауза"></canvas>
+  <div id="loading"><div class="mark" aria-hidden="true">↓</div><div class="badge">НАВСТРЕЧУ НАХОДКАМ</div><h1>НУБИК ШАХТЁР</h1><div class="caption">Готовим твою следующую вылазку…</div><progress id="progress" aria-label="Загрузка игры" value="0" max="1"></progress><div id="error" role="alert"></div></div>
+  <script>
+    // The platform serves /sdk.js; localhost preview deliberately works offline without it.
+    window.nubikReady = false;
+    window.nubikPlaying = false;
+    // Local tests: this computer or a phone on the same network. No Yandex SDK there; ads are a labelled stand-in.
+    const localTest = ['localhost', '127.0.0.1', 'glebgrshn.github.io'].includes(location.hostname) || /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+    if (!localTest) {
+      const sdkScript = document.createElement('script');
+      sdkScript.src = '/sdk.js';
+      sdkScript.onload = () => YaGames.init().then(sdk => {
+        window.nubikSDK = sdk;
+        if (window.nubikReady) sdk.features.LoadingAPI?.ready();
+        if (window.nubikPlaying) sdk.features.GameplayAPI?.start();
+        // The platform pauses the game for its own overlays (ads, purchases, tab switches) and resumes it after.
+        const platformPause = paused => { window.nubikPlatformPaused = paused; if (window.unityInstance) window.unityInstance.SendMessage('NubikGame', 'OnPlatformPause', paused ? '1' : '0'); };
+        sdk.on?.('game_api_pause', () => platformPause(true));
+        sdk.on?.('game_api_resume', () => platformPause(false));
+      }).catch(error => console.warn('Yandex SDK unavailable; local progress remains active.', error));
+      sdkScript.onerror = () => console.warn('Yandex SDK unavailable; running local prototype.');
+      document.head.appendChild(sdkScript);
+    }
+    // Localhost stands in for the ad network with a labelled three-second screen.
+    if (localTest) window.nubikFakeAd = (id, send) => {
+      if (document.pointerLockElement) document.exitPointerLock();
+      const screen = document.createElement('div');
+      screen.id = 'fake-ad';
+      screen.innerHTML = '<b>РЕКЛАМА</b><div>Тестовый ролик вместо рекламы Яндекса</div><div id="fake-ad-time">3</div>';
+      document.body.appendChild(screen);
+      send('OnAdOpen', '');
+      let left = 3;
+      const tick = setInterval(() => {
+        left--;
+        document.getElementById('fake-ad-time').textContent = left;
+        if (left > 0) return;
+        clearInterval(tick);
+        screen.remove();
+        send('OnAdRewarded', id);
+        send('OnAdClose', '');
+      }, 1000);
+    };
+    const canvas = document.getElementById('unity-canvas');
+    canvas.addEventListener('contextmenu', event => event.preventDefault());
+    // Mouse look: collect deltas here; the game reads them each frame. Pointer lock is requested
+    // inside the click itself (a user gesture) and may be refused, e.g. in some embedded frames.
+    window.nubikMouseX = 0; window.nubikMouseY = 0;
+    window.nubikWantLock = false; window.nubikLockFailed = false;
+    // Chrome sometimes reports a huge jump in one pointer-locked mousemove (the cursor warping to the window edge),
+    // which turned the view in a jerk. Such single spikes, far above the recent movement, are dropped.
+    let recentMove = 0;
+    document.addEventListener('mousemove', event => {
+      const dx = event.movementX || 0, dy = event.movementY || 0, size = Math.abs(dx) + Math.abs(dy);
+      if (document.pointerLockElement && size > 250 && size > recentMove * 6 + 60) return;
+      recentMove = recentMove * 0.8 + size * 0.2;
+      window.nubikMouseX += dx; window.nubikMouseY += dy;
+    });
+    document.addEventListener('touchmove', event => { if (event.target === canvas) event.preventDefault(); }, { passive: false });
+    document.addEventListener('pointerlockerror', () => { window.nubikLockFailed = true; });
+    canvas.addEventListener('mousedown', () => {
+      if (!window.nubikWantLock || window.nubikLockFailed || document.pointerLockElement === canvas) return;
+      try {
+        // Raw mouse movement where the browser supports it: no OS acceleration and fewer spikes.
+        let request;
+        try { request = canvas.requestPointerLock({ unadjustedMovement: true }); } catch (error) { request = canvas.requestPointerLock(); }
+        if (request && request.catch) request.catch(() => {
+          const retry = canvas.requestPointerLock();
+          if (retry && retry.catch) retry.catch(() => { window.nubikLockFailed = true; });
+        });
+      } catch (error) { window.nubikLockFailed = true; }
+    });
+    // Keep a refused pointer lock from reaching Unity's global error handler.
+    window.addEventListener('unhandledrejection', event => {
+      const reason = String(event.reason && (event.reason.name + ' ' + event.reason.message));
+      if (!/pointer ?lock|WrongDocumentError/i.test(reason)) return;
+      window.nubikLockFailed = true;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    });
+    const loader = document.createElement('script');
+    loader.src = 'Build/WebGL.loader.js';
+    loader.onload = () => createUnityInstance(canvas, {
+      dataUrl: 'Build/WebGL.data',
+      frameworkUrl: 'Build/WebGL.framework.js',
+      codeUrl: 'Build/WebGL.wasm',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName: 'GlebGrshn', productName: 'Nubik Miner', productVersion: '0.1.0',
+      // Saves (PlayerPrefs) live in persistentDataPath; let Unity sync it to IndexedDB on every change.
+      autoSyncPersistentDataPath: true,
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 1.5)
+    }, value => document.getElementById('progress').value = value).then(instance => {
+      window.unityInstance = instance;
+      if (window.nubikPlatformPaused) instance.SendMessage('NubikGame', 'OnPlatformPause', '1');
+      document.getElementById('loading').remove();
+      const visibility = () => instance.SendMessage('NubikGame', 'OnVisibility', document.hidden ? '0' : '1');
+      document.addEventListener('visibilitychange', visibility);
+      visibility(); canvas.focus();
+      // Local testing only: ?depth=40 carves a shaft and drops the player there.
+      const testDepth = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('depth');
+      if (testDepth) setTimeout(() => instance.SendMessage('NubikGame', 'DebugDig', testDepth), 1500);
+      // ?at=counter | workbench | yard stands the player there (after the world is built).
+      const testSpot = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('at');
+      if (testSpot) setTimeout(() => instance.SendMessage('NubikGame', 'DebugGoto', testSpot), 4000);
+    }).catch(error => { document.getElementById('error').textContent = 'Не удалось запустить игру. Обновите страницу. ' + error; });
+    loader.onerror = () => { document.getElementById('error').textContent = 'Не удалось загрузить игру. Проверьте соединение и обновите страницу.'; };
+    document.body.appendChild(loader);
+  </script>
+</body>
+</html>
