@@ -27,7 +27,7 @@ namespace Nubik
             if (!Active) return;
             if (InBoss) { hud.Notify("Здесь динамит бесполезен"); return; }
             if (Yard.InsideHouse(body.transform.position)) { hud.Notify("Только не в доме!"); return; }
-            if (!Progress.UseDynamite()) { hud.Notify("Динамита нет — купи в мастерской"); return; }
+            if (!Progress.UseDynamite()) { sound.Play("deny", .5f); hud.Notify("Динамита нет — купи в мастерской"); return; }
             saveDirty = true;
             var eye = view.transform;
             var start = eye.position + eye.forward * .45f - eye.up * .12f;
@@ -172,7 +172,7 @@ namespace Nubik
 
         public void BuyDynamite()
         {
-            if (!Progress.BuyDynamite(config)) return;
+            if (!Progress.BuyDynamite(config)) { sound.Play("deny", .5f); return; }
             SaveNow();
             sound.Play("buy", .8f, 1.1f, 0);
             if (Progress.dynamite == 1) hud.Notify(TouchMode ? "Динамит в рюкзаке: кнопка «Динамит»" : "Динамит в рюкзаке: клавиша G — бросить");

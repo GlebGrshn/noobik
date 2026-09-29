@@ -609,6 +609,7 @@ namespace Nubik
         {
             // The settings sit over the house or the pause card: close only them first.
             if (SettingsOpen) { CloseSettings(); return; }
+            if (house.activeSelf) game.Ui("close");
             house.SetActive(false);
             ending.SetActive(false);
             ClearInput();

@@ -265,6 +265,7 @@ namespace Nubik
 
         public void ShowHouse(int page)
         {
+            if (!house.activeSelf) game.Ui("open");
             house.SetActive(true);
             ending.SetActive(false);
             ClearInput();

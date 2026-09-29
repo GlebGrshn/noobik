@@ -38,6 +38,10 @@ namespace Nubik
         private sealed class Emitted { public AudioSource source; public float volume; }
 
         private readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
+        /// <summary>name, name_2, name_3…: one of them is picked at random, so repeated hits never sound identical.</summary>
+        private readonly Dictionary<string, List<AudioClip>> variants = new Dictionary<string, List<AudioClip>>();
+        private readonly Dictionary<string, AudioSource> loops = new Dictionary<string, AudioSource>();
+        private readonly Dictionary<string, float> loopVolumes = new Dictionary<string, float>();
         private readonly List<AudioSource> sources = new List<AudioSource>();
         private readonly List<AudioSource> spots = new List<AudioSource>();
         private readonly List<Emitted> emitters = new List<Emitted>();
@@ -52,6 +56,14 @@ namespace Nubik
         private void Awake()
         {
             foreach (var clip in Resources.LoadAll<AudioClip>("Audio")) clips[clip.name] = clip;
+            foreach (var clip in clips.Values)
+            {
+                int cut = clip.name.LastIndexOf('_');
+                bool numbered = cut > 0 && int.TryParse(clip.name.Substring(cut + 1), out _);
+                string family = numbered ? clip.name.Substring(0, cut) : clip.name;
+                if (!variants.TryGetValue(family, out var list)) variants[family] = list = new List<AudioClip>();
+                list.Add(clip);
+            }
             for (int i = 0; i < 6; i++)
             {
                 var source = gameObject.AddComponent<AudioSource>();
@@ -101,13 +113,16 @@ namespace Nubik
             foreach (var spot in spots) spot.volume = Effects;
             foreach (var emitted in emitters) if (emitted.source != null) emitted.source.volume = emitted.volume * Effects;
             if (loop != null) loop.volume = loopVolume * Effects;
+            foreach (var pair in loops) pair.Value.volume = loopVolumes[pair.Key] * Effects;
         }
 
         public AudioClip Clip(string name) => clips.TryGetValue(name, out var clip) ? clip : null;
 
         public void Play(string name, float volume = 1, float pitch = 1, float jitter = 0.06f)
         {
-            if (!clips.TryGetValue(name, out var clip)) return;
+            AudioClip clip;
+            if (variants.TryGetValue(name, out var family)) clip = family[Random.Range(0, family.Count)];
+            else if (!clips.TryGetValue(name, out clip)) return;
             var source = sources[next];
             next = (next + 1) % sources.Count;
             source.pitch = pitch * (1 + Random.Range(-jitter, jitter));
@@ -150,6 +165,27 @@ namespace Nubik
             source.minDistance = 1.5f;
             source.maxDistance = range;
             source.dopplerLevel = 0;
+        }
+
+        /// <summary>A named looping channel besides the jetpack, such as the drill's motor.</summary>
+        public void Loop(string channel, string name, bool on, float volume)
+        {
+            if (!loops.TryGetValue(channel, out var source))
+            {
+                if (!on) return;
+                source = gameObject.AddComponent<AudioSource>();
+                source.playOnAwake = false;
+                source.loop = true;
+                source.spatialBlend = 0;
+                loops[channel] = source;
+            }
+            loopVolumes[channel] = volume;
+            source.volume = volume * Effects;
+            if (!on) { if (source.isPlaying) source.Stop(); return; }
+            if (!clips.TryGetValue(name, out var clip)) return;
+            if (source.isPlaying && source.clip == clip) return;
+            source.clip = clip;
+            source.Play();
         }
 
         /// <summary>Starts or stops a looping sound, such as the jetpack hiss.</summary>

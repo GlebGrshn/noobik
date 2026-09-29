@@ -103,6 +103,7 @@ namespace Nubik
                 volumeValues[i].text = Mathf.RoundToInt(values[i] * 100) + "%";
             }
             ClearInput();
+            game.Ui("open");
             settings.SetActive(true);
             settings.transform.SetAsLastSibling();
             toastCard.SetAsLastSibling();
@@ -111,6 +112,7 @@ namespace Nubik
         public void CloseSettings()
         {
             if (!SettingsOpen) return;
+            game.Ui("close");
             settings.SetActive(false);
             GameSettings.Save();
             ClearInput();

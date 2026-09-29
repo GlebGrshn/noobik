@@ -98,6 +98,7 @@ namespace Nubik
         private string rockLabel, fuelHint, cueHint;
         private int lastStep;
         private float lowFuelBeepAt;
+        private bool wasThrusting;
 
         /// <summary>The ambience of where the player is now.</summary>
         private string AmbienceName
@@ -114,6 +115,8 @@ namespace Nubik
 
         /// <summary>Button press feedback from the HUD.</summary>
         public void Click() => sound?.Play("click", .45f, 1, .03f);
+        /// <summary>Interface cue: opening or closing a window.</summary>
+        public void Ui(string name) => sound?.Play(name, .5f, 1, .02f);
 
         private sealed class ChunkView { public GameObject obj; public Mesh mesh; public MeshCollider collider; }
         private sealed class Flight { public Transform obj; public Vector3 from; public float t; }
@@ -347,6 +350,9 @@ namespace Nubik
                 Thrusting = false;
             }
             sound.Loop("jet", Thrusting, 0.55f);
+            if (Thrusting && !wasThrusting) sound.Play("jet_start", .5f);
+            wasThrusting = Thrusting;
+            sound.Loop("drill", "drill_loop", Active && UsingDrill && DigHeld && !InBoss, .45f);
             UpdateTarget();
             // The click that starts play only engages the mouse.
             bool click = !TouchMode && Input.GetMouseButtonDown(0) && Time.frameCount > engagedFrame + 1;
@@ -507,6 +513,7 @@ namespace Nubik
             if (InBoss) { FireHarpoon(); return; }
             nextHit = Time.time + Tool.interval;
             swing = 0;
+            if (!UsingDrill) sound.Play("swing", .3f, Random.Range(.92f, 1.08f), 0);
             var origin = view.transform.position;
             var direction = view.transform.forward;
             if (!Physics.Raycast(origin, direction, out var hit, config.reach, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide)) return;
@@ -535,11 +542,13 @@ namespace Nubik
             var result = terrain.Dig(center, diggingTool.radius, diggingTool.damage);
             var dust = hit.point.y > -0.2f && hit.normal.y > 0.5f ? new Color(0.34f, 0.60f, 0.22f) : result.Rock.color;
             Burst(hit.point, hit.normal, dust, result.Changed ? 7 : 3);
-            if (!result.Changed) { sound.Play("dig_stone", 0.7f, 0.55f); return; }
-            // Soft ground thuds, harder rock rings lower.
-            int hardness = result.Rock.hardness;
-            if (hardness <= 3) sound.Play("dig_dirt", 0.8f);
-            else sound.Play("dig_stone", 0.75f, Mathf.Lerp(1.05f, 0.72f, Mathf.InverseLerp(6, 32, hardness)));
+            if (!result.Changed) { sound.Play("dig_bounce", .7f); return; }
+            // Soil crumbles, stone knocks and rings lower as it hardens, crystal veins chime, basalt thuds.
+            int hardness = result.Rock.hardness, zone = config.ZoneIndex(-hit.point.y);
+            if (hardness <= 3) sound.Play("dig_dirt", .8f);
+            else if (zone >= 3) sound.Play("dig_basalt", .85f, config.IsVein(center) ? .85f : 1);
+            else if (zone == 2 && config.IsVein(center)) sound.Play("dig_crystal", .7f);
+            else sound.Play("dig_stone", .8f, Mathf.Lerp(1.08f, .78f, Mathf.InverseLerp(6, 32, hardness)));
             RebuildDirty();
             ShowLoad(dust);
             saveDirty = true;
@@ -819,11 +828,11 @@ namespace Nubik
         public void Scan()
         {
             if (!Progress.scanner || !Active) return;
-            if (Time.time < scanReadyAt) { hud.Notify("Сканер заряжается · " + Mathf.CeilToInt(ScanWait) + " с"); return; }
+            if (Time.time < scanReadyAt) { sound.Play("deny", .5f); hud.Notify("Сканер заряжается · " + Mathf.CeilToInt(ScanWait) + " с"); return; }
             scanUntil = Time.time + config.scanDuration;
             scanReadyAt = Time.time + config.scanCooldown;
             RefreshScan();
-            sound.Play("zone", 0.5f, 1.8f, 0);
+            sound.Play("scan", .6f, 1, 0);
             hud.Notify(ScanHits.Count > 0 ? "Сканер: рядом " + ScanHits.Count + " " + Plural(ScanHits.Count, "находка", "находки", "находок") : "Сканер: поблизости пусто");
         }
 
@@ -845,9 +854,9 @@ namespace Nubik
         public void UseMedkit()
         {
             if (!Active && !hud.PanelOpen) return;
-            if (Progress.medkits <= 0) { hud.Notify("Аптечек нет — купи в мастерской"); return; }
-            if (!Progress.UseMedkit(config)) { hud.Notify("Здоровье и так полное"); return; }
-            sound.Play("pickup", 0.9f, 0.8f);
+            if (Progress.medkits <= 0) { sound.Play("deny", .5f); hud.Notify("Аптечек нет — купи в мастерской"); return; }
+            if (!Progress.UseMedkit(config)) { sound.Play("deny", .5f); hud.Notify("Здоровье и так полное"); return; }
+            sound.Play("heal", .8f, 1, 0);
             hud.Popup(view.transform.position + view.transform.forward * 1.2f, "+" + Mathf.RoundToInt(config.medkit.power), new Color(0.45f, 0.95f, 0.6f));
             SaveNow();
         }
@@ -1170,7 +1179,7 @@ namespace Nubik
         }
 
         /// <summary>Testing aid: the workshop shows a free upgrade button on every track. Turn off before release.</summary>
-        public const bool TestUpgrades = false;
+        public const bool TestUpgrades = true;
 
         public void Buy(Track track) => Upgrade(track, false);
 
@@ -1179,10 +1188,10 @@ namespace Nubik
 
         private void Upgrade(Track track, bool free)
         {
-            if (!Progress.Upgrade(track, config, free)) return;
+            if (!Progress.Upgrade(track, config, free)) { sound.Play("deny", .5f); return; }
             if (track == Track.Fuel) Fuel = FuelMax;
             SaveNow();
-            sound.Play("buy", 1, 1, 0);
+            sound.Play("upgrade", .9f, 1, 0);
             if (track == Track.Tool) BuildTool();
             hud.Notify((free ? "Тест · " : "") + (track == Track.Tool ? "Новый инструмент: " + Tool.nameRu : track == Track.Backpack ? "Рюкзак стал вместительнее"
                 : track == Track.Jetpack ? "Джетпак расходует меньше бензина" : track == Track.Fuel ? "Общий бензобак увеличен" : "Здоровье выросло"));
@@ -1190,7 +1199,7 @@ namespace Nubik
 
         public void BuyScanner()
         {
-            if (!Progress.BuyScanner(config)) return;
+            if (!Progress.BuyScanner(config)) { sound.Play("deny", .5f); return; }
             SaveNow();
             sound.Play("buy", 1, 1, 0);
             hud.Notify(TouchMode ? "Сканер в рюкзаке: кнопка «Скан»" : "Сканер в рюкзаке: клавиша F");
@@ -1198,7 +1207,7 @@ namespace Nubik
 
         public void BuyMedkit()
         {
-            if (!Progress.BuyMedkit(config)) return;
+            if (!Progress.BuyMedkit(config)) { sound.Play("deny", .5f); return; }
             SaveNow();
             sound.Play("buy", 0.8f, 1.2f, 0);
         }
