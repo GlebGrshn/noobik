@@ -18,6 +18,8 @@ namespace Nubik
         public Color Color;
         public GameObject View;
         public bool Taken, Exposed;
+        /// <summary>Star metal inside the meteorite: out of reach until dynamite cracks it.</summary>
+        public bool Meteor;
     }
 
     /// <summary>Hidden finds generated from the seed. Only positions and values live here; views are spawned when exposed.</summary>
@@ -51,7 +53,7 @@ namespace Nubik
             {
                 var item = config.collection[i];
                 var spot = item.spot + Spread(item.depth, 401 + i, item.spread);
-                Add(new LootItem { Kind = LootKind.Collectible, Collectible = i, Position = new Vector3(spot.x, -item.depth - 0.5f, spot.y), Size = 0.4f, Color = item.color });
+                Add(new LootItem { Kind = LootKind.Collectible, Collectible = i, Position = Depths.Embed(new Vector3(spot.x, -item.depth - 0.5f, spot.y)), Size = 0.4f, Color = item.color });
             }
             // Reserved IDs do not shift the original seven special finds or random chunk slots.
             foreach (var site in MineSites.All)
@@ -61,6 +63,12 @@ namespace Nubik
                 Add(new LootItem { Kind = LootKind.Key, Key = i, Position = Expedition.Keys[i].Position, Size = .34f, Color = Expedition.Keys[i].Color });
             for (int i = 0; i < Secrets.All.Length; i++)
                 Add(new LootItem { Kind = LootKind.Secret, Secret = i, Position = Secrets.All[i].Position, Size = .36f, Color = Secrets.All[i].Color });
+            for (int i = 0; i < Depths.Fragments; i++)
+            {
+                var fragment = WithOre(new LootItem { Special = Depths.FirstFragment + i, Position = Depths.Fragment(i), Size = .32f, Meteor = true }, Depths.StarMetal);
+                fragment.Kind = LootKind.Find;
+                Add(fragment);
+            }
 
             float edge = config.width / 2f - 0.8f, extent = config.chunk * config.voxel;
             for (int cy = 0; cy < config.ChunksY; cy++)
@@ -82,7 +90,7 @@ namespace Nubik
                             if (Mathf.FloorToInt((slot + 1) * config.oreDensity + .0001f) == Mathf.FloorToInt(slot * config.oreDensity + .0001f)) continue;
                             if (position.y > -.6f || position.y < config.FloorY + .8f || Mathf.Abs(position.x) > edge || Mathf.Abs(position.z) > edge) continue;
                             int ore = config.PickOre(config.Zone(-position.y), state);
-                            Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = Secrets.Embed(MineSites.AnchorOre(position, terrain)), Size = size }, ore));
+                            Add(WithOre(new LootItem { Chunk = chunk, Slot = slot, Position = Depths.Embed(Secrets.Embed(MineSites.AnchorOre(position, terrain))), Size = size }, ore));
                         }
                     }
         }

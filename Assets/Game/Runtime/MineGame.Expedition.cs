@@ -114,7 +114,7 @@ namespace Nubik
                 if (damage > 0) { hud.HitFeedback(); hud.Popup(to, "-" + damage, Amber); Burst(to, -direction, new Color(.4f, 1, .9f), 4); }
             }
             boss.Trace(origin + view.transform.right * .18f - view.transform.up * .12f, to);
-            sound.Play("dig_stone", .75f, 1.6f);
+            sound.Play("harpoon", .8f);
         }
         private void BuildSealKey(LootItem item, Transform parent)
         {

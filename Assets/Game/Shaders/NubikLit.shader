@@ -15,6 +15,7 @@ Shader "Nubik/Lit"
         _Surface("Surface layer + 1 (0: plain); see Shapes", Float) = 0
         _Surfaces("Surface set (normal xy, albedo, mask)", 2DArray) = "" {}
         _SurfaceScale("Surface texture density", Float) = 1
+        _Lava("Molten lava surface", Range(0, 1)) = 0
         _Detail("Rock detail (normal xy, height, cracks)", 2D) = "gray" {}
         _DetailStrength("Rock detail strength", Range(0, 1)) = 0
         _DetailScale("Rock detail tiles per metre", Float) = 0.6
@@ -35,6 +36,7 @@ Shader "Nubik/Lit"
             half _Lawn;
             half _Surface;
             half _SurfaceScale;
+            half _Lava;
             half _DetailStrength;
             float _DetailScale;
         CBUFFER_END
@@ -120,7 +122,7 @@ Shader "Nubik/Lit"
             }
 
             /// Triplanar rock relief: bends the normal, darkens hollows and fractures. Three samples, only where needed.
-            void RockRelief(float3 p, inout half3 normal, inout half3 albedo, half amount)
+            half RockRelief(float3 p, inout half3 normal, inout half3 albedo, half amount)
             {
                 float3 uv = p * _DetailScale;
                 half3 blend = pow(abs(normal), 4);
@@ -138,9 +140,11 @@ Shader "Nubik/Lit"
                 // Fractures come in patches, so walls do not repeat the tile; soft ground barely cracks.
                 cracks *= smoothstep(0.3, 0.7, ValueNoise(p.xz * 0.23 + p.y * 0.31)) * amount * amount;
                 albedo *= lerp(1, 0.74 + 0.38 * height, amount) * (1 - cracks * 0.6);
+                return cracks;
             }
 
             half4 _NubikAmbient;
+            float4 _NubikMagma; // x: depth where cracks start to glow, y: depth of full glow
             half4 _NubikFogColor;
             float4 _NubikFog; // x: start distance, y: end distance
 
@@ -214,7 +218,22 @@ Shader "Nubik/Lit"
                 albedo *= 1 + rock * (sediment * .045 + (ValueNoise(input.positionWS.xy * 6) - .5) * .12);
                 // Relief of dug rock by its hardness (vertex alpha); props have their own surface textures.
                 half relief = _DetailStrength * lerp(1, input.color.a, _VertexColor) * (1 - grass);
-                if (relief > 0.01) RockRelief(input.positionWS, normal, albedo, relief);
+                half cracks = 0;
+                if (relief > 0.01) cracks = RockRelief(input.positionWS, normal, albedo, relief);
+                // Near the bottom the cracks of dug rock glow with magma, breathing slowly.
+                half heat = _NubikMagma.y > _NubikMagma.x ? _VertexColor * saturate((-input.positionWS.y - _NubikMagma.x) / (_NubikMagma.y - _NubikMagma.x)) : 0;
+                half3 magma = heat * saturate(cracks * 2.2) * half3(1, .34, .06) * (1.1 + .5 * sin(_Time.y * 1.6 + dot(input.positionWS, float3(.7, .4, .9))));
+                // Lava: dark crust drifting over a bright molten flow.
+                half3 molten = 0;
+                if (_Lava > .5)
+                {
+                    float2 q = input.positionWS.xz * 1.4;
+                    float t = _Time.y;
+                    half flow = ValueNoise(q + float2(t * .13, t * .07)) * .6 + ValueNoise(q * 2.3 - float2(t * .09, -t * .16)) * .4;
+                    half crust = smoothstep(.5, .66, flow);
+                    albedo = lerp(albedo * .4, albedo, crust);
+                    molten = _Emission.rgb * (1 - crust) * (.8 + .3 * sin(t * 2.3 + flow * 11));
+                }
                 // Lawn: soft patches, fine blades and mowing stripes in world space, so the dig patch
                 // and the surrounding lawn slabs share one pattern without a seam.
                 half lawn = max(grass, _Lawn);
@@ -253,7 +272,8 @@ Shader "Nubik/Lit"
                 // Glowing finds, runes and lanterns glint now and then; the phase varies with position.
                 half glint = pow(saturate(sin(_Time.y * 2.6 + dot(input.positionWS, float3(4.1, 6.3, 5.2)))), 8);
                 // Metal highlights take the metal's colour; others stay white.
-                half3 color = albedo * light + shine * (layer == 2 ? albedo * 1.6 : 1) + _Emission.rgb * (0.8 + 0.9 * glint);
+                half3 emission = _Lava > .5 ? molten : _Emission.rgb * (0.8 + 0.9 * glint);
+                half3 color = albedo * light + shine * (layer == 2 ? albedo * 1.6 : 1) + emission + magma;
                 float distance = length(input.positionWS - _WorldSpaceCameraPos);
                 half fog = saturate((distance - _NubikFog.x) / max(0.01, _NubikFog.y - _NubikFog.x));
                 return half4(lerp(color, _NubikFogColor.rgb, fog), 1);

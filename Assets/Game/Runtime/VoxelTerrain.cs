@@ -57,7 +57,7 @@ namespace Nubik
             float solid = Mathf.Clamp01(0.5f - world.y / Config.voxel);
             if (Fixed(x, y, z)) return (byte)Mathf.RoundToInt(solid * 255);
             // Natural caves in the deepest zone and the chamber of the sealed door.
-            float cavernTop = Config.zones[Config.zones.Length - 1].startDepth + 3;
+            float cavernTop = Config.cavernsFrom;
             if (-world.y > cavernTop && world.y > Config.FloorY + 2)
                 solid = Mathf.Min(solid, Mathf.Clamp01((0.68f - Config.Noise(world * 0.22f, 13)) / 0.06f + 0.5f));
             float chamber = Vector3.Distance(world, new Vector3(0, Config.FloorY + 0.6f, 0));

@@ -14,7 +14,7 @@ namespace Nubik.PlayTests
     /// Unity -batchmode -runTests -testPlatform PlayMode -projectPath .
     /// The editor save is kept aside and restored.
     /// </summary>
-    public class DepthSnapshots
+    public partial class DepthSnapshots
     {
         private const string Key = "nubik.progress.v1";
         private string saved, savedBackup;
@@ -281,8 +281,10 @@ namespace Nubik.PlayTests
             game.RetryBoss(); yield return Frames(3);
             Assert.AreEqual(game.MaxHealth, game.Health); Assert.AreEqual(5, game.Progress.KeyCount);
             game.SetView(0, -13); yield return new WaitForSeconds(3.6f); Shot("campaign_cthulhu", true);
-            for (int shot = 0; shot < 80 && !game.Progress.finished; shot++)
+            for (int shot = 0; shot < 240 && !game.Progress.finished; shot++)
             {
+                // Standing still takes every hit; keep the test about aiming, not dodging.
+                game.Progress.health = game.MaxHealth;
                 Invoke(game, "Swing"); yield return new WaitForSeconds(.46f);
             }
             Assert.IsTrue(game.Progress.finished, "Real aim rays and the equipped harpoon must damage the boss.");
@@ -402,18 +404,22 @@ namespace Nubik.PlayTests
             game.Interact(); yield return Frames(3);
             Assert.IsTrue(game.Progress.hasWeapon);
             game.DebugPlace(BossEncounter.Spawn, 0, -13);
-            for (int attack = 0; attack < 3; attack++)
+            for (int attack = 0; attack < 5; attack++)
             {
+                game.Progress.health = game.MaxHealth;
                 float until = Time.time + 6;
                 while (!(game.Battle.Phase == BattlePhase.Warning && game.Battle.Remaining < .4f) && Time.time < until) yield return null;
                 Assert.AreEqual(BattlePhase.Warning, game.Battle.Phase);
                 int pattern = game.Battle.Pattern;
-                if (pattern != 0)
+                if (pattern == BossBattle.WaveLeft || pattern == BossBattle.WaveRight)
                     Assert.Greater(Quaternion.Angle(Quaternion.identity, arms[pattern - 1].localRotation), 60, "The arm on the wave's side is raised.");
+                else if (pattern == BossBattle.Quake)
+                    foreach (var arm in arms) Assert.Greater(Quaternion.Angle(Quaternion.identity, arm.localRotation), 60, "Both arms go up before the quake.");
                 else Assert.Greater(Mathf.DeltaAngle(0, chest.localEulerAngles.x), 4, "It rears back before the tentacles fall.");
                 Shot("cthulhu_windup_" + pattern, true);
+                int landed = game.Battle.Landed;
                 until = Time.time + 2;
-                while (game.Battle.Phase != BattlePhase.Recovery && Time.time < until) yield return null;
+                while (game.Battle.Landed == landed && Time.time < until) yield return null;
                 yield return new WaitForSeconds(.1f);
                 Shot("cthulhu_slam_" + pattern, true);
             }
@@ -425,7 +431,7 @@ namespace Nubik.PlayTests
 
             // Defeat: the victory is saved at once, the monster sinks, and only then the result card opens.
             game.DebugPlace(BossEncounter.Spawn, 0, -13);
-            for (int shot = 0; shot < 80 && game.Battle.Phase != BattlePhase.Won; shot++)
+            for (int shot = 0; shot < 200 && game.Battle.Phase != BattlePhase.Won; shot++)
             {
                 game.Battle.Shoot(true);
                 if (game.Battle.Phase != BattlePhase.Warning && game.Battle.Phase != BattlePhase.Recovery && game.Battle.Phase != BattlePhase.Won) break;

@@ -90,18 +90,47 @@ namespace Nubik.Tests
         [Test] public void BossWarnsBeforeDamageAllowsDodgingAndRewardsWeakPointTiming()
         {
             var boss = new BossBattle(); Assert.AreEqual(0, boss.Shoot(true)); boss.Begin();
-            Assert.AreEqual(48, boss.Shoot(true));
+            Assert.AreEqual(BossBattle.OpenHeadDamage, boss.Shoot(true));
             Assert.AreEqual(0, boss.Tick(2.1f, new Vector3(0, 0, -8)));
-            Assert.AreEqual(BattlePhase.Warning, boss.Phase); Assert.AreEqual(18, boss.Shoot(true));
+            Assert.AreEqual(BattlePhase.Warning, boss.Phase); Assert.AreEqual(BossBattle.Circle, boss.Pattern);
+            Assert.AreEqual(BossBattle.HeadDamage, boss.Shoot(true)); Assert.AreEqual(BossBattle.BodyDamage, boss.Shoot(false));
             Assert.AreEqual(0, boss.Tick(.5f, new Vector3(0, 0, -8)), "No invisible immediate attack.");
             Assert.AreEqual(0, boss.Tick(2, new Vector3(5, 0, -8)), "Leaving the marker dodges the tentacle.");
-            boss.Tick(2, new Vector3(-5, 0, -8)); Assert.AreEqual(1, boss.Pattern);
+            boss.Tick(2, new Vector3(-5, 0, -8)); Assert.AreEqual(BossBattle.WaveLeft, boss.Pattern);
             Assert.Greater(boss.Tick(2, new Vector3(-5, 0, -8)), 0);
-            boss.Tick(2, new Vector3(5, 0, -8)); Assert.AreEqual(2, boss.Pattern);
+            // Three circles: the player's spot and two more around it.
+            boss.Tick(2, new Vector3(0, 0, -8)); Assert.AreEqual(BossBattle.Rain, boss.Pattern); Assert.AreEqual(3, boss.TargetCount);
+            var aside = boss.Targets[1];
+            Assert.Greater(boss.Tick(2, new Vector3(aside.x, 0, aside.y)), 0, "Every circle of the rain hits.");
+            boss.Tick(2, new Vector3(5, 0, -8)); Assert.AreEqual(BossBattle.WaveRight, boss.Pattern);
             Assert.AreEqual(0, boss.Tick(2, new Vector3(5, 2, -8)), "Jump or jetpack clears the ground wave.");
+            // The quake covers the whole floor: only being in the air helps.
+            boss.Tick(2, new Vector3(-7, 0, 9)); Assert.AreEqual(BossBattle.Quake, boss.Pattern);
+            Assert.AreEqual(0, boss.Tick(2, new Vector3(-7, .7f, 9)), "A jump clears the quake.");
+            boss.Tick(2, new Vector3(-7, 0, 9)); Assert.AreEqual(BossBattle.Circle, boss.Pattern, "The order starts over.");
+            Assert.Greater(boss.Tick(2, new Vector3(-7, 0, 9)), 0, "Standing on the mark hurts.");
             while (boss.Health > 0) boss.Shoot(true);
             Assert.AreEqual(BattlePhase.Won, boss.Phase); Assert.AreEqual(0, boss.Tick(50, Vector3.zero));
             Assert.AreEqual(0, boss.Shoot(true));
+        }
+
+        [Test] public void EnragedBossAnswersAWaveWithTheOtherAndRestsLess()
+        {
+            var boss = new BossBattle(); boss.Begin();
+            while (!boss.Enraged) boss.Shoot(true);
+            var player = new Vector3(0, 3, -8); // in the air: nothing hits, the clock is what we watch
+            int waves = 0, chained = 0;
+            for (int i = 0; i < 60; i++)
+            {
+                boss.Tick(.25f, player);
+                if (boss.Phase == BattlePhase.Recovery && boss.Landed > 0) Assert.LessOrEqual(boss.Duration, 1f, "Short pauses in rage.");
+                if (boss.Phase != BattlePhase.Warning) continue;
+                if (boss.Chained) chained++;
+                if (boss.Pattern == BossBattle.WaveLeft || boss.Pattern == BossBattle.WaveRight) waves++;
+            }
+            Assert.Greater(waves, 0);
+            Assert.Greater(chained, 0, "A wave is followed at once by the other side.");
+            Assert.Greater(BossBattle.MaxHealth / BossBattle.OpenHeadDamage, 25, "It takes many well-timed shots.");
         }
     }
 }

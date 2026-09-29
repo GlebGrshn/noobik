@@ -15,6 +15,8 @@ MonoBehaviour:
   seed: 28092026
   depth: 120
   width: 14
+  cavernsFrom: 73
+  lavaDamage: 28
   oreDensity: 0.6666667
   voxel: 0.5
   chunk: 12
@@ -159,7 +161,7 @@ MonoBehaviour:
     slots: 1
     power: 2.3
   dynamiteFuse: 2.2
-  dynamiteDamage: 40
+  dynamiteDamage: 50
   dynamiteHurt: 55
   ores:
   - nameRu: "\u0423\u0433\u043E\u043B\u044C"
@@ -228,6 +230,18 @@ MonoBehaviour:
     slots: 2
     chest: 1
     color: {r: 0.55, g: 0.95, b: 1, a: 1}
+  - nameRu: "\u041E\u0433\u043D\u0435\u043D\u043D\u044B\u0439 \u043E\u043F\u0430\u043B"
+    nameEn: Fire opal
+    value: 320
+    slots: 1
+    chest: 0
+    color: {r: 1, g: 0.45, b: 0.18, a: 1}
+  - nameRu: "\u0417\u0432\u0451\u0437\u0434\u043D\u044B\u0439 \u043C\u0435\u0442\u0430\u043B\u043B"
+    nameEn: Star metal
+    value: 450
+    slots: 2
+    chest: 0
+    color: {r: 0.55, g: 0.78, b: 1, a: 1}
   zones:
   - nameRu: "\u041A\u043E\u0440\u043D\u0438"
     nameEn: Rootlands
@@ -333,6 +347,40 @@ MonoBehaviour:
     sunIntensity: 0
     lamp: 2.8
     fogEnd: 22
+  - nameRu: "\u041C\u0430\u0433\u043C\u0430"
+    nameEn: Magma
+    noteRu: "\u0420\u0430\u0441\u043A\u0430\u043B\u0451\u043D\u043D\u044B\u0439 \u0431\u0430\u0437\u0430\u043B\u044C\u0442 \u0438 \u043B\u0430\u0432\u043E\u0432\u044B\u0435 \u043E\u0437\u0451\u0440\u0430. \u0413\u0434\u0435-\u0442\u043E \u0437\u0434\u0435\u0441\u044C \u0443\u043F\u0430\u043B \u043C\u0435\u0442\u0435\u043E\u0440\u0438\u0442."
+    noteEn: Glowing basalt and lava pools. A meteorite fell somewhere here.
+    startDepth: 100
+    rock:
+      nameRu: "\u0411\u0430\u0437\u0430\u043B\u044C\u0442"
+      nameEn: Basalt
+      hardness: 28
+      value: 0
+      color: {r: 0.26, g: 0.18, b: 0.16, a: 1}
+    vein:
+      nameRu: "\u041E\u0431\u0441\u0438\u0434\u0438\u0430\u043D"
+      nameEn: Obsidian
+      hardness: 40
+      value: 0
+      color: {r: 0.13, g: 0.11, b: 0.15, a: 1}
+    veinShare: 0.14
+    volumePerFind: 11
+    ores:
+    - ore: 6
+      weight: 25
+    - ore: 7
+      weight: 40
+    - ore: 11
+      weight: 35
+    chestOre: 10
+    chestDepths: 
+    fog: {r: 0.16, g: 0.05, b: 0.02, a: 1}
+    ambient: {r: 0.52, g: 0.32, b: 0.24, a: 1}
+    sun: {r: 1, g: 0.5, b: 0.3, a: 1}
+    sunIntensity: 0
+    lamp: 2.4
+    fogEnd: 24
   collection:
   - nameRu: "\u0421\u0442\u0430\u0440\u0430\u044F \u043A\u0430\u0441\u043A\u0430"
     nameEn: Old helmet

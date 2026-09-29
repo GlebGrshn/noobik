@@ -8,6 +8,7 @@ import os
 import random
 import struct
 import wave
+import argparse
 
 RATE = 22050
 OUT = os.path.join(os.path.dirname(__file__), '..', 'Assets', 'Game', 'Resources', 'Audio')
@@ -68,6 +69,90 @@ def write(name, samples, peak=0.85, loop=False):
         file.setsampwidth(2)
         file.setframerate(RATE)
         file.writeframes(frames)
+
+
+def seamless(samples, overlap=0.5):
+    """Overlap the tail into the head; retain matching waveform slopes at the loop seam."""
+    n = int(RATE * overlap)
+    for i in range(n):
+        t = i / n
+        samples[i] = samples[i] * t + samples[-n + i] * (1 - t)
+    return samples[:-n]
+
+
+def new_audio(force_ambience=False):
+    # A separate seed leaves all existing effect recipes byte-for-byte unchanged.
+    rng = random.Random(29092026)
+    write('click', add(tone(880, .065, .018), noise(.025, .008, 1700, rng), gain=.3), .32)
+    write('step', add(noise(.16, .045, 900, rng), tone(105, .13, .032), gain=.4), .6)
+    write('step_stone', add(noise(.14, .035, 2700, rng), tone(240, .12, .025), gain=.45), .65)
+    write('land', add(noise(.38, .08, 650, rng), tone(72, .28, .06), gain=1.2), .8)
+    write('clank', add(tone(790, .7, .18, ((1, 1), (1.47, .55), (2.63, .3))), noise(.05, .012, 3800, rng), gain=.4), .8)
+    write('sizzle', noise(.48, .13, 2600, rng, highpass=True), .6)
+    drill = noise(.19, .2, 1300, rng)
+    add(drill, tone(88, .19, .3, ((1, 1), (2, .5), (4, .3)), sweep=.15), gain=.6)
+    write('drill', drill, .65)
+    harpoon = add(noise(.15, .035, 2300, rng), tone(480, .34, .08, sweep=-.65), gain=.7)
+    add(harpoon, tone(85, .2, .04), gain=.6)
+    write('harpoon', harpoon, .85)
+    write('boss_hit', add(noise(.24, .06, 500, rng), tone(130, .27, .065, sweep=-.4), gain=1.2), .75)
+    roar = noise(2.3, .85, 480, rng, attack=.18)
+    add(roar, tone(48, 2.3, .9, ((1, 1), (1.51, .4), (3, .2)), attack=.18, sweep=-.3), gain=.8)
+    for i in range(len(roar)):
+        roar[i] *= .7 + .3 * math.sin(i / RATE * 2 * math.pi * 13)
+    write('roar', roar, .85)
+    slam = add(noise(1.35, .3, 300, rng), tone(52, 1.2, .3, sweep=-.35), gain=1.5)
+    add(slam, noise(.12, .03, 1700, rng), gain=.5)
+    write('slam', slam, .9)
+    warning = tone(196, .7, .24, ((1, 1), (1.06, .45), (2, .1)), attack=.025)
+    write('warn', warning, .55)
+    lava = noise(8.5, 1e9, 260, rng, attack=.001)
+    for i in range(24):
+        add(lava, tone(rng.uniform(65, 150), .25, .055, sweep=-.7), at=rng.uniform(0, 8), gain=.12)
+    write('lava', seamless(lava), .45, True)
+    hum = silence(8.5)
+    for f, g in ((73, .6), (110, .3), (147, .16), (294, .035)):
+        add(hum, tone(f, 8.5, 1e9, attack=.001), gain=g)
+    write('hum', seamless(hum), .4, True)
+
+    # Temporary ambience, not music: distinct beds and sparse environmental events.
+    # Do not overwrite a supplied replacement (including a different extension).
+    places = ('surface', 'house', 'roots', 'slate', 'crystals', 'magma', 'boss')
+    for place in places:
+        name = 'ambient_' + place
+        existing = [os.path.join(OUT, name + ext) for ext in ('.wav', '.ogg', '.mp3')]
+        if not force_ambience and any(os.path.exists(p) for p in existing):
+            print('Keeping existing ambience:', name)
+            continue
+        seconds = 18.5
+        cutoff = {'surface': 1100, 'house': 250, 'roots': 430, 'slate': 190, 'crystals': 310, 'magma': 170, 'boss': 110}[place]
+        bed = noise(seconds, 1e9, cutoff, rng, attack=.001)
+        for i in range(len(bed)):
+            bed[i] *= .35 + .15 * math.sin(i / RATE * 2 * math.pi / 7)
+        if place in ('surface', 'house', 'roots'):
+            for i in range(9):
+                at = .7 + i * 1.9 + rng.uniform(0, .4)
+                if place == 'surface':
+                    event = tone(rng.uniform(1700, 2600), .22, .09, attack=.03, sweep=rng.uniform(-.25, .25))
+                elif place == 'house':
+                    event = tone(rng.uniform(110, 180), .55, .13, ((1, 1), (2.1, .18)), attack=.06, sweep=.04)
+                else:
+                    event = tone(rng.uniform(760, 1150), .4, .07, attack=.002, sweep=-.3)
+                add(bed, event, at, .018 if place == 'house' else .035)
+        elif place == 'crystals':
+            for i, f in enumerate((523.25, 783.99, 1046.5, 659.25, 1174.66, 783.99)):
+                add(bed, tone(f, 2.2, .65, ((1, 1), (2.01, .2)), attack=.12), .5 + i * 2.7, .025)
+        else:
+            freqs = (45, 67.5) if place == 'slate' else (38, 57) if place == 'magma' else (36, 54, 57)
+            for f in freqs:
+                add(bed, tone(f, seconds, 1e9, attack=.001), gain=.035)
+            if place == 'magma':
+                for i in range(16):
+                    add(bed, tone(rng.uniform(65, 110), .4, .09, sweep=-.65), .3 + i * 1.05, .08)
+            if place == 'boss':
+                for i in range(6):
+                    add(bed, tone(44, .8, .19, attack=.025), .5 + i * 2.9, .07)
+        write(name, seamless(bed), .32 if place != 'boss' else .38, True)
 
 
 def main():
@@ -146,4 +231,8 @@ def main():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--force-ambience', action='store_true', help='Regenerate temporary ambience WAVs, replacing existing WAVs.')
+    args = parser.parse_args()
     main()
+    new_audio(args.force_ambience)

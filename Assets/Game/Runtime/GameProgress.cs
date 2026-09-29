@@ -55,6 +55,8 @@ namespace Nubik
         public float health = -1;
         public bool scanner;
         public int medkits, dynamite;
+        /// <summary>The meteorite has been blown apart.</summary>
+        public bool meteor;
         public int fuelLevel, keys;
         public float fuel = -1;
         public bool doorOpened, hasWeapon;

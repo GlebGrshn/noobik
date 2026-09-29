@@ -101,6 +101,7 @@ namespace Nubik
                 RevealLoot(at, radius);
                 saveDirty = true;
             }
+            BlastMeteor(at);
             Burst(at, Vector3.up, result.Rock.color, 18);
             Burst(at, Vector3.up, new Color(.3f, .28f, .26f), 10);
             sound.Play("boom", 1, 1, .08f);

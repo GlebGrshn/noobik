@@ -12,6 +12,7 @@ public static class ProjectSetup
     [MenuItem("Nubik/Prepare prototype")]
     public static void Prepare()
     {
+        GameAudioImport.ReimportAll();
         Directory.CreateDirectory("Assets/Game/Scenes");
         Directory.CreateDirectory("Assets/Game/Config");
         Directory.CreateDirectory("Assets/Game/Prefabs");

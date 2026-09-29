@@ -144,6 +144,7 @@ namespace Nubik
             (new[] { "mailbox post", "fence post" }, Wood),
             (new[] { "timber cap", "crate ore", "safe door" }, Metal),
             (new[] { "counter top", "bench top" }, Wood),
+            (new[] { "meteor crust" }, Leather),
             (new[] { "eye", "pupil", "lamp", "light", "warning", "trail", "wax", "label", "smile", "socket", "rust", "keyhole",
                 "waymark", "rune", "puff", "hill", "grass", "flower", "lump", "debris", "mushroom", "face", "nose", "lawn" }, 0),
             (new[] { "cthulhu" }, Skin),

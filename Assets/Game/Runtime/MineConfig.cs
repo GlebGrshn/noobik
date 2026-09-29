@@ -88,6 +88,8 @@ namespace Nubik
         public int seed = 28092026;
         [Tooltip("Depth of the sealed door, meters.")] public int depth = 120;
         [Tooltip("Width and length of the diggable yard patch, meters.")] public int width = 14;
+        [Tooltip("Natural caves start this deep (part of the world shape: changing it moves caves under old saves).")] public float cavernsFrom = 73;
+        [Tooltip("Health lost per second standing in lava.")] public float lavaDamage = 28;
         [Range(0, 1)] public float oreDensity = 2f / 3f;
         public float voxel = 0.5f;
         [Tooltip("Voxels per chunk edge.")] public int chunk = 12;
@@ -149,7 +151,7 @@ namespace Nubik
         [Tooltip("Power: blast radius in metres.")]
         public ItemDef dynamite = new ItemDef { nameRu = "Динамит", nameEn = "Dynamite", price = 35, slots = 1, power = 2.3f };
         [Tooltip("Seconds from the throw to the blast.")] public float dynamiteFuse = 2.2f;
-        [Tooltip("Digging damage of the blast core: enough for any rock above the bedrock.")] public int dynamiteDamage = 40;
+        [Tooltip("Digging damage of the blast core: enough for any rock above the bedrock.")] public int dynamiteDamage = 50;
         [Tooltip("Health lost right next to the blast; less further away.")] public float dynamiteHurt = 55;
 
         public OreDef[] ores =
@@ -165,6 +167,9 @@ namespace Nubik
             new OreDef { nameRu = "Старый сундук", nameEn = "Old chest", value = 45, slots = 2, chest = true, color = new Color(1f, 0.72f, 0.20f) },
             new OreDef { nameRu = "Сундук с серебром", nameEn = "Silver chest", value = 90, slots = 2, chest = true, color = new Color(0.86f, 0.92f, 0.98f) },
             new OreDef { nameRu = "Кристальный ларец", nameEn = "Crystal casket", value = 180, slots = 2, chest = true, color = new Color(0.55f, 0.95f, 1f) },
+            // Appended entries keep the saved backpack indices of the ones above.
+            new OreDef { nameRu = "Огненный опал", nameEn = "Fire opal", value = 320, color = new Color(1f, 0.45f, 0.18f) },
+            new OreDef { nameRu = "Звёздный металл", nameEn = "Star metal", value = 450, slots = 2, color = new Color(0.55f, 0.78f, 1f) },
         };
 
         public ZoneDef[] zones =
@@ -195,6 +200,15 @@ namespace Nubik
                 veinShare = 0.15f, volumePerFind = 11, chestDepths = new[] { 84, 106 }, chestOre = 10,
                 ores = new[] { new OreChance { ore = 4, weight = 40 }, new OreChance { ore = 5, weight = 30 }, new OreChance { ore = 6, weight = 20 }, new OreChance { ore = 7, weight = 10 } },
                 fog = new Color(0.05f, 0.03f, 0.09f), ambient = new Color(0.30f, 0.26f, 0.42f), sun = new Color(0.7f, 0.6f, 1f), sunIntensity = 0f, lamp = 2.8f, fogEnd = 22,
+            },
+            new ZoneDef
+            {
+                nameRu = "Магма", nameEn = "Magma", noteRu = "Раскалённый базальт и лавовые озёра. Где-то здесь упал метеорит.", noteEn = "Glowing basalt and lava pools. A meteorite fell somewhere here.", startDepth = 100,
+                rock = new RockDef { nameRu = "Базальт", nameEn = "Basalt", hardness = 28, color = new Color(0.26f, 0.18f, 0.16f) },
+                vein = new RockDef { nameRu = "Обсидиан", nameEn = "Obsidian", hardness = 40, color = new Color(0.13f, 0.11f, 0.15f) },
+                veinShare = 0.14f, volumePerFind = 11, chestOre = 10,
+                ores = new[] { new OreChance { ore = 6, weight = 25 }, new OreChance { ore = 7, weight = 40 }, new OreChance { ore = 11, weight = 35 } },
+                fog = new Color(0.16f, 0.05f, 0.02f), ambient = new Color(0.52f, 0.32f, 0.24f), sun = new Color(1f, 0.5f, 0.3f), sunIntensity = 0f, lamp = 2.4f, fogEnd = 24,
             },
         };
 

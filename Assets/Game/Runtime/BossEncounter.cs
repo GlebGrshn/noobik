@@ -23,7 +23,10 @@ namespace Nubik
 
         private const float DeathTime = 3.4f;
         private static readonly Color EyeCalm = new Color(1, .7f, .24f), EyeRage = new Color(1, .26f, .12f);
-        private readonly Transform root, monster, weapon, ring, impact, wave, beam;
+        private readonly Transform root, monster, weapon, wave, beam;
+        private readonly Transform[] rings = new Transform[3], impacts = new Transform[3];
+        /// <summary>Sound cues for the game to play: name and volume.</summary>
+        public System.Action<string, float> Sound;
         private readonly Transform body, chest, head;
         private readonly Transform[] arms = new Transform[2], wings = new Transform[2];
         private readonly Vector3 chestRest, headRest;
@@ -42,7 +45,7 @@ namespace Nubik
         private readonly float[] armUp = new float[2];
         // Moments that drive short, sharp motions.
         private float slamAt, hurtAt, roarAt, wonAt;
-        private int slamArm;
+        private int slamArm, landedSeen, slamPattern, warnedAttack = -1;
         private bool slamCircle, wasEnraged;
         private BattlePhase lastPhase;
 
@@ -111,8 +114,11 @@ namespace Nubik
                     var obj = Attach(shapes.Ball("Cthulhu tentacle", p, Vector3.one * Mathf.Lerp(.52f, .17f, t), skin * (1 - n % 2 * .13f), monster), head);
                     tendrils.Add(obj.transform); rests.Add(obj.transform.localPosition);
                 }
-            ring = MakeRing("Tentacle warning", new Color(1, .28f, .13f), 2.6f, 2.3f);
-            impact = MakeRing("Tentacle impact", new Color(.75f, .95f, .9f), 2.7f, 2.5f);
+            for (int i = 0; i < rings.Length; i++)
+            {
+                rings[i] = MakeRing("Tentacle warning", new Color(1, .28f, .13f), 2.6f, 2.3f);
+                impacts[i] = MakeRing("Tentacle impact", new Color(.75f, .95f, .9f), 2.7f, 2.5f);
+            }
             wave = shapes.Box("Wave warning", Vector3.zero, new Vector3(9.7f, .025f, 24), new Color(.84f, .23f, .15f), root, false, .6f).transform;
             beam = shapes.Box("Harpoon trail", Vector3.zero, new Vector3(.035f, .035f, 1), new Color(.47f, 1, .95f), root, false, .9f).transform;
             foreach (var p in new[] { new Vector3(-5, 5, -3), new Vector3(5, 5, 5) })
@@ -186,9 +192,11 @@ namespace Nubik
         {
             Battle = new BossBattle(); age = 0; Inside = true; root.gameObject.SetActive(true);
             monster.gameObject.SetActive(true); monster.localPosition = Vector3.zero; monster.localRotation = Quaternion.identity;
-            weapon.gameObject.SetActive(!armed); ring.gameObject.SetActive(false); impact.gameObject.SetActive(false);
+            weapon.gameObject.SetActive(!armed);
+            for (int i = 0; i < rings.Length; i++) { rings[i].gameObject.SetActive(false); impacts[i].gameObject.SetActive(false); }
             wave.gameObject.SetActive(false); beam.gameObject.SetActive(false);
             slamAt = hurtAt = roarAt = -10; wonAt = -1; Shake = 0; wasEnraged = false; lastPhase = BattlePhase.Waiting;
+            landedSeen = 0; warnedAttack = -1;
             // Asleep until the harpoon leaves its pedestal; already awake on a retry.
             lean = armed ? 0 : -12; headPitch = armed ? -12 : -26; headYaw = roll = curl = 0; eyeOpen = armed ? 1 : .1f; glow = armed ? .6f : .12f;
             armUp[0] = armUp[1] = 0;
@@ -196,7 +204,7 @@ namespace Nubik
             Pose(0, Spawn);
         }
 
-        public void Arm() { weapon.gameObject.SetActive(false); Battle.Begin(); roarAt = age; Shake = .45f; }
+        public void Arm() { weapon.gameObject.SetActive(false); Battle.Begin(); roarAt = age; Shake = .45f; Sound?.Invoke("roar", 1); }
         public void Exit() { Inside = false; root.gameObject.SetActive(false); }
         public bool IsBoss(Collider collider) => bodyParts.Contains(collider);
 
@@ -204,7 +212,7 @@ namespace Nubik
         {
             if (!IsBoss(collider)) return 0;
             float damage = Battle.Shoot(headParts.Contains(collider));
-            if (damage > 0) hurtAt = age;
+            if (damage > 0) { hurtAt = age; Sound?.Invoke("boss_hit", headParts.Contains(collider) ? .9f : .6f); }
             return damage;
         }
 
@@ -222,39 +230,52 @@ namespace Nubik
         {
             age += dt; beamTime -= dt; if (beamTime <= 0) beam.gameObject.SetActive(false);
             float damage = 0;
-            if (live)
+            if (live) damage = Battle.Tick(dt, player - Origin);
+            if (Battle.Landed != landedSeen)
             {
-                var before = Battle.Phase; int pattern = Battle.Pattern;
-                damage = Battle.Tick(dt, player - Origin);
-                if (before == BattlePhase.Warning && Battle.Phase == BattlePhase.Recovery)
-                {
-                    slamAt = age; slamCircle = pattern == 0; slamArm = pattern == 1 ? 0 : 1;
-                    Shake = Mathf.Max(Shake, slamCircle ? .45f : .7f);
-                }
+                // An attack came down: tentacles whip, an arm sweeps, or both arms pound the floor.
+                landedSeen = Battle.Landed;
+                slamAt = age; slamPattern = Battle.LastLanded;
+                slamCircle = slamPattern == BossBattle.Circle || slamPattern == BossBattle.Rain;
+                slamArm = slamPattern == BossBattle.WaveLeft ? 0 : slamPattern == BossBattle.WaveRight ? 1 : -1;
+                Shake = Mathf.Max(Shake, slamPattern == BossBattle.Quake ? .95f : slamCircle ? .45f : .7f);
+                Sound?.Invoke("slam", slamPattern == BossBattle.Quake ? 1 : .8f);
             }
+            int attackId = Battle.Landed * 2 + (Battle.Chained ? 1 : 0);
+            if (Battle.Phase == BattlePhase.Warning && warnedAttack != attackId) { warnedAttack = attackId; Sound?.Invoke("warn", .55f); }
             if (Battle.Phase != lastPhase)
             {
-                if (Battle.Phase == BattlePhase.Won) { wonAt = age; Shake = .8f; }
-                if (Battle.Phase == BattlePhase.Lost) roarAt = age;
+                if (Battle.Phase == BattlePhase.Won) { wonAt = age; Shake = .8f; Sound?.Invoke("roar", 1); }
+                if (Battle.Phase == BattlePhase.Lost) { roarAt = age; Sound?.Invoke("roar", .8f); }
                 lastPhase = Battle.Phase;
             }
-            if (Battle.Enraged && !wasEnraged && Battle.Phase != BattlePhase.Won) { wasEnraged = true; roarAt = age; Shake = Mathf.Max(Shake, .6f); }
+            if (Battle.Enraged && !wasEnraged && Battle.Phase != BattlePhase.Won) { wasEnraged = true; roarAt = age; Shake = Mathf.Max(Shake, .6f); Sound?.Invoke("roar", 1); }
             Shake = Mathf.Max(0, Shake - dt * 1.6f);
 
             bool warning = Battle.Phase == BattlePhase.Warning;
             float warn = Warn;
-            ring.gameObject.SetActive(warning && Battle.Pattern == 0);
-            ring.localPosition = new Vector3(Battle.Target.x, .04f, Battle.Target.y);
-            // The circle closes in from wide to its real size, then trembles right before the hit.
-            ring.localScale = Vector3.one * (Mathf.Lerp(1.35f, 1, Mathf.Clamp01(warn * 3)) + (warn > .75f ? Mathf.Sin(age * 50) * .015f : 0));
             float sinceSlam = age - slamAt;
-            impact.gameObject.SetActive(slamCircle && sinceSlam < .35f);
-            impact.localPosition = ring.localPosition;
-            impact.localScale = Vector3.one * (1 + sinceSlam * 1.6f);
-            // The wave stays a moment after the slam so the hit reads.
-            wave.gameObject.SetActive(warning && Battle.Pattern != 0 || !slamCircle && sinceSlam < .2f);
-            int wavePattern = warning ? Battle.Pattern : slamArm + 1;
-            wave.localPosition = new Vector3(wavePattern == 1 ? -5.3f : 5.3f, .02f + (warning ? 0 : .01f), 0);
+            bool circles = warning && (Battle.Pattern == BossBattle.Circle || Battle.Pattern == BossBattle.Rain);
+            float size = (Battle.Pattern == BossBattle.Rain ? BossBattle.RainRadius : BossBattle.CircleRadius) / BossBattle.CircleRadius;
+            float slamSize = (slamPattern == BossBattle.Rain ? BossBattle.RainRadius : BossBattle.CircleRadius) / BossBattle.CircleRadius;
+            for (int i = 0; i < rings.Length; i++)
+            {
+                // Circles close in from wide to their real size, then tremble right before the hit.
+                rings[i].gameObject.SetActive(circles && i < Battle.TargetCount);
+                rings[i].localPosition = new Vector3(Battle.Targets[i].x, .04f + i * .003f, Battle.Targets[i].y);
+                rings[i].localScale = Vector3.one * size * (Mathf.Lerp(1.35f, 1, Mathf.Clamp01(warn * 3)) + (warn > .75f ? Mathf.Sin(age * 50 + i) * .015f : 0));
+                int count = slamPattern == BossBattle.Rain ? 3 : 1;
+                impacts[i].gameObject.SetActive(slamCircle && sinceSlam < .35f && i < count);
+                impacts[i].localPosition = new Vector3(Battle.Targets[i].x, .05f, Battle.Targets[i].y);
+                impacts[i].localScale = Vector3.one * slamSize * (1 + sinceSlam * 1.6f);
+            }
+            // Waves light half of the floor, the quake all of it; the mark stays a moment after the hit so it reads.
+            bool quake = warning ? Battle.Pattern == BossBattle.Quake : slamPattern == BossBattle.Quake;
+            bool waves = warning ? Battle.Pattern == BossBattle.WaveLeft || Battle.Pattern == BossBattle.WaveRight || quake : !slamCircle && sinceSlam < .2f;
+            wave.gameObject.SetActive(waves);
+            int wavePattern = warning ? Battle.Pattern : slamPattern;
+            wave.localPosition = new Vector3(quake ? 0 : wavePattern == BossBattle.WaveLeft ? -5.3f : 5.3f, .02f + (warning ? 0 : .01f), 0);
+            wave.localScale = new Vector3(quake ? 20.4f : 9.7f, .025f, 24);
 
             Pose(dt, player);
             return damage;
@@ -276,8 +297,9 @@ namespace Nubik
             float roar = Mathf.Clamp01(1 - (age - roarAt) / 1.6f) * Mathf.Clamp01((age - roarAt) / .25f);
             float death = wonAt < 0 ? 0 : Mathf.Clamp01((age - wonAt) / DeathTime);
             float breath = Mathf.Sin(age * (asleep ? .7f : 1.3f * tempo));
-            bool circle = phase == BattlePhase.Warning && Battle.Pattern == 0;
-            int windArm = phase == BattlePhase.Warning && Battle.Pattern != 0 ? Battle.Pattern - 1 : -1;
+            bool circle = phase == BattlePhase.Warning && (Battle.Pattern == BossBattle.Circle || Battle.Pattern == BossBattle.Rain);
+            bool quake = phase == BattlePhase.Warning && Battle.Pattern == BossBattle.Quake;
+            int windArm = phase == BattlePhase.Warning && (Battle.Pattern == BossBattle.WaveLeft || Battle.Pattern == BossBattle.WaveRight) ? Battle.Pattern - 1 : -1;
             float circleStrike = slamCircle ? strike : 0, waveStrike = slamCircle ? 0 : strike;
 
             // Head follows the player within the neck's reach; sleeps and dies looking down.
@@ -290,12 +312,12 @@ namespace Nubik
             headPitch = Ease(headPitch, pitchTarget + (phase == BattlePhase.Recovery ? -6 : 0), 3, dt);
 
             // Chest: slumps asleep, rears back before the tentacles fall, leans into the slam, rears to roar.
-            float leanTarget = asleep ? -12 : circle ? warn * 12 : 0;
+            float leanTarget = asleep ? -12 : circle || quake ? warn * 12 : 0;
             float rollTarget = windArm < 0 ? 0 : (windArm == 0 ? 1 : -1) * warn * 7;
             lean = Ease(lean, leanTarget, 4, dt);
             roll = Ease(roll, rollTarget, 5, dt);
             curl = Ease(curl, circle ? warn : 0, 7, dt);
-            for (int i = 0; i < 2; i++) armUp[i] = Ease(armUp[i], windArm == i ? warn : circle ? warn * .3f : 0, 8, dt);
+            for (int i = 0; i < 2; i++) armUp[i] = Ease(armUp[i], windArm == i || quake ? warn : circle ? warn * .3f : 0, 8, dt);
             float eyeTarget = asleep ? .1f : phase == BattlePhase.Warning ? .6f : phase == BattlePhase.Recovery ? 1.35f : 1;
             float glowTarget = asleep ? .12f : phase == BattlePhase.Warning ? .7f : phase == BattlePhase.Recovery ? 2.3f : 1;
             eyeOpen = Ease(eyeOpen, eyeTarget, 6, dt);
@@ -305,14 +327,14 @@ namespace Nubik
             chest.localPosition = chestRest + Vector3.up * (.07f * breath - death * .6f);
             float sway = asleep ? .3f : 1 + rage * .5f;
             chest.localRotation = Quaternion.Euler(lean - circleStrike * 18 + roar * 10 + hurt * 3 - death * 22,
-                Mathf.Sin(age * .5f) * 2.5f * sway, roll + Mathf.Sin(age * .8f) * 1.5f * sway + (waveStrike > 0 ? (slamArm == 0 ? -1 : 1) * waveStrike * 6 : 0));
+                Mathf.Sin(age * .5f) * 2.5f * sway, roll + Mathf.Sin(age * .8f) * 1.5f * sway + (waveStrike > 0 && slamArm >= 0 ? (slamArm == 0 ? -1 : 1) * waveStrike * 6 : 0));
             head.localRotation = Quaternion.Euler(headPitch + hurt * 12 + roar * 18, headYaw, Mathf.Sin(age * 60) * hurt * 3);
 
             for (int i = 0; i < 2; i++)
             {
                 float side = i == 0 ? -1 : 1;
                 // Raised high to wind up, then swept forward and down onto its half of the floor.
-                float swingDown = !slamCircle && slamArm == i ? waveStrike : circleStrike * .4f;
+                float swingDown = !slamCircle && (slamArm == i || slamArm < 0) ? waveStrike : circleStrike * .4f;
                 float raised = Mathf.Lerp(10 + Mathf.Sin(age * .9f + i) * 3, 150, armUp[i]) + roar * 35 - death * 8;
                 float z = side * Mathf.Lerp(raised, 30, swingDown);
                 float x = Mathf.Lerp(-armUp[i] * 25 - roar * 10, 70, swingDown) + death * 20;

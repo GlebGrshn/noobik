@@ -93,6 +93,23 @@ namespace Nubik
         private int engagedFrame = -10;
         private string pendingDebugDig, pendingGoto;
         private bool restarting;
+        private int lastStep;
+
+        /// <summary>The ambience of where the player is now.</summary>
+        private string AmbienceName
+        {
+            get
+            {
+                if (InBoss) return GameAudio.Boss;
+                if (Yard.InsideHouse(body.transform.position)) return GameAudio.House;
+                float depth = -view.transform.position.y;
+                if (depth < 1.5f) return GameAudio.Surface;
+                return GameAudio.Zones[Mathf.Min(config.ZoneIndex(depth), GameAudio.Zones.Length - 1)];
+            }
+        }
+
+        /// <summary>Button press feedback from the HUD.</summary>
+        public void Click() => sound?.Play("click", .45f, 1, .03f);
 
         private sealed class ChunkView { public GameObject obj; public Mesh mesh; public MeshCollider collider; }
         private sealed class Flight { public Transform obj; public Vector3 from; public float t; }
@@ -118,11 +135,12 @@ namespace Nubik
             MineSites.Carve(terrain);
             Expedition.Prepare(terrain);
             Secrets.Prepare(terrain);
+            Depths.Prepare(terrain);
             terrain.ClearDirty();
             mesher = new TerrainMesher(terrain);
             loot = new LootField(terrain);
             loot.MarkTaken(Progress);
-            foreach (var item in loot.Items) item.Exposed = !item.Taken && loot.IsExposed(item);
+            foreach (var item in loot.Items) item.Exposed = !item.Taken && loot.IsExposed(item) && LootVisible(item);
             yard = new Yard(shapes, config);
             sites = new MineSites(shapes);
             Expedition.Decorate(shapes);
@@ -130,6 +148,8 @@ namespace Nubik
             boss = new BossEncounter(shapes);
             BuildTerrain();
             BuildPlayer();
+            BuildDepths();
+            boss.Sound = (name, volume) => sound.Play(name, volume, 1, .05f);
             hud = gameObject.AddComponent<MineHud>();
             hud.Setup(this);
             SpawnAtStart();
@@ -281,6 +301,7 @@ namespace Nubik
         {
             if (body == null) return;
             UpdateAmbience();
+            sound.SetAmbience(AmbienceName);
             UpdateFlights();
             yard.Animate(Time.deltaTime);
             // Narrow portrait screens get a wider vertical view so the shovel and HUD leave room for the world.
@@ -328,6 +349,7 @@ namespace Nubik
             TrackTrips();
             if (!InBoss) { TrackDepth(); TrackSites(); }
             UpdateCharges(Time.deltaTime);
+            UpdateDepths(Time.deltaTime);
             UpdateExpedition(Time.deltaTime);
             if (ScanActive) RefreshScan();
             if (Time.unscaledTime >= nextVisibility) UpdateVisibility();
@@ -380,7 +402,13 @@ namespace Nubik
             float impact = -verticalSpeed;
             body.Move((horizontal + Vector3.up * verticalSpeed) * dt);
             if (!grounded && body.isGrounded && impact > config.safeFallSpeed) Land(impact);
+            if (!grounded && body.isGrounded && impact > 4) sound.Play("land", Mathf.Clamp01(impact / 14f) * .8f);
             walkCycle += input.magnitude * dt * 9;
+            // A footstep every half cycle: grass and boards at home, stone that deepens with depth below.
+            int step = Mathf.FloorToInt(walkCycle / Mathf.PI);
+            if (step != lastStep && body.isGrounded && input.magnitude > .2f)
+                sound.Play(Underground || InBoss ? "step_stone" : "step", Underground ? .3f : .28f, Underground ? Mathf.Lerp(1.1f, .8f, Depth / (float)config.depth) : 1);
+            lastStep = step;
             if (body.transform.position.y < config.FloorY - 3) WakeAtHome("ТЫ ВЫПАЛ ИЗ МИРА", "Очнулся дома", false);
         }
 
@@ -424,6 +452,7 @@ namespace Nubik
             }
             InReach = true;
             if (itemColliders.TryGetValue(hit.collider, out var item)) { TargetText = ItemLabel(item); return; }
+            if (meteorCollider != null && hit.collider == meteorCollider) { TargetText = "Метеорит · возьмёт только динамит"; return; }
             if (!terrainColliders.Contains(hit.collider))
             {
                 InReach = false;
@@ -476,9 +505,19 @@ namespace Nubik
                 Collect(item);
                 return;
             }
+            if (meteorCollider != null && hit.collider == meteorCollider)
+            {
+                // Harder than any tool: it rings and sheds sparks.
+                sound.Play("clank", .9f);
+                Burst(hit.point, hit.normal, StarGlow, 4);
+                if (Time.time > fullBagNoticeAt) { hud.Notify("Метеорит не поддаётся · нужен динамит"); fullBagNoticeAt = Time.time + 2.5f; }
+                return;
+            }
             if (!terrainColliders.Contains(hit.collider)) return;
             var diggingTool = Tool;
-            if (UsingDrill && !Progress.UseFuel(config.drillFuelPerHit, config)) return;
+            bool drilling = UsingDrill;
+            if (drilling && !Progress.UseFuel(config.drillFuelPerHit, config)) return;
+            if (drilling) sound.Play("drill", .4f, 1, .08f);
             var center = hit.point + direction * diggingTool.radius * 0.4f;
             var result = terrain.Dig(center, diggingTool.radius, diggingTool.damage);
             var dust = hit.point.y > -0.2f && hit.normal.y > 0.5f ? new Color(0.34f, 0.60f, 0.22f) : result.Rock.color;
@@ -499,7 +538,7 @@ namespace Nubik
             loot.Near(center, radius + 1.2f, nearby);
             foreach (var item in nearby)
             {
-                item.Exposed = loot.IsExposed(item);
+                item.Exposed = loot.IsExposed(item) && LootVisible(item);
                 if (!item.Exposed) continue;
                 // Uncovering a find must leave something to see and aim at. A later direct hit collects it.
                 if (item.View == null) ShowItem(item);
@@ -1219,6 +1258,6 @@ namespace Nubik
         private void OnApplicationPause(bool paused) { if (paused && body != null) SaveNow(); }
         private void OnApplicationFocus(bool focused) { if (!focused && body != null) SaveNow(); }
         private void OnApplicationQuit() { if (body != null) SaveNow(); }
-        private void OnDestroy() { boss?.Dispose(); sites?.Dispose(); yard?.Dispose(); shapes?.Dispose(); }
+        private void OnDestroy() { boss?.Dispose(); sites?.Dispose(); yard?.Dispose(); shapes?.Dispose(); if (lavaMaterial != null) Destroy(lavaMaterial); }
     }
 }

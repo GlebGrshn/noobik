@@ -708,6 +708,8 @@ namespace Nubik
             colors.fadeDuration = 0.12f;
             button.colors = colors;
             if (action != null) button.onClick.AddListener(action);
+            // Menu buttons click; the touch controls are played on, not pressed.
+            if (parent != touchControls) button.onClick.AddListener(game.Click);
             var label = Caption(rect, text, 18, foreground ?? Ink, 0, 0, 1, 1, true);
             Stretch(label.rectTransform);
             label.rectTransform.offsetMin = new Vector2(10, 6);
