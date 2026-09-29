@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace Nubik.PlayTests
 {
@@ -63,6 +64,25 @@ namespace Nubik.PlayTests
             hud.OpenSettings();
             yield return null;
             Assert.IsTrue(hud.PanelOpen);
+            float previousSensitivity = GameSettings.Current.cameraSensitivity;
+            var sensitivity = GameObject.Find("Camera sensitivity").GetComponent<Slider>();
+            sensitivity.value = 50;
+            Assert.AreEqual(.5f, GameSettings.Current.cameraSensitivity);
+            var lookMethod = typeof(MineGame).GetMethod("Look", BindingFlags.Instance | BindingFlags.NonPublic);
+            var yawField = typeof(MineGame).GetField("yaw", BindingFlags.Instance | BindingFlags.NonPublic);
+            float before = (float)yawField.GetValue(game);
+            hud.Look.AddDelta(new Vector2(10, 0)); lookMethod.Invoke(game, null);
+            float slowTurn = Mathf.DeltaAngle(before, (float)yawField.GetValue(game));
+            sensitivity.value = 150;
+            before = (float)yawField.GetValue(game);
+            hud.Look.AddDelta(new Vector2(10, 0)); lookMethod.Invoke(game, null);
+            float fastTurn = Mathf.DeltaAngle(before, (float)yawField.GetValue(game));
+            Assert.Greater(slowTurn, 0);
+            Assert.AreEqual(slowTurn * 3, fastTurn, .001f, "The slider scales actual camera rotation.");
+            hud.CloseSettings();
+            Assert.AreEqual(1.5f, GameSettings.Load().cameraSensitivity, "Closing settings persists sensitivity.");
+            hud.OpenSettings();
+            Assert.AreEqual(150, sensitivity.value, "Opening settings reflects the saved selection.");
             Shot("ui_settings", true);
             GameSettings.Set(s => { s.music = .3f; s.quality = GameSettings.Low; });
             yield return null;
@@ -73,7 +93,7 @@ namespace Nubik.PlayTests
             hud.ClosePanel();
             Assert.IsFalse(hud.SettingsOpen);
             Assert.IsTrue(PlayerPrefs.GetString(SettingsKey, "").Contains("\"quality\":2"), "Settings are saved on closing.");
-            GameSettings.Set(s => { s.music = .7f; s.quality = GameSettings.Normal; });
+            GameSettings.Set(s => { s.music = .7f; s.quality = GameSettings.Normal; s.cameraSensitivity = previousSensitivity; });
         }
 
         [UnityTest]

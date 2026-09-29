@@ -5,7 +5,7 @@ using UnityEngine.UI;
 
 namespace Nubik
 {
-    /// <summary>The settings window: a volume slider per sound group and the graphics level.</summary>
+    /// <summary>Device settings: volume, camera sensitivity and graphics.</summary>
     public sealed partial class MineHud
     {
         private GameObject settings;
@@ -15,6 +15,8 @@ namespace Nubik
         private readonly List<Button> qualityButtons = new List<Button>();
         private Text qualityNote;
         private Button startGear;
+        private Slider sensitivitySlider;
+        private Text sensitivityValue;
         public bool SettingsOpen => settings != null && settings.activeSelf;
 
         private static readonly string[] VolumeNames = { "Общая громкость", "Музыка", "Эффекты", "Окружение" };
@@ -29,7 +31,7 @@ namespace Nubik
         {
             settings = Backdrop("Settings");
             settingsCard = Panel("Settings card", settings.transform, Ink);
-            Center(settingsCard, 0, 0, 500, 580);
+            Center(settingsCard, 0, 0, 500, 644);
             Icon(settingsCard, UiGlyph.Kind.Gear, Mint, 24, 20, 36);
             Caption(settingsCard, "НАСТРОЙКИ", 26, Cream, 72, 18, 380, 40, true);
             Func<GameSettings, float>[] read = { s => s.master, s => s.music, s => s.effects, s => s.ambience };
@@ -52,17 +54,32 @@ namespace Nubik
                 volumeSliders.Add(slider);
                 volumeValues.Add(value);
             }
-            Caption(settingsCard, "ГРАФИКА", 15, Muted, 28, 346, 440, 26, true);
+            Caption(settingsCard, "Чувствительность\nкамеры", 17, Cream, 28, 332, 170, 56, true);
+            sensitivitySlider = MakeSlider(settingsCard);
+            sensitivitySlider.name = "Camera sensitivity";
+            At((RectTransform)sensitivitySlider.transform, 196, 328, 214, 64);
+            sensitivitySlider.minValue = GameSettings.MinSensitivity * 100;
+            sensitivitySlider.maxValue = GameSettings.MaxSensitivity * 100;
+            sensitivitySlider.wholeNumbers = true;
+            sensitivitySlider.SetValueWithoutNotify(GameSettings.Current.cameraSensitivity * 100);
+            sensitivityValue = Caption(settingsCard, "", 16, Muted, 418, 340, 56, 40, true);
+            sensitivityValue.alignment = TextAnchor.MiddleRight;
+            sensitivitySlider.onValueChanged.AddListener(v =>
+            {
+                GameSettings.Set(s => s.cameraSensitivity = v / 100f, false);
+                sensitivityValue.text = Mathf.RoundToInt(v) + "%";
+            });
+            Caption(settingsCard, "ГРАФИКА", 15, Muted, 28, 410, 440, 26, true);
             for (int i = 0; i < GameSettings.QualityNames.Length; i++)
             {
                 int level = i;
                 var button = Action(settingsCard, GameSettings.QualityNames[i], Inset, () => GameSettings.Set(s => s.quality = level), Cream);
-                At((RectTransform)button.transform, 28 + i * 152, 376, 140, 52);
+                At((RectTransform)button.transform, 28 + i * 152, 440, 140, 52);
                 qualityButtons.Add(button);
             }
-            qualityNote = Caption(settingsCard, "", 14, Muted, 28, 434, 444, 44);
+            qualityNote = Caption(settingsCard, "", 14, Muted, 28, 498, 444, 44);
             var done = Action(settingsCard, "Готово", Amber, CloseSettings);
-            At((RectTransform)done.transform, 28, 494, 444, 60);
+            At((RectTransform)done.transform, 28, 558, 444, 60);
             settings.SetActive(false);
         }
 
@@ -70,6 +87,7 @@ namespace Nubik
         private Slider MakeSlider(Transform parent)
         {
             var rect = Rect("Slider", parent);
+            rect.gameObject.AddComponent<Image>().color = Color.clear;
             var track = Panel("Slider track", rect, Inset);
             track.anchorMin = new Vector2(0, .5f); track.anchorMax = new Vector2(1, .5f);
             track.sizeDelta = new Vector2(0, 10); track.anchoredPosition = Vector2.zero;
@@ -79,8 +97,8 @@ namespace Nubik
             var fill = Panel("Slider fill", fillArea, Mint);
             fill.sizeDelta = new Vector2(16, 0);
             var handleArea = Rect("Slider handle area", rect);
-            Stretch(handleArea);
-            handleArea.offsetMin = new Vector2(8, 0); handleArea.offsetMax = new Vector2(-8, 0);
+            handleArea.anchorMin = new Vector2(0, .5f); handleArea.anchorMax = new Vector2(1, .5f);
+            handleArea.sizeDelta = new Vector2(-16, 30); handleArea.anchoredPosition = Vector2.zero;
             var handle = Panel("Slider handle", handleArea, Cream, false);
             handle.GetComponent<Image>().sprite = circle;
             handle.sizeDelta = new Vector2(30, 0);
@@ -96,6 +114,8 @@ namespace Nubik
         public void OpenSettings()
         {
             var current = GameSettings.Current;
+            sensitivitySlider.SetValueWithoutNotify(current.cameraSensitivity * 100);
+            sensitivityValue.text = Mathf.RoundToInt(current.cameraSensitivity * 100) + "%";
             float[] values = { current.master, current.music, current.effects, current.ambience };
             for (int i = 0; i < volumeSliders.Count; i++)
             {

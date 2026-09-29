@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Nubik
 {
     /// <summary>
-    /// Device settings: volume per sound group and the graphics level. Kept apart from progress, so starting over or a
+    /// Device settings: audio, graphics and camera sensitivity. Kept apart from progress, so starting over or a
     /// broken save never resets them.
     /// </summary>
     [Serializable]
@@ -15,6 +15,8 @@ namespace Nubik
         private const string Key = "nubik.settings.v1";
 
         public float master = 1, music = .7f, effects = 1, ambience = .7f;
+        public const float MinSensitivity = .25f, MaxSensitivity = 2f;
+        public float cameraSensitivity = 1f;
         public int quality = Normal;
 
         public static GameSettings Current { get; private set; } = Load();
@@ -40,6 +42,8 @@ namespace Nubik
             effects = Mathf.Clamp01(float.IsNaN(effects) ? 1 : effects);
             ambience = Mathf.Clamp01(float.IsNaN(ambience) ? .7f : ambience);
             quality = Mathf.Clamp(quality, Low, Ultra);
+            cameraSensitivity = float.IsNaN(cameraSensitivity) || float.IsInfinity(cameraSensitivity) || cameraSensitivity <= 0
+                ? 1f : Mathf.Clamp(cameraSensitivity, MinSensitivity, MaxSensitivity);
         }
 
         /// <summary>Applies a change at once; <paramref name="persist"/> false while a slider is dragged, <see cref="Save"/> later.</summary>

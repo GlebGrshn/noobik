@@ -381,6 +381,7 @@ namespace Nubik
             var mouse = WebInput.TakeMouseDelta();
             // Without pointer lock the free cursor turns the view only while the right button is held.
             if (!TouchMode && (WebInput.Locked || FreeMouse && Input.GetMouseButton(1))) delta += mouse * MouseDegreesPerPixel;
+            delta *= GameSettings.Current.cameraSensitivity;
             yaw = Mathf.Repeat(yaw + delta.x, 360);
             pitch = Mathf.Clamp(pitch - delta.y, -85, 85);
             ApplyView();
