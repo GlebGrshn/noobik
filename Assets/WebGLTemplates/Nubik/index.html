@@ -29,8 +29,8 @@
     // The platform serves /sdk.js; localhost preview deliberately works offline without it.
     window.nubikReady = false;
     window.nubikPlaying = false;
-    // Local tests: this computer or a phone on the same network. No Yandex SDK there; ads are a labelled stand-in.
-    const localTest = ['localhost', '127.0.0.1'].includes(location.hostname) || /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+    // Local and GitHub Pages playtests use a labelled ad stand-in instead of the Yandex SDK.
+    const localTest = ['localhost', '127.0.0.1', 'glebgrshn.github.io'].includes(location.hostname) || /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
     if (!localTest) {
       const sdkScript = document.createElement('script');
       sdkScript.src = '/sdk.js';
@@ -46,7 +46,7 @@
       sdkScript.onerror = () => console.warn('Yandex SDK unavailable; running local prototype.');
       document.head.appendChild(sdkScript);
     }
-    // Localhost stands in for the ad network with a labelled three-second screen.
+    // Playtests stand in for the ad network with a labelled three-second screen.
     if (localTest) window.nubikFakeAd = (id, send) => {
       if (document.pointerLockElement) document.exitPointerLock();
       const screen = document.createElement('div');
