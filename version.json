@@ -1,7 +1,7 @@
 {
-  "sourceCommit": "b0e7764dd7707988d9d995fb1144537c46f43ca3",
-  "publishedAt": "2026-09-29T12:18:40.0901591Z",
-  "cacheKey": "b0e7764d",
-  "channel": "mobile-controls",
-  "builtAt": "2026-09-29T12:18:11.1321060Z"
+  "publishedAt": "2026-09-29T12:28:43.8930652Z",
+  "builtAt": "2026-09-29T12:27:43.3242924Z",
+  "cacheKey": "72a29b9b",
+  "sourceCommit": "72a29b9be11a7f0c005aa56eca808e3ae24d8c37",
+  "channel": "camera-sensitivity"
 }
