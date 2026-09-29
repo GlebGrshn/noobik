@@ -70,7 +70,7 @@
         if (left > 0) return;
         clearInterval(tick);
         screen.remove();
-        send('OnAdRewarded', id);
+        if (id != null) send('OnAdRewarded', id);
         send('OnAdClose', '');
       }, 1000);
     };
@@ -152,11 +152,11 @@
       event.stopImmediatePropagation();
     });
     const loader = document.createElement('script');
-    loader.src = 'Build/WebGL.loader.js?v=f492a63e';
+    loader.src = 'Build/WebGL.loader.js?v=f3ec947e';
     loader.onload = () => createUnityInstance(canvas, {
-      dataUrl: 'Build/WebGL.data?v=f492a63e',
-      frameworkUrl: 'Build/WebGL.framework.js?v=f492a63e',
-      codeUrl: 'Build/WebGL.wasm?v=f492a63e',
+      dataUrl: 'Build/WebGL.data?v=f3ec947e',
+      frameworkUrl: 'Build/WebGL.framework.js?v=f3ec947e',
+      codeUrl: 'Build/WebGL.wasm?v=f3ec947e',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: 'GlebGrshn', productName: 'Nubik Miner', productVersion: '0.1.0',
       // Saves (PlayerPrefs) live in persistentDataPath; let Unity sync it to IndexedDB on every change.
