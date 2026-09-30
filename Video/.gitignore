@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+.env
+
+# Ignore the output video from Git but not videos you import into src/.
+out
+
+# Game footage, music and sounds copied from Recordings/ and Assets/ (see README)
+public/media
