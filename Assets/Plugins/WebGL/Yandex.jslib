@@ -1,4 +1,7 @@
 mergeInto(LibraryManager.library, {
+  NubikPlatformCapabilities: function () {
+    return window.nubikPortal ? window.nubikPortal.capabilities() : 3;
+  },
   NubikSafeInset: function (side) {
     return (window.nubikSafeInsets || [0, 0, 0, 0])[side] || 0;
   },

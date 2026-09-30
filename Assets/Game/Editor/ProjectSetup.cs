@@ -189,15 +189,25 @@ public static class ProjectSetup
     [MenuItem("Nubik/Build WebGL")]
     public static void BuildWeb() => Build("Builds/WebGL", BuildOptions.None);
 
+    // A separate compressed base keeps the GitHub Pages build and its hosting settings intact.
+    public static void BuildPlatformsBase() => Build("Builds/PlatformsBase", BuildOptions.None, true);
+
     /// <summary>Development build with readable stack traces, next to the release one.</summary>
     [MenuItem("Nubik/Build WebGL (development)")]
     public static void BuildWebDevelopment() => Build("Builds/WebGL-dev", BuildOptions.Development);
 
-    private static void Build(string path, BuildOptions options)
+    private static void Build(string path, BuildOptions options, bool compressed = false)
     {
         Prepare();
         bool development = (options & BuildOptions.Development) != 0;
         var exceptions = PlayerSettings.WebGL.exceptionSupport;
+        var compression = PlayerSettings.WebGL.compressionFormat;
+        var fallback = PlayerSettings.WebGL.decompressionFallback;
+        if (compressed)
+        {
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+        }
         // Full managed stack traces only in the development build; the release keeps the smaller setting.
         if (development) PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.FullWithStacktrace;
         BuildReport report;
@@ -211,7 +221,12 @@ public static class ProjectSetup
                 options = options
             });
         }
-        finally { PlayerSettings.WebGL.exceptionSupport = exceptions; }
+        finally
+        {
+            PlayerSettings.WebGL.exceptionSupport = exceptions;
+            PlayerSettings.WebGL.compressionFormat = compression;
+            PlayerSettings.WebGL.decompressionFallback = fallback;
+        }
         if (report.summary.result != BuildResult.Succeeded) throw new System.Exception("WebGL build failed: " + report.summary.result);
         Debug.Log("NUBIK_BUILD_OK: " + report.summary.totalSize + " bytes");
     }

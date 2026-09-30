@@ -18,6 +18,20 @@ namespace Nubik
         private bool focused = true;
         private bool visible = true;
         private bool platformPaused, upright;
+        private bool platformMuted;
+        public bool RewardedSupported => (PlatformCapabilities & 1) != 0;
+        public bool MenuAdsAllowed => (PlatformCapabilities & 2) != 0;
+        private int PlatformCapabilities
+        {
+            get
+            {
+#if UNITY_WEBGL && !UNITY_EDITOR
+                return NubikPlatformCapabilities();
+#else
+                return 3;
+#endif
+            }
+        }
         public const float InterstitialInterval = 240f;
         public float ActivePlaySeconds { get; private set; }
         public bool InterstitialDue => ActivePlaySeconds >= InterstitialInterval;
@@ -25,6 +39,7 @@ namespace Nubik
         private int rewardTicket;
 #if UNITY_WEBGL && !UNITY_EDITOR
         [DllImport("__Internal")] private static extern void NubikReady();
+        [DllImport("__Internal")] private static extern int NubikPlatformCapabilities();
         [DllImport("__Internal")] private static extern void NubikGameplay(int active);
         [DllImport("__Internal")] private static extern void NubikShowRewarded(int ticket);
         [DllImport("__Internal")] private static extern void NubikShowInterstitial();
@@ -40,7 +55,7 @@ namespace Nubik
         /// <summary>Asks the platform for a rewarded video; the reward arrives through <see cref="AdRewarded"/>.</summary>
         public void ShowRewarded(int ticket)
         {
-            if (AdShowing || Paused) return;
+            if (AdShowing || Paused || !RewardedSupported) return;
             rewardedAd = true;
             rewardTicket = ticket;
             AdShowing = true;
@@ -105,6 +120,7 @@ namespace Nubik
         public void OnVisibility(string value) { visible = value == "1"; Apply(); }
         /// <summary>game_api_pause / game_api_resume from the Yandex SDK.</summary>
         public void OnPlatformPause(string value) { platformPaused = value == "1"; Apply(); }
+        public void OnPlatformMute(string value) { platformMuted = value == "1"; Apply(); }
         /// <summary>The phone is held upright: the page shows "turn the phone" and the game waits.</summary>
         public void OnOrientation(string value) { upright = value == "1"; Apply(); }
         private void OnApplicationFocus(bool value) { focused = value; Apply(); }
@@ -112,7 +128,7 @@ namespace Nubik
         {
             Paused = !focused || !visible || AdShowing || platformPaused || upright;
             Time.timeScale = Paused ? 0 : 1;
-            AudioListener.pause = Paused;
+            AudioListener.pause = Paused || platformMuted;
 #if UNITY_WEBGL && !UNITY_EDITOR
             // Gameplay markup follows the game's own states; the platform marks its own pauses itself.
             NubikGameplay(inMine && focused && visible && !AdShowing && !upright ? 1 : 0);

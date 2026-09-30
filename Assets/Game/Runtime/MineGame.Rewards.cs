@@ -14,14 +14,16 @@ namespace Nubik
 
         public static long Now => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         public bool AdBusy => platform != null && platform.AdShowing;
-        public bool AdAvailable => !AdBusy && Progress.AdReady(Now);
+        public bool AdSupported => platform != null && platform.RewardedSupported;
+        public bool AdAvailable => AdSupported && !AdBusy && Progress.AdReady(Now);
         public int AdWait => (int)Math.Max(0, Progress.adReadyAt - Now);
         public int AdCoins => Progress.AdReward(config);
 
         // A due interstitial waits for a deliberate break, never a swing, flight or boss attack.
-        public void TryAdvertisingBreak()
+        public void TryAdvertisingBreak(bool expeditionEnded = false)
         {
             if (InBoss || platform == null || !platform.InterstitialDue || platform.AdShowing || YandexBridge.Paused) return;
+            if (!expeditionEnded && !platform.MenuAdsAllowed) return;
             SaveNow();
             hud.ClearInput();
             platform.TryShowInterstitial();

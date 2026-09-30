@@ -329,6 +329,7 @@ namespace Nubik
             }
             sellButton.interactable = value > 0;
             sellText.text = value > 0 ? "Продать всё  ·  +" + value + " монет" : "Нечего продавать";
+            adButton.gameObject.SetActive(game.AdSupported);
             adButton.interactable = game.AdAvailable;
             int wait = game.AdWait;
             adText.text = game.AdBusy ? "Реклама открывается…" : wait > 0 ? "Реклама снова через " + wait / 60 + ":" + (wait % 60).ToString("00")

@@ -9,6 +9,21 @@ namespace Nubik.PlayTests
 {
     public partial class DepthSnapshots
     {
+        [UnityTest] public IEnumerator PortalMuteDoesNotFreezePlayAndSurvivesVisibilityChanges()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game);
+            var bridge = game.GetComponent<YandexBridge>();
+            bridge.OnPlatformMute("1");
+            Assert.IsFalse(YandexBridge.Paused);
+            Assert.AreEqual(1, Time.timeScale);
+            Assert.IsTrue(AudioListener.pause);
+            bridge.OnVisibility("0"); bridge.OnVisibility("1");
+            Assert.IsTrue(AudioListener.pause);
+            bridge.OnPlatformMute("0");
+            Assert.IsFalse(AudioListener.pause);
+            yield return null;
+        }
+
         [UnityTest] public IEnumerator InterstitialWaitsFourActiveMinutesAndPausesWithoutReward()
         {
             var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game);

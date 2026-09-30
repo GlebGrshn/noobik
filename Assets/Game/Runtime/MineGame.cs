@@ -1021,6 +1021,8 @@ namespace Nubik
                 wentDown = false;
                 Progress.expeditions++;
                 saveDirty = true;
+                // Some portals prohibit midgame ads on menu/shop buttons.
+                if (!platform.MenuAdsAllowed) TryAdvertisingBreak(true);
             }
         }
 
