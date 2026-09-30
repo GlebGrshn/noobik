@@ -79,6 +79,7 @@ async function key(code, text) {
   await sleep(80);
   await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: text, windowsVirtualKeyCode: keyCode });
 }
+let firstLanguageChoice = true;
 async function load(width, height, mobile, address = url) {
   // Phones at 2x density: text must stay sharp at the screen's own resolution.
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile });
@@ -87,8 +88,15 @@ async function load(width, height, mobile, address = url) {
     userAgent: mobile ? 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36' : '',
   });
   await send('Page.navigate', { url: address });
-  for (let i = 0; i < 240 && !(await evaluate('!!window.unityInstance')); i++) await sleep(500);
+  for (let i = 0; i < 240 && !(await evaluate('!!window.unityInstance && window.nubikReady === true')); i++) await sleep(500);
   await sleep(3000);
+  // This test uses a fresh browser profile: choose Russian once for the existing reference flows.
+  if (firstLanguageChoice && width > height) {
+    const scale = Math.min(width / 1280, height / 720);
+    await click(width / 2 - 110 * scale, height / 2 + 43 * scale);
+    await sleep(300);
+    firstLanguageChoice = false;
+  }
 }
 
 try {

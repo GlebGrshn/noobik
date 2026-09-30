@@ -386,7 +386,7 @@ namespace Nubik
             obj.transform.localScale=Vector3.one*.005f;
             var rect=(RectTransform)obj.transform;rect.sizeDelta=new Vector2(width/.005f,height/.005f);
             obj.GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;
-            var labelObj=new GameObject("Text",typeof(RectTransform),typeof(UnityEngine.UI.Text));
+            var labelObj=new GameObject("Text",typeof(RectTransform),typeof(LocalizedText));
             labelObj.transform.SetParent(obj.transform,false);
             var label=labelObj.GetComponent<UnityEngine.UI.Text>();
             var lr=label.rectTransform;lr.anchorMin=Vector2.zero;lr.anchorMax=Vector2.one;lr.offsetMin=lr.offsetMax=Vector2.zero;

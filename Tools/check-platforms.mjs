@@ -4,20 +4,21 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('./Platforms/portal.js', import.meta.url), 'utf8');
 const bridge = fs.readFileSync(new URL('../Assets/Plugins/WebGL/Yandex.jslib', import.meta.url), 'utf8');
+const pageLanguage = fs.readFileSync(new URL('../Assets/WebGLTemplates/Nubik/language.js', import.meta.url), 'utf8');
 let passed = 0;
 const tick = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
 async function harness(platform, options = {}) {
   const messages = [], calls = [], timers = new Map(), events = {}, api = {};
   let ad, resolveAd, rejectAd, settingsListener, nextTimer = 0;
   const later = () => new Promise((resolve, reject) => { resolveAd = resolve; rejectAd = reject; });
-  const canvas = { style: {} };
+  const canvas = { style: {}, setAttribute() {} };
   const sdkScript = { dataset: { loaded: '1' } };
   const sdk = {
     features: { LoadingAPI: { ready: () => calls.push('ready') }, GameplayAPI: { start: () => calls.push('start'), stop: () => calls.push('stop') } },
     adv: { showFullscreenAdv: x => { ad = x.callbacks; }, showRewardedVideo: x => { ad = x.callbacks; } },
     on: (name, fn) => { events[name] = fn; },
     init: () => options.initError ? Promise.reject(new Error('offline')) : Promise.resolve(),
-    environment: 'local',
+    environment: platform === 'YandexGames' ? { i18n: { lang: options.lang } } : 'local',
     game: { loadingStart: () => calls.push('loading'), loadingStop: () => calls.push('ready'),
       gameplayStart: () => calls.push('start'), gameplayStop: () => calls.push('stop'),
       settings: { muteAudio: true }, addSettingsChangeListener: fn => { settingsListener = fn; } },
@@ -32,16 +33,18 @@ async function harness(platform, options = {}) {
     NUBIK_PLATFORM: { platform, sdkUrl: '/sdk.js', gameId: options.missingId ? '' : 'test-id-only',
       rewarded: platform !== 'GameMonetize', menuAds: platform !== 'CrazyGames' },
     CrazyGames: { SDK: sdk }, PokiSDK: sdk, GamePix: sdk, gdsdk: sdk, sdk,
-    YaGames: { init: () => Promise.resolve(sdk) },
+    YaGames: { init: () => options.initError ? Promise.reject(new Error('offline')) : Promise.resolve(sdk) },
     unityInstance: { SendMessage: (object, method, value) => messages.push([method, value]) },
     addEventListener: (name, fn) => { events[name] = fn; }
   };
   const context = vm.createContext({ window: page, document: {
     getElementById: id => id === 'unity-canvas' ? canvas : sdkScript,
-    pointerLockElement: null
-  }, console: { warn() {} }, setTimeout: (fn, ms) => { const id = ++nextTimer; timers.set(id, { fn, ms }); return id; },
+    pointerLockElement: null, documentElement: {}, addEventListener() {}
+  }, navigator: { language: 'de-DE' }, localStorage: { getItem: () => options.savedLanguage ?? null, setItem() {} },
+  console: { warn() {} }, setTimeout: (fn, ms) => { const id = ++nextTimer; timers.set(id, { fn, ms }); return id; },
   clearTimeout: id => timers.delete(id), LibraryManager: { library: api }, mergeInto: Object.assign });
   vm.runInContext(source, context);
+  vm.runInContext(pageLanguage, context); // Loaded after platform.js in the packages, before the SDK answers.
   vm.runInContext(bridge, context);
   if (!options.missingId) (page.GD_OPTIONS || page.SDK_OPTIONS)?.onEvent({ name: 'SDK_READY' });
   api.NubikReady(); api.NubikGameplay(1); // Unity can become ready before async SDK init.
@@ -139,6 +142,24 @@ await check('Timeout never resumes gameplay underneath an opened ad', async () =
   h.api.NubikShowRewarded(3); h.ad().adStarted(); h.expire();
   assert(!h.methods().includes('OnAdError')); assert.equal(h.canvas.style.pointerEvents, 'none');
   h.ad().adFinished();
+});
+await check('YandexGames: language comes from the SDK (requirement 2.14)', async () => {
+  for (const [lang, expected, page] of [['kk', 2, 'ru'], ['ru', 2, 'ru'], ['tr', 3, 'en'], [undefined, 0, 'en']]) {
+    const h = await harness('YandexGames', { lang });
+    assert.equal(h.api.NubikPlatformLanguage(), expected, String(lang));
+    assert.equal(h.page.nubikPageText('title'), page === 'ru' ? 'Нубик Шахтёр' : 'Nubik Miner');
+  }
+  const saved = await harness('YandexGames', { lang: 'en', savedLanguage: 'ru' });
+  assert.equal(saved.api.NubikPlatformLanguage(), 3);
+  assert.equal(saved.page.nubikPageText('title'), 'Нубик Шахтёр', 'A language the player chose keeps the page text.');
+});
+await check('YandexGames: no SDK means the player is asked', async () => {
+  const h = await harness('YandexGames', { initError: true });
+  assert.equal(h.page.nubikPortal.status, 'unavailable');
+  assert.equal(h.api.NubikPlatformLanguage(), 0);
+});
+await check('Other portals ask the player for the language', async () => {
+  for (const platform of ['CrazyGames', 'Poki', 'GamePix']) assert.equal((await harness(platform)).api.NubikPlatformLanguage(), 0);
 });
 await check('Poki SDK rejection leaves ads disabled', async () => {
   const h = await harness('Poki', { initError: true }); h.messages.length = 0;

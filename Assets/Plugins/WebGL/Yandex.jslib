@@ -1,4 +1,11 @@
 mergeInto(LibraryManager.library, {
+  // 0 the player chooses, 1 the platform is still answering, 2 Russian, 3 English (set by the page from the platform SDK).
+  NubikPlatformLanguage: function () {
+    return window.nubikPlatformLanguage | 0;
+  },
+  NubikLanguage: function (language) {
+    if (window.nubikSetLanguage) window.nubikSetLanguage(UTF8ToString(language));
+  },
   NubikPlatformCapabilities: function () {
     return window.nubikPortal ? window.nubikPortal.capabilities() : 3;
   },

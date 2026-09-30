@@ -14,7 +14,7 @@ namespace Nubik
         public HoldButton LeftDig { get; private set; }
         public bool DigHeld => Dig.Held || LeftDig.Held;
         public HoldButton Jump { get; private set; }
-        public bool PanelOpen => house.activeSelf || ending.activeSelf || SettingsOpen;
+        public bool PanelOpen => house.activeSelf || ending.activeSelf || SettingsOpen || LanguageChoiceOpen;
 
         private static readonly Color Ink = new Color(0.065f, 0.105f, 0.12f, 0.98f);
         private static readonly Color Card = new Color(0.08f, 0.135f, 0.15f, 0.92f);
@@ -114,6 +114,7 @@ namespace Nubik
             BuildEnding();
             BuildAnnouncement();
             BuildSettings();
+            BuildLanguageChoice();
             // Toasts sit above modals: sale feedback stays readable in the house.
             toastCard = Panel("Notification", root, Ink);
             Icon(toastCard, UiGlyph.Kind.Coin, Amber, 14, 16, 28);
@@ -122,8 +123,10 @@ namespace Nubik
             foreach (var image in root.GetComponentsInChildren<Image>(true))
                 image.raycastTarget = image.GetComponent<Button>() != null || image.GetComponent<TouchStick>() != null ||
                     image.GetComponent<TouchLook>() != null || image.gameObject == overlay || image.gameObject == house || image.gameObject == ending ||
-                    image.gameObject == settings || image.GetComponentInParent<Slider>(true) != null;
+                    image.gameObject == settings || image.gameObject == languageChoice || image.GetComponentInParent<Slider>(true) != null;
             Layout();
+            AwaitLanguage();
+            Localization.SyncPage();
         }
 
         private void BuildTouch()
@@ -447,6 +450,7 @@ namespace Nubik
                 BottomRight(dynamiteRect, 360, 264, 130, 82);
             }
             Canvas.ForceUpdateCanvases();
+            settingsCard.localScale = Vector3.one * Mathf.Min(1, Mathf.Max(1, root.rect.height - 24) / 692f);
             Stick.SetHome();
             ClearInput();
             At((RectTransform)startButton.transform, 32, 236, 416, wideTouch ? 64 : 60);
@@ -456,6 +460,7 @@ namespace Nubik
         private void Update()
         {
             if (game == null || game.Progress == null) return;
+            UpdateLanguageWait();
             var safe = WebInput.SafeArea;
             root.anchorMin = new Vector2(safe.xMin / Screen.width, safe.yMin / Screen.height);
             root.anchorMax = new Vector2(safe.xMax / Screen.width, safe.yMax / Screen.height);
@@ -503,7 +508,7 @@ namespace Nubik
             if (Changed(digLabel, game.InBoss ? 2 : drill ? 1 : 0))
             {
                 digLabel.text = game.InBoss ? "СТРЕЛЯТЬ" : drill ? "БУРИТЬ" : "КОПАТЬ";
-                leftDigRect.GetComponentInChildren<Text>().text = digLabel.text;
+                leftDigRect.GetComponentInChildren<Text>().text = Localization.Source(digLabel);
             }
             int keysShown = (game.InBoss ? 1 : 0) | (drill ? 2 : 0) | (game.FreeMouse ? 4 : 0) | (game.HasJetpack ? 8 : 0) | (progress.scanner ? 16 : 0) |
                 (progress.medkits > 0 ? 32 : 0) | (progress.dynamite > 0 ? 64 : 0);
@@ -615,7 +620,7 @@ namespace Nubik
         {
             bool prompt = waiting && game.AwaitingClick;
             resumeCard.gameObject.SetActive(prompt && !SettingsOpen);
-            overlay.SetActive(waiting && !SettingsOpen && !prompt);
+            overlay.SetActive(waiting && !SettingsOpen && !LanguageChoiceOpen && !WaitingForLanguage && !prompt);
             if (!waiting || prompt) { if (confirmCard.gameObject.activeSelf) ConfirmRestart(false); return; }
             // Returning players see their progress instead of the tagline; the same card is the pause menu.
             bool returning = progress.maxDepth > 0 || progress.expeditions > 0;
@@ -665,6 +670,7 @@ namespace Nubik
 
         public void ClosePanel()
         {
+            if (LanguageChoiceOpen) return;
             // The settings sit over the house or the pause card: close only them first.
             if (SettingsOpen) { CloseSettings(); return; }
             if (house.activeSelf) game.Ui("close");
@@ -767,7 +773,7 @@ namespace Nubik
         {
             var rect = Rect("Label", parent);
             At(rect, x, y, w, h);
-            var label = rect.gameObject.AddComponent<Text>();
+            var label = rect.gameObject.AddComponent<LocalizedText>();
             label.font = font; label.text = text; label.fontSize = size; label.color = color;
             label.alignment = TextAnchor.MiddleLeft;
             label.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;

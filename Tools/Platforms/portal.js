@@ -5,6 +5,8 @@
   let sdk, initialized = false, ready = false, readySent = false;
   let playing = false, playingSent = false, pending = null, progress = 0;
   const warn = error => console.warn('[Nubik/' + config.platform + ']', error);
+  // Yandex Games decides the language (requirement 2.14): the game waits for its SDK; other portals ask the player.
+  w.nubikPlatformLanguage = config.platform === 'YandexGames' ? 1 : 0;
   const safe = fn => { try { const result = fn(); if (result?.catch) result.catch(warn); } catch (error) { warn(error); } };
   const send = (name, value) => w.unityInstance?.SendMessage('NubikGame', name, value ? '1' : '0');
   const pause = value => { w.nubikPlatformPaused = value; send('OnPlatformPause', value); };
@@ -200,6 +202,7 @@
       case 'GamePix': sdk = w.GamePix; sdk.loading(progress); break;
       case 'YandexGames':
         sdk = await w.YaGames.init();
+        w.nubikPlatformLanguageFrom?.(sdk.environment?.i18n?.lang);
         sdk.on?.('game_api_pause', () => pause(true));
         sdk.on?.('game_api_resume', () => pause(false));
         break;
@@ -212,6 +215,7 @@
   }
   w.nubikPortal.initialization = initialize().catch(error => {
     w.nubikPortal.status = 'unavailable';
+    if (w.nubikPlatformLanguage === 1) w.nubikPlatformLanguage = 0; // No SDK answer: the player chooses.
     warn(error); // Offline play remains possible; no free reward and no simulated ad.
   });
 })();

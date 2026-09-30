@@ -73,6 +73,7 @@ async function key(code, text) {
   await sleep(80);
   await send('Input.dispatchKeyEvent', { type: 'keyUp', code, key: text, windowsVirtualKeyCode: keyCode });
 }
+let firstLanguageChoice = true;
 async function load(width, height, mobile, address = url) {
   await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
   await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
@@ -80,8 +81,15 @@ async function load(width, height, mobile, address = url) {
     userAgent: mobile ? 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Mobile Safari/537.36' : '',
   });
   await send('Page.navigate', { url: address });
-  for (let i = 0; i < 240 && !(await evaluate('!!window.unityInstance')); i++) await sleep(500);
+  for (let i = 0; i < 240 && !(await evaluate('!!window.unityInstance && window.nubikReady === true')); i++) await sleep(500);
   await sleep(3000);
+  // This test uses a fresh browser profile: choose Russian once for the existing reference flows.
+  if (firstLanguageChoice && width > height) {
+    const scale = Math.min(width / 1280, height / 720);
+    await click(width / 2 - 110 * scale, height / 2 + 43 * scale);
+    await sleep(300);
+    firstLanguageChoice = false;
+  }
 }
 
 const touch = (type, points) => send('Input.dispatchTouchEvent', {type, touchPoints:points.map(([id,x,y])=>({id,x,y,radiusX:8,radiusY:8}))});
@@ -89,7 +97,7 @@ try {
   await send('Page.enable');
   await send('Runtime.enable');
   await load(844, 390, true);
-  if (!(await evaluate('!!window.unityInstance'))) throw new Error('Unity failed to load');
+  if (!(await evaluate('!!window.unityInstance && window.nubikReady === true'))) throw new Error('Unity failed to load');
   await shot('01_landscape');
   // Hold past the round digging target, continuing to turn the camera with the same finger.
   await touch('touchStart', [[1,760,311]]);

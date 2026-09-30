@@ -290,7 +290,7 @@ namespace Nubik
             var config = game.config;
             houseWallet.text = progress.coins.ToString("N0") + " монет";
             int used = progress.UsedSlots(config), capacity = progress.Capacity(config);
-            houseFooter.text = Time.unscaledTime < toastUntil ? toast.text : "Рюкзак: " + used + " / " + capacity + " слотов";
+            houseFooter.text = Time.unscaledTime < toastUntil ? Localization.Source(toast) : "Рюкзак: " + used + " / " + capacity + " слотов";
             houseFooter.color = Time.unscaledTime < toastUntil ? Amber : Muted;
             soundText.text = "Настройки";
             switch (tab)

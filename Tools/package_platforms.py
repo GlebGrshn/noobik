@@ -25,11 +25,11 @@ PLATFORMS = {
 }
 
 NOTES = {
-    'CrazyGames': 'Загрузить в Developer Portal и проверить в Preview. Реклама после 240 секунд активной игры запрашивается при возвращении из шахты на поверхность, а не на кнопках меню/магазина. Поддержан muteAudio площадки. На Basic Launch площадка отключает рекламу. Перед финальным релизом нужна английская локализация.',
-    'Poki': 'Пакет для Poki Inspector и заявки. Poki просит веб-эксклюзивность: https://developers.poki.com/guide/working-with-poki . Публикация параллельно на других сайтах требует согласования с Poki. Перед релизом нужна английская локализация.',
-    'GameDistribution': 'В кабинете создать игру, скопировать gameId, включить Rewarded Ads. Подставить ID и пересобрать архив. Текущая версия запрашивает mid-roll после 240 секунд на паузе; pre-roll при первом запуске не добавлен. Перед финальной отправкой согласовать это с площадкой и подготовить английскую локализацию.',
+    'CrazyGames': 'Загрузить в Developer Portal и проверить в Preview. Реклама после 240 секунд активной игры запрашивается при возвращении из шахты на поверхность, а не на кнопках меню/магазина. Поддержан muteAudio площадки. На Basic Launch площадка отключает рекламу.',
+    'Poki': 'Пакет для Poki Inspector и заявки. Poki просит веб-эксклюзивность: https://developers.poki.com/guide/working-with-poki . Публикация параллельно на других сайтах требует согласования с Poki.',
+    'GameDistribution': 'В кабинете создать игру, скопировать gameId, включить Rewarded Ads. Подставить ID и пересобрать архив. Текущая версия запрашивает mid-roll после 240 секунд на паузе; pre-roll при первом запуске не добавлен. Перед финальной отправкой согласовать это с площадкой.',
     'GameMonetize': 'В кабинете создать игру, скопировать GameId, подставить его и пересобрать архив. Затем выполнить Verify Game. Подключён showBanner, пауза и возобновление по событиям SDK. Кнопка рекламы за монеты скрыта: публичный SDK не документирует подтверждение rewarded-просмотра. Бесплатных наград нет.',
-    'GamePix': 'Загрузить и проверить через инструменты GamePix. Подключены loading/loaded и оба вида рекламы. Перед финальной отправкой нужна английская локализация. Сохранения пока используют Unity PlayerPrefs/IndexedDB; перенос на GamePix.localStorage не выполнен, облачные сохранения не заявлены.',
+    'GamePix': 'Загрузить и проверить через инструменты GamePix. Подключены loading/loaded и оба вида рекламы. Сохранения пока используют Unity PlayerPrefs/IndexedDB; перенос на GamePix.localStorage не выполнен, облачные сохранения не заявлены.',
     'YandexGames': 'Загрузить ZIP в черновик Яндекс Игр. /sdk.js предоставляется площадкой; отдельный ID в коде не требуется. Есть LoadingAPI, GameplayAPI, rewarded/interstitial, события паузы. Проверить в черновике на телефоне и ПК.',
 }
 
@@ -90,11 +90,12 @@ def main():
         config = dict(platform=name, sdkUrl=sdk_url, gameId=ids.get(name, ''), rewarded=rewarded, menuAds=menu_ads)
         (web / 'platform-config.js').write_text('window.NUBIK_PLATFORM = ' + json.dumps(config, indent=2) + ';\n', encoding='utf-8')
         shutil.copyfile(ROOT / 'Tools/Platforms/portal.js', web / 'platform.js')
+        shutil.copyfile(source / 'language.js', web / 'language.js')
         (web / 'index.html').write_text(transform(html, name, sdk_url), encoding='utf-8')
         missing_id = name in ('GameDistribution', 'GameMonetize') and not config['gameId']
         manifest = dict(platform=name, sourceCommit=revision, sourceDirty=dirty,
                         status='needs-game-id' if missing_id else 'prepared-for-platform-preview',
-                        realPortalTested=False, language='ru', compression='gzip-unity-fallback',
+                        realPortalTested=False, languages=['ru', 'en'], compression='gzip-unity-fallback',
                         files={p.relative_to(web).as_posix(): sha(p) for p in sorted(web.rglob('*')) if p.is_file()})
         (folder / 'manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding='utf-8')
         archive = folder / f'Nubik-{name}.zip'
@@ -110,7 +111,7 @@ def main():
         status = 'НУЖЕН GAME ID — реклама пока отключена' if missing_id else 'Подготовлено для проверки в кабинете площадки'
         readme = f'''# Нубик Шахтёр — {name}
 
-**{status}.** Это сборка текущей русской версии, не подтверждение прохождения модерации.
+**{status}.** Двуязычная сборка (RU/EN), не подтверждение прохождения модерации. При первом запуске — выбор языка; переключение доступно в настройках.
 
 Архив для загрузки: `Nubik-{name}.zip`. `index.html` уже лежит в корне ZIP.
 `WebGL/` — распакованная копия. Загружайте только содержимое архива, не всю папку с README.
@@ -144,7 +145,7 @@ ZIP SHA-256: `{sha(archive)}`. Контрольные суммы файлов: `
     summary += '\n'.join(f'- [{r["platform"]}]({r["platform"]}/README.md): [{Path(r["zip"]).name}]({r["zip"]}) — {r["status"]}' for r in rows)
     summary += '\n\nВ каждой папке ZIP, WebGL, README и контрольные суммы. Все ZIP проверены по CRC и SHA-256.\n'
     summary += '\nДля GameDistribution и GameMonetize нужны ID из ваших кабинетов. Подставных ID нет.\n'
-    summary += '\nВерсии для предварительной проверки: международная локализация пока не сделана. У GamePix сохранения пока Unity IndexedDB, у GameDistribution нет pre-roll. Подробнее — в README соответствующей площадки.\n'
+    summary += '\nВерсии RU/EN для предварительной проверки. У GamePix сохранения пока Unity IndexedDB, у GameDistribution нет pre-roll. Подробнее — в README соответствующей площадки.\n'
     summary += '\nPoki требует веб-эксклюзивности: https://developers.poki.com/guide/working-with-poki . Пакеты на сайты не отправлялись.\n'
     (output / 'README.md').write_text(summary, encoding='utf-8-sig')
 

@@ -1,0 +1,1588 @@
+{
+  "entries": [
+    {
+      "ru": "Ктулху повержен",
+      "en": "Cthulhu defeated"
+    },
+    {
+      "ru": "Возьми гарпун у входа",
+      "en": "Pick up the harpoon at the entrance"
+    },
+    {
+      "ru": "ГЛАЗА ОТКРЫТЫ · целься в голову",
+      "en": "EYES OPEN · aim for the head"
+    },
+    {
+      "ru": "ЩУПАЛЬЦА · выйди из круга",
+      "en": "TENTACLES · get out of the circle"
+    },
+    {
+      "ru": "ВОЛНА СЛЕВА · уходи вправо",
+      "en": "WAVE FROM THE LEFT · move right"
+    },
+    {
+      "ru": "ВОЛНА СПРАВА · уходи влево",
+      "en": "WAVE FROM THE RIGHT · move left"
+    },
+    {
+      "ru": "ГРАД ЩУПАЛЕЦ · беги из кругов",
+      "en": "TENTACLE BARRAGE · escape the circles"
+    },
+    {
+      "ru": "ЗЕМЛЕТРЯСЕНИЕ · прыгай!",
+      "en": "EARTHQUAKE · jump!"
+    },
+    {
+      "ru": "Ключ сада",
+      "en": "Garden Key"
+    },
+    {
+      "ru": "У рыжего дерева справа от дома",
+      "en": "By the orange tree to the right of the house"
+    },
+    {
+      "ru": "Ключ корней",
+      "en": "Root Key"
+    },
+    {
+      "ru": "В лагере на 18 м, за лежанкой",
+      "en": "At the 18 m camp, behind the bedroll"
+    },
+    {
+      "ru": "Ключ шахтёра",
+      "en": "Miner's Key"
+    },
+    {
+      "ru": "В старой штольне на 48 м",
+      "en": "In the old mine tunnel at 48 m"
+    },
+    {
+      "ru": "Ключ кристаллов",
+      "en": "Crystal Key"
+    },
+    {
+      "ru": "На столе в гроте на 88 м",
+      "en": "On the table in the grotto at 88 m"
+    },
+    {
+      "ru": "Ключ глубины",
+      "en": "Depth Key"
+    },
+    {
+      "ru": "На 110 м: угол шахты под дальней правой стойкой",
+      "en": "At 110 m: beneath the far-right support in the mine corner"
+    },
+    {
+      "ru": "Ктулху побеждён · двор спасён",
+      "en": "Cthulhu defeated · the yard is safe"
+    },
+    {
+      "ru": "Ключи ",
+      "en": "Keys "
+    },
+    {
+      "ru": "/5 · дверь на 120 м",
+      "en": "/5 · door at 120 m"
+    },
+    {
+      "ru": "Вернись к порталу · 120 м",
+      "en": "Return to the portal · 120 m"
+    },
+    {
+      "ru": "Открой дверь · 120 м",
+      "en": "Open the door · 120 m"
+    },
+    {
+      "ru": "Низко",
+      "en": "Low"
+    },
+    {
+      "ru": "Обычно",
+      "en": "Balanced"
+    },
+    {
+      "ru": "Ультра",
+      "en": "Ultra"
+    },
+    {
+      "ru": "Обычная лопата",
+      "en": "Basic Shovel"
+    },
+    {
+      "ru": "Медная лопата",
+      "en": "Copper Shovel"
+    },
+    {
+      "ru": "Бронзовая лопата",
+      "en": "Bronze Shovel"
+    },
+    {
+      "ru": "Стальная лопата",
+      "en": "Steel Shovel"
+    },
+    {
+      "ru": "Закалённая лопата",
+      "en": "Hardened Shovel"
+    },
+    {
+      "ru": "Титановая лопата",
+      "en": "Titanium Shovel"
+    },
+    {
+      "ru": "Кристальная лопата",
+      "en": "Crystal Shovel"
+    },
+    {
+      "ru": "Бензобур",
+      "en": "Power Drill"
+    },
+    {
+      "ru": "Сканер руды",
+      "en": "Ore Scanner"
+    },
+    {
+      "ru": "Аптечка",
+      "en": "Medkit"
+    },
+    {
+      "ru": "Динамит",
+      "en": "Dynamite"
+    },
+    {
+      "ru": "Уголь",
+      "en": "Coal"
+    },
+    {
+      "ru": "Медь",
+      "en": "Copper"
+    },
+    {
+      "ru": "Железо",
+      "en": "Iron"
+    },
+    {
+      "ru": "Серебро",
+      "en": "Silver"
+    },
+    {
+      "ru": "Золото",
+      "en": "Gold"
+    },
+    {
+      "ru": "Аметист",
+      "en": "Amethyst"
+    },
+    {
+      "ru": "Изумруд",
+      "en": "Emerald"
+    },
+    {
+      "ru": "Алмаз",
+      "en": "Diamond"
+    },
+    {
+      "ru": "Старый сундук",
+      "en": "Old Chest"
+    },
+    {
+      "ru": "Сундук с серебром",
+      "en": "Silver Chest"
+    },
+    {
+      "ru": "Кристальный ларец",
+      "en": "Crystal Casket"
+    },
+    {
+      "ru": "Огненный опал",
+      "en": "Fire Opal"
+    },
+    {
+      "ru": "Звёздный металл",
+      "en": "Star Metal"
+    },
+    {
+      "ru": "Корни",
+      "en": "Roots"
+    },
+    {
+      "ru": "Мягкая земля и переплетённые корни. На 18 м остался лагерь.",
+      "en": "Soft soil and tangled roots. An abandoned camp lies at 18 m."
+    },
+    {
+      "ru": "Земля",
+      "en": "Soil"
+    },
+    {
+      "ru": "Глина",
+      "en": "Clay"
+    },
+    {
+      "ru": "Сланец",
+      "en": "Slate"
+    },
+    {
+      "ru": "Холодный камень, серебро и старые рельсы. Ищи штольню на 48 м.",
+      "en": "Cold stone, silver and old rails. Look for the mine tunnel at 48 m."
+    },
+    {
+      "ru": "Камень",
+      "en": "Stone"
+    },
+    {
+      "ru": "Прочная жила",
+      "en": "Hard Vein"
+    },
+    {
+      "ru": "Кристаллы",
+      "en": "Crystals"
+    },
+    {
+      "ru": "Светящиеся кристаллы и природные пустоты. Грот ждёт на 88 м.",
+      "en": "Glowing crystals and natural caverns. A grotto awaits at 88 m."
+    },
+    {
+      "ru": "Плотная порода",
+      "en": "Dense Rock"
+    },
+    {
+      "ru": "Кристаллическая жила",
+      "en": "Crystal Vein"
+    },
+    {
+      "ru": "Магма",
+      "en": "Magma"
+    },
+    {
+      "ru": "Раскалённый базальт и лавовые озёра. Где-то здесь упал метеорит.",
+      "en": "Scorching basalt and lava lakes. A meteorite landed somewhere down here."
+    },
+    {
+      "ru": "Базальт",
+      "en": "Basalt"
+    },
+    {
+      "ru": "Обсидиан",
+      "en": "Obsidian"
+    },
+    {
+      "ru": "Старая каска",
+      "en": "Old Helmet"
+    },
+    {
+      "ru": "Окаменелая ракушка",
+      "en": "Fossil Shell"
+    },
+    {
+      "ru": "Светящийся кристалл",
+      "en": "Glowing Crystal"
+    },
+    {
+      "ru": "Фрагмент механизма",
+      "en": "Machine Part"
+    },
+    {
+      "ru": "Осколок печати",
+      "en": "Seal Fragment"
+    },
+    {
+      "ru": "Ктулху · ",
+      "en": "Cthulhu · "
+    },
+    {
+      "ru": "ТЫ ВЫПАЛ ИЗ МИРА",
+      "en": "YOU FELL OUT OF THE WORLD"
+    },
+    {
+      "ru": "Очнулся дома",
+      "en": "You woke up at home"
+    },
+    {
+      "ru": "ТЫ ПОТЕРЯЛ СОЗНАНИЕ",
+      "en": "YOU PASSED OUT"
+    },
+    {
+      "ru": "Падение было слишком высоким",
+      "en": "That fall was too high"
+    },
+    {
+      "ru": "Находка · подойди ближе",
+      "en": "A find · move closer"
+    },
+    {
+      "ru": "Метеорит · возьмёт только динамит",
+      "en": "Meteorite · requires dynamite"
+    },
+    {
+      "ru": "Деревянный настил",
+      "en": "Wooden Platform"
+    },
+    {
+      "ru": "Копать можно в рамке участка",
+      "en": "Dig inside the marked plot"
+    },
+    {
+      "ru": "Коренная порода — глубже не пройти",
+      "en": "Bedrock — you cannot dig deeper"
+    },
+    {
+      "ru": "Край участка",
+      "en": "Edge of the plot"
+    },
+    {
+      "ru": "удар",
+      "en": "hit"
+    },
+    {
+      "ru": "удара",
+      "en": "hits"
+    },
+    {
+      "ru": "ударов",
+      "en": "hits"
+    },
+    {
+      "ru": " · забрать",
+      "en": " · collect"
+    },
+    {
+      "ru": "Что-то особенное!",
+      "en": "Something special!"
+    },
+    {
+      "ru": "Здесь что-то спрятано · ударь",
+      "en": "Something is hidden here · hit it"
+    },
+    {
+      "ru": "слот",
+      "en": "slot"
+    },
+    {
+      "ru": "слота",
+      "en": "slots"
+    },
+    {
+      "ru": "слотов",
+      "en": "slots"
+    },
+    {
+      "ru": " монет",
+      "en": " coins"
+    },
+    {
+      "ru": " · рюкзак полон",
+      "en": " · backpack full"
+    },
+    {
+      "ru": "Метеорит не поддаётся · нужен динамит",
+      "en": "The meteorite will not break · use dynamite"
+    },
+    {
+      "ru": "Рюкзак полон — продай руду в доме",
+      "en": "Backpack full — sell your ore in the house"
+    },
+    {
+      "ru": "КЛЮЧИ ПЕЧАТИ · ",
+      "en": "SEAL KEYS · "
+    },
+    {
+      "ru": "Все ключи найдены. Открой дверь на 120 м.",
+      "en": "All keys found. Open the door at 120 m."
+    },
+    {
+      "ru": "Ключ сохранён навсегда. Следующая подсказка — в дневнике.",
+      "en": "Key saved permanently. Check your journal for the next clue."
+    },
+    {
+      "ru": "В КОЛЛЕКЦИЮ  ·  ",
+      "en": "COLLECTION  ·  "
+    },
+    {
+      "ru": "Предмет навсегда в альбоме. +",
+      "en": "Added to your collection forever. +"
+    },
+    {
+      "ru": "СЕКРЕТ НАЙДЕН · ",
+      "en": "SECRET FOUND · "
+    },
+    {
+      "ru": " в рюкзаке · ",
+      "en": " in your backpack · "
+    },
+    {
+      "ru": " монет при продаже",
+      "en": " coins when sold"
+    },
+    {
+      "ru": "Сканер заряжается · ",
+      "en": "Scanner recharging · "
+    },
+    {
+      "ru": " с",
+      "en": " s"
+    },
+    {
+      "ru": "Сканер: рядом ",
+      "en": "Scanner: nearby "
+    },
+    {
+      "ru": "находка",
+      "en": "find"
+    },
+    {
+      "ru": "находки",
+      "en": "finds"
+    },
+    {
+      "ru": "находок",
+      "en": "finds"
+    },
+    {
+      "ru": "Сканер: поблизости пусто",
+      "en": "Scanner: nothing nearby"
+    },
+    {
+      "ru": "Аптечек нет — купи в мастерской",
+      "en": "No medkits — buy one at the workshop"
+    },
+    {
+      "ru": "Здоровье и так полное",
+      "en": "Health is already full"
+    },
+    {
+      "ru": "НОВАЯ ЗОНА  ·  ",
+      "en": "NEW BIOME  ·  "
+    },
+    {
+      "ru": " м",
+      "en": " m"
+    },
+    {
+      "ru": "ДВЕРЬ ПЯТИ ПЕЧАТЕЙ",
+      "en": "DOOR OF FIVE SEALS"
+    },
+    {
+      "ru": "За дверью кто-то ждёт",
+      "en": "Something is waiting beyond the door"
+    },
+    {
+      "ru": "Все ключи собраны. Подойди к двери.",
+      "en": "All keys collected. Approach the door."
+    },
+    {
+      "ru": "Нужно пять ключей. Подсказки есть в дневнике.",
+      "en": "You need five keys. Check your journal for clues."
+    },
+    {
+      "ru": "МЕСТО ОТКРЫТО · ",
+      "en": "PLACE DISCOVERED · "
+    },
+    {
+      "ru": "Печать снята · Ктулху побеждён",
+      "en": "Seal broken · Cthulhu defeated"
+    },
+    {
+      "ru": "E — открыть дверь пяти печатей",
+      "en": "E — open the Door of Five Seals"
+    },
+    {
+      "ru": "Дверь ждёт ключи: ",
+      "en": "Keys needed for the door: "
+    },
+    {
+      "ru": "База · заправка бензином ",
+      "en": "Base · refueling "
+    },
+    {
+      "ru": " л",
+      "en": " L"
+    },
+    {
+      "ru": "Держи КОПАТЬ и веди пальцем — копай и осматривайся",
+      "en": "Hold DIG and drag to dig while looking around"
+    },
+    {
+      "ru": "ЛКМ — копать, зажатая ПКМ — осмотреться",
+      "en": "LMB — dig, hold RMB — look around"
+    },
+    {
+      "ru": "Наведи прицел на землю и держи ЛКМ",
+      "en": "Aim at the ground and hold LMB"
+    },
+    {
+      "ru": "Нажми «Скупка»",
+      "en": "Tap “Sell Ore”"
+    },
+    {
+      "ru": "E — скупка руды",
+      "en": "E — sell ore"
+    },
+    {
+      "ru": "Нажми «Мастерская»",
+      "en": "Tap “Workshop”"
+    },
+    {
+      "ru": "E — мастерская",
+      "en": "E — workshop"
+    },
+    {
+      "ru": "Мало здоровья — нажми «Аптечка»",
+      "en": "Low health — tap “Medkit”"
+    },
+    {
+      "ru": "Мало здоровья — Q, аптечка",
+      "en": "Low health — Q to use a medkit"
+    },
+    {
+      "ru": "Мало здоровья — осторожнее с прыжками вниз",
+      "en": "Low health — be careful dropping down"
+    },
+    {
+      "ru": "Рюкзак полон — отнеси руду в дом, к скупщику",
+      "en": "Backpack full — bring your ore to the buyer in the house"
+    },
+    {
+      "ru": "Продай руду в доме: вход за патио, скупщик слева",
+      "en": "Sell ore in the house: entrance past the patio, buyer on the left"
+    },
+    {
+      "ru": "Бак пуст · поднимайся по ступенькам или вызови спасателей через паузу",
+      "en": "Tank empty · climb your steps or call rescue from the pause menu"
+    },
+    {
+      "ru": "Мало бензина для подъёма · береги запас и возвращайся на базу",
+      "en": "Low fuel for the climb · save some and return to base"
+    },
+    {
+      "ru": "Тайник справа у дальней стены · нужно 2 места в рюкзаке",
+      "en": "Stash to the right by the far wall · needs 2 backpack slots"
+    },
+    {
+      "ru": "Здесь есть старый проход — ищи свет фонарей",
+      "en": "There is an old passage here — look for lantern light"
+    },
+    {
+      "ru": "Оставляй ступеньки для возвращения",
+      "en": "Leave steps so you can climb back up"
+    },
+    {
+      "ru": "Заказ скупщика собран · отнеси его в дом",
+      "en": "Order ready · deliver it to the house"
+    },
+    {
+      "ru": "СПАСАТЕЛИ",
+      "en": "RESCUE TEAM"
+    },
+    {
+      "ru": "Тебя подняли и отвезли домой",
+      "en": "You were brought back home"
+    },
+    {
+      "ru": "Руда из рюкзака осталась в шахте: ",
+      "en": "Ore left behind in the mine: "
+    },
+    {
+      "ru": " шт.",
+      "en": " pieces"
+    },
+    {
+      "ru": "Рюкзак цел. Отдохни и возвращайся.",
+      "en": "Your backpack is safe. Rest, then head back out."
+    },
+    {
+      "ru": "Руда продана: +",
+      "en": "Ore sold: +"
+    },
+    {
+      "ru": "Заказ выполнен: ",
+      "en": "Order completed: "
+    },
+    {
+      "ru": "Скупщик выдал другой заказ",
+      "en": "The buyer has a new order for you"
+    },
+    {
+      "ru": "Тест · ",
+      "en": "Test · "
+    },
+    {
+      "ru": "Новый инструмент: ",
+      "en": "New tool: "
+    },
+    {
+      "ru": "Рюкзак стал вместительнее",
+      "en": "Your backpack holds more now"
+    },
+    {
+      "ru": "Джетпак расходует меньше бензина",
+      "en": "Your jetpack uses less fuel now"
+    },
+    {
+      "ru": "Общий бензобак увеличен",
+      "en": "Shared fuel tank expanded"
+    },
+    {
+      "ru": "Здоровье выросло",
+      "en": "Maximum health increased"
+    },
+    {
+      "ru": "Сканер в рюкзаке: кнопка «Скан»",
+      "en": "Scanner packed: tap “Scan”"
+    },
+    {
+      "ru": "Сканер в рюкзаке: клавиша F",
+      "en": "Scanner packed: press F"
+    },
+    {
+      "ru": "Звук выключен",
+      "en": "Sound off"
+    },
+    {
+      "ru": "Звук включён",
+      "en": "Sound on"
+    },
+    {
+      "ru": "МЕТЕОРИТ РАСКОЛОТ",
+      "en": "METEORITE SHATTERED"
+    },
+    {
+      "ru": "Внутри три куска небесного металла. Каждый занимает 2 места в рюкзаке.",
+      "en": "Three pieces of star metal inside. Each takes 2 backpack slots."
+    },
+    {
+      "ru": "Лава! Выбирайся — джетпак или ступеньки",
+      "en": "Lava! Escape with your jetpack or climb the steps"
+    },
+    {
+      "ru": "ЛАВА",
+      "en": "LAVA"
+    },
+    {
+      "ru": "Спасатели вытащили тебя из огня",
+      "en": "The rescue team pulled you out of the fire"
+    },
+    {
+      "ru": "Здесь динамит бесполезен",
+      "en": "Dynamite will not help here"
+    },
+    {
+      "ru": "Только не в доме!",
+      "en": "Not inside the house!"
+    },
+    {
+      "ru": "Динамита нет — купи в мастерской",
+      "en": "No dynamite — buy some at the workshop"
+    },
+    {
+      "ru": "Фитиль горит — отойди подальше!",
+      "en": "Fuse lit — get back!"
+    },
+    {
+      "ru": "ВЗРЫВ",
+      "en": "EXPLOSION"
+    },
+    {
+      "ru": "Ты стоял слишком близко",
+      "en": "You were standing too close"
+    },
+    {
+      "ru": "Динамит в рюкзаке: кнопка «Динамит»",
+      "en": "Dynamite packed: tap “Dynamite”"
+    },
+    {
+      "ru": "Динамит в рюкзаке: клавиша G — бросить",
+      "en": "Dynamite packed: press G to throw"
+    },
+    {
+      "ru": "Вернуться домой",
+      "en": "Return home"
+    },
+    {
+      "ru": "Повторить бой",
+      "en": "Fight again"
+    },
+    {
+      "ru": "Взять гарпун",
+      "en": "Take the harpoon"
+    },
+    {
+      "ru": "Открыть дверь",
+      "en": "Open the door"
+    },
+    {
+      "ru": "Скупка",
+      "en": "Sell Ore"
+    },
+    {
+      "ru": "Мастерская",
+      "en": "Workshop"
+    },
+    {
+      "ru": "ДРЕВНИЙ ГАРПУН",
+      "en": "ANCIENT HARPOON"
+    },
+    {
+      "ru": "Разорви последнюю печать",
+      "en": "Break the final seal"
+    },
+    {
+      "ru": "Стреляй в голову между атаками. Заряды восстанавливаются сами.",
+      "en": "Shoot the head between attacks. Shots recharge automatically."
+    },
+    {
+      "ru": "Нужны все пять ключей: ",
+      "en": "You need all five keys: "
+    },
+    {
+      "ru": "ПОСЛЕДНЯЯ ПЕЧАТЬ",
+      "en": "THE FINAL SEAL"
+    },
+    {
+      "ru": "Древнее чудовище уходит обратно в глубину.",
+      "en": "The ancient creature sinks back into the depths."
+    },
+    {
+      "ru": "Спасибо за просмотр: +",
+      "en": "Thanks for watching: +"
+    },
+    {
+      "ru": "Реклама сейчас недоступна · попробуй позже",
+      "en": "No ad available right now · try again later"
+    },
+    {
+      "ru": "Реклама закрыта раньше времени · монеты не начислены",
+      "en": "Ad closed early · no coins awarded"
+    },
+    {
+      "ru": "КОПАТЬ",
+      "en": "DIG"
+    },
+    {
+      "ru": "ПРЫЖОК",
+      "en": "JUMP"
+    },
+    {
+      "ru": "СКАН",
+      "en": "SCAN"
+    },
+    {
+      "ru": "МОНЕТЫ",
+      "en": "COINS"
+    },
+    {
+      "ru": "Кликни, чтобы продолжить",
+      "en": "Click to continue"
+    },
+    {
+      "ru": "НУБИК ШАХТЁР",
+      "en": "NUBIK MINER"
+    },
+    {
+      "ru": "Вызвать спасателей · руда останется в шахте",
+      "en": "Call rescue · leave your ore in the mine"
+    },
+    {
+      "ru": "Начать игру заново",
+      "en": "Start a new game"
+    },
+    {
+      "ru": "Начать заново?",
+      "en": "Start over?"
+    },
+    {
+      "ru": "Монеты, улучшения, ключи, секреты и выкопанная земля будут удалены. Отменить это нельзя.",
+      "en": "Coins, upgrades, keys, secrets and excavated terrain will be deleted. This cannot be undone."
+    },
+    {
+      "ru": "Да, всё сначала",
+      "en": "Yes, start over"
+    },
+    {
+      "ru": "Отмена",
+      "en": "Cancel"
+    },
+    {
+      "ru": "Продолжить",
+      "en": "Continue"
+    },
+    {
+      "ru": "КТУЛХУ",
+      "en": "CTHULHU"
+    },
+    {
+      "ru": "ЯРОСТЬ",
+      "en": "ENRAGED"
+    },
+    {
+      "ru": "ДРЕВНИЙ",
+      "en": "ANCIENT"
+    },
+    {
+      "ru": "Голова уязвима между атаками",
+      "en": "The head is vulnerable between attacks"
+    },
+    {
+      "ru": "Древний гарпун",
+      "en": "Ancient Harpoon"
+    },
+    {
+      "ru": "Лопата · бак пуст",
+      "en": "Shovel · tank empty"
+    },
+    {
+      "ru": "СТРЕЛЯТЬ",
+      "en": "SHOOT"
+    },
+    {
+      "ru": "БУРИТЬ",
+      "en": "DRILL"
+    },
+    {
+      "ru": "ЛКМ стрелять",
+      "en": "LMB shoot"
+    },
+    {
+      "ru": "ЛКМ бурить",
+      "en": "LMB drill"
+    },
+    {
+      "ru": "ЛКМ копать",
+      "en": "LMB dig"
+    },
+    {
+      "ru": " · ПКМ обзор",
+      "en": " · RMB look"
+    },
+    {
+      "ru": " · SHIFT бег · ПРОБЕЛ ",
+      "en": " · SHIFT sprint · SPACE "
+    },
+    {
+      "ru": "прыжок / полёт",
+      "en": "jump / fly"
+    },
+    {
+      "ru": "прыжок",
+      "en": "jump"
+    },
+    {
+      "ru": " · F скан",
+      "en": " · F scan"
+    },
+    {
+      "ru": " · Q аптечка",
+      "en": " · Q medkit"
+    },
+    {
+      "ru": " · G динамит",
+      "en": " · G dynamite"
+    },
+    {
+      "ru": "СКАН ",
+      "en": "SCAN "
+    },
+    {
+      "ru": "АПТЕЧКА ×",
+      "en": "MEDKIT ×"
+    },
+    {
+      "ru": "ДИНАМИТ ×",
+      "en": "DYNAMITE ×"
+    },
+    {
+      "ru": "РЮКЗАК ПОЛОН",
+      "en": "BACKPACK FULL"
+    },
+    {
+      "ru": "РЮКЗАК  ·  ",
+      "en": "BACKPACK  ·  "
+    },
+    {
+      "ru": "монета",
+      "en": "coin"
+    },
+    {
+      "ru": "монеты",
+      "en": "coins"
+    },
+    {
+      "ru": "монет",
+      "en": "coins"
+    },
+    {
+      "ru": "ЗАКАЗ · ",
+      "en": "ORDER · "
+    },
+    {
+      "ru": "Готово · +",
+      "en": "Ready · +"
+    },
+    {
+      "ru": " в доме",
+      "en": " at home"
+    },
+    {
+      "ru": "ПАУЗА",
+      "en": "PAUSED"
+    },
+    {
+      "ru": "С ВОЗВРАЩЕНИЕМ",
+      "en": "WELCOME BACK"
+    },
+    {
+      "ru": "МАЛЕНЬКИЙ ДВОР. БОЛЬШОЕ ПРИКЛЮЧЕНИЕ.",
+      "en": "A SMALL YARD. A BIG ADVENTURE."
+    },
+    {
+      "ru": " / 5 · глубина ",
+      "en": " / 5 · depth "
+    },
+    {
+      "ru": "Пять ключей. Дверь. Тайна глубины.",
+      "en": "Five keys. One door. A mystery below."
+    },
+    {
+      "ru": "Начать вылазку",
+      "en": "Start exploring"
+    },
+    {
+      "ru": "Слева — плавающий стик, двойной тап по нему — бег\nКОПАТЬ справа: держи и веди для осмотра\n",
+      "en": "Floating stick on the left: double-tap to sprint\nHold DIG on the right and drag to look around\n"
+    },
+    {
+      "ru": "Держи ПРЫЖОК в воздухе — джетпак\n",
+      "en": "Hold JUMP in the air to use your jetpack\n"
+    },
+    {
+      "ru": "Копай ступеньки, чтобы вернуться наверх\n",
+      "en": "Dig steps so you can climb back up\n"
+    },
+    {
+      "ru": "Общий бензобак заправляется на базе",
+      "en": "Refill the shared fuel tank at the base"
+    },
+    {
+      "ru": "WASD — идти · Shift — бег · ",
+      "en": "WASD — move · Shift — sprint · "
+    },
+    {
+      "ru": "ПКМ — обзор",
+      "en": "RMB — look"
+    },
+    {
+      "ru": "мышь — обзор",
+      "en": "mouse — look"
+    },
+    {
+      "ru": "\nЛКМ — копать · пробел — прыжок",
+      "en": "\nLMB — dig · Space — jump"
+    },
+    {
+      "ru": " / полёт",
+      "en": " / fly"
+    },
+    {
+      "ru": "\nE — скупка и мастерская в доме · Esc — пауза",
+      "en": "\nE — buyer and workshop in the house · Esc — pause"
+    },
+    {
+      "ru": "F — сканер  ",
+      "en": "F — scanner  "
+    },
+    {
+      "ru": "Q — аптечка  ",
+      "en": "Q — medkit  "
+    },
+    {
+      "ru": "G — динамит",
+      "en": "G — dynamite"
+    },
+    {
+      "ru": "ДВОР СПАСЁН",
+      "en": "THE YARD IS SAFE"
+    },
+    {
+      "ru": "КТУЛХУ ОКАЗАЛСЯ СИЛЬНЕЕ",
+      "en": "CTHULHU WON THIS TIME"
+    },
+    {
+      "ru": "Пять ключей разомкнули печать, а твой гарпун отправил Ктулху обратно в глубину.\n\nТеперь под двором тихо. Можно вернуться домой или продолжить поиски коллекции. Победа сохранена.",
+      "en": "Five keys broke the seal, and your harpoon sent Cthulhu back into the depths.\n\nPeace has returned to the yard. Go home or keep searching for collectibles. Your victory is saved."
+    },
+    {
+      "ru": "Ключи и покупки сохранены.\n\nВыходи из светящихся зон до удара. Между атаками голова уязвима — целься в глаза.\n\n«Продолжить» начнёт новую попытку.",
+      "en": "Your keys and purchases are safe.\n\nLeave the glowing areas before an attack lands. Between attacks, the head is vulnerable — aim for the eyes.\n\nChoose “Continue” to try again."
+    },
+    {
+      "ru": "Заказы",
+      "en": "Orders"
+    },
+    {
+      "ru": "Улучшения",
+      "en": "Upgrades"
+    },
+    {
+      "ru": "Предметы",
+      "en": "Items"
+    },
+    {
+      "ru": "Дневник",
+      "en": "Journal"
+    },
+    {
+      "ru": "Инструмент",
+      "en": "Tool"
+    },
+    {
+      "ru": "Рюкзак",
+      "en": "Backpack"
+    },
+    {
+      "ru": "Бензобак",
+      "en": "Fuel Tank"
+    },
+    {
+      "ru": "Джетпак",
+      "en": "Jetpack"
+    },
+    {
+      "ru": "Здоровье",
+      "en": "Health"
+    },
+    {
+      "ru": "ДОМ",
+      "en": "HOME"
+    },
+    {
+      "ru": "Скупка руды и мастерская",
+      "en": "Ore buyer and workshop"
+    },
+    {
+      "ru": "Настройки",
+      "en": "Settings"
+    },
+    {
+      "ru": "Закрыть  ·  Esc",
+      "en": "Close  ·  Esc"
+    },
+    {
+      "ru": "Попросить другой заказ",
+      "en": "Request another order"
+    },
+    {
+      "ru": "Даром · тест",
+      "en": "Free · test"
+    },
+    {
+      "ru": "Предметы коллекции не занимают места в рюкзаке и остаются с тобой навсегда.",
+      "en": "Collectibles take no backpack space and stay with you forever."
+    },
+    {
+      "ru": "ЗАБРОШЕННЫЕ МЕСТА",
+      "en": "ABANDONED PLACES"
+    },
+    {
+      "ru": "Рюкзак: ",
+      "en": "Backpack: "
+    },
+    {
+      "ru": " слотов",
+      "en": " slots"
+    },
+    {
+      "ru": "В рюкзаке ",
+      "en": "In your backpack: "
+    },
+    {
+      "ru": " на ",
+      "en": " worth "
+    },
+    {
+      "ru": " · +10% за Золотого Нубика",
+      "en": " · +10% from Golden Nubik"
+    },
+    {
+      "ru": "Рюкзак пуст. Руда блестит в стенах шахты — копай и приноси сюда.",
+      "en": "Backpack empty. Ore glitters in the mine walls — dig it out and bring it here."
+    },
+    {
+      "ru": "Продать всё  ·  +",
+      "en": "Sell all  ·  +"
+    },
+    {
+      "ru": "Нечего продавать",
+      "en": "Nothing to sell"
+    },
+    {
+      "ru": "Реклама открывается…",
+      "en": "Opening ad…"
+    },
+    {
+      "ru": "Реклама снова через ",
+      "en": "Next ad in "
+    },
+    {
+      "ru": "Смотреть рекламу  ·  +",
+      "en": "Watch ad  ·  +"
+    },
+    {
+      "ru": "Заказ №",
+      "en": "Order #"
+    },
+    {
+      "ru": " из ",
+      "en": " of "
+    },
+    {
+      "ru": " · можно сдавать",
+      "en": " · ready to deliver"
+    },
+    {
+      "ru": " · найди в шахте ещё ",
+      "en": " · still to find: "
+    },
+    {
+      "ru": "Награда ",
+      "en": "Reward: "
+    },
+    {
+      "ru": " монет · обычная продажа дала бы ",
+      "en": " coins · a regular sale would earn "
+    },
+    {
+      "ru": "Сдать заказ  ·  +",
+      "en": "Deliver order  ·  +"
+    },
+    {
+      "ru": "Пока не хватает руды",
+      "en": "Not enough ore yet"
+    },
+    {
+      "ru": "Скупщик переплачивает за заказы: руда для заказа не продаётся по обычной цене, а уходит ему. ",
+      "en": "Orders pay more than regular sales: the requested ore goes to the buyer in exchange for the reward. "
+    },
+    {
+      "ru": "С каждой выполненной работой он доверяет тебе больше и платит щедрее. Новые зоны — новые заказы",
+      "en": "Complete orders to earn trust and better payouts. New biomes unlock new orders"
+    },
+    {
+      "ru": " (следующая: ",
+      "en": " (next: "
+    },
+    {
+      "ru": " м).",
+      "en": " m)."
+    },
+    {
+      "ru": "\nВыполнено заказов: ",
+      "en": "\nOrders completed: "
+    },
+    {
+      "ru": "  ·  ур. ",
+      "en": "  ·  lv. "
+    },
+    {
+      "ru": "Максимум",
+      "en": "Maxed out"
+    },
+    {
+      "ru": "Улучшить",
+      "en": "Upgrade"
+    },
+    {
+      "ru": ": сила ",
+      "en": ": power "
+    },
+    {
+      "ru": ". Использует общий бензобак.",
+      "en": ". Uses the shared fuel tank."
+    },
+    {
+      "ru": "Далее: ",
+      "en": "Next: "
+    },
+    {
+      "ru": "\nСила с ",
+      "en": "\nPower: "
+    },
+    {
+      "ru": " до ",
+      "en": " → "
+    },
+    {
+      "ru": ", удар быстрее",
+      "en": ", faster strikes"
+    },
+    {
+      "ru": " слотов. Больше не унести.",
+      "en": " slots. Maximum capacity."
+    },
+    {
+      "ru": "Вместимость с ",
+      "en": "Capacity: "
+    },
+    {
+      "ru": "Общий бак ",
+      "en": "Shared tank: "
+    },
+    {
+      "ru": " л. Заправка на базе.",
+      "en": " L. Refill at the base."
+    },
+    {
+      "ru": "Общий бак с ",
+      "en": "Shared tank: "
+    },
+    {
+      "ru": " л · бур + джетпак",
+      "en": " L · drill + jetpack"
+    },
+    {
+      "ru": "Расход ",
+      "en": "Consumption: "
+    },
+    {
+      "ru": " л/с. Максимальная экономичность.",
+      "en": " L/s. Maximum efficiency."
+    },
+    {
+      "ru": "Расход с ",
+      "en": "Consumption: "
+    },
+    {
+      "ru": " л/с. Бак общий с буром.",
+      "en": " L/s. Shares fuel with the drill."
+    },
+    {
+      "ru": " здоровья. Крепче некуда.",
+      "en": " health. Maximum toughness."
+    },
+    {
+      "ru": "Здоровье с ",
+      "en": "Health: "
+    },
+    {
+      "ru": ": падения менее опасны",
+      "en": ": safer falls"
+    },
+    {
+      "ru": "Показывает руду сквозь породу в ",
+      "en": "Detects ore through rock within "
+    },
+    {
+      "ru": " м. Занимает ",
+      "en": " m. Takes "
+    },
+    {
+      "ru": " слота. ",
+      "en": " slots. "
+    },
+    {
+      "ru": "Кнопка «Скан»",
+      "en": "Tap “Scan”"
+    },
+    {
+      "ru": "Клавиша F",
+      "en": "Press F"
+    },
+    {
+      "ru": "Уже в рюкзаке",
+      "en": "Already packed"
+    },
+    {
+      "ru": "Нет места",
+      "en": "No space"
+    },
+    {
+      "ru": "Купить  ·  ",
+      "en": "Buy  ·  "
+    },
+    {
+      "ru": "  ·  в рюкзаке ",
+      "en": "  ·  packed: "
+    },
+    {
+      "ru": " здоровья в шахте. Занимает ",
+      "en": " health in the mine. Takes "
+    },
+    {
+      "ru": " слот. ",
+      "en": " slot. "
+    },
+    {
+      "ru": "Кнопка «Аптечка»",
+      "en": "Tap “Medkit”"
+    },
+    {
+      "ru": "Клавиша Q",
+      "en": "Press Q"
+    },
+    {
+      "ru": "Взрывает любую породу в радиусе ",
+      "en": "Blasts any rock within "
+    },
+    {
+      "ru": " м через ",
+      "en": " m after "
+    },
+    {
+      "ru": " с после броска. Отойди — взрыв ранит. ",
+      "en": " s. Stand back — the blast can hurt you. "
+    },
+    {
+      "ru": "Кнопка «Динамит»",
+      "en": "Tap “Dynamite”"
+    },
+    {
+      "ru": "Клавиша G",
+      "en": "Press G"
+    },
+    {
+      "ru": "Предметы едут в рюкзаке и занимают место для руды. Свободно: ",
+      "en": "Items take up backpack space that could hold ore. Free: "
+    },
+    {
+      "ru": "СЕКРЕТЫ ДВОРА · ",
+      "en": "YARD SECRETS · "
+    },
+    {
+      "ru": " · где-то рядом спрятаны странные вещи",
+      "en": " · strange things are hidden nearby"
+    },
+    {
+      "ru": "\nПисьмо: ",
+      "en": "\nLetter: "
+    },
+    {
+      "ru": "ТВОЯ КОЛЛЕКЦИЯ  ·  ",
+      "en": "YOUR COLLECTION  ·  "
+    },
+    {
+      "ru": " м · ",
+      "en": " m · "
+    },
+    {
+      "ru": "Неизвестный проход",
+      "en": "Unknown passage"
+    },
+    {
+      "ru": "Тайник собран",
+      "en": "Stash collected"
+    },
+    {
+      "ru": "Тайник ещё здесь",
+      "en": "Stash still here"
+    },
+    {
+      "ru": "Найди вход в стене шахты",
+      "en": "Find the entrance in the mine wall"
+    },
+    {
+      "ru": "где-то\nна ",
+      "en": "somewhere\nat "
+    },
+    {
+      "ru": "Пять ключей",
+      "en": "Five Keys"
+    },
+    {
+      "ru": "Коллекция и места",
+      "en": "Collection & Places"
+    },
+    {
+      "ru": "ДВЕРЬ ПЯТИ ПЕЧАТЕЙ · ",
+      "en": "DOOR OF FIVE SEALS · "
+    },
+    {
+      "ru": " · найден",
+      "en": " · found"
+    },
+    {
+      "ru": "Сохранён. Не занимает место в рюкзаке.",
+      "en": "Saved. Takes no backpack space."
+    },
+    {
+      "ru": "Ктулху побеждён. Продолжай собирать коллекцию и исследовать шахту.",
+      "en": "Cthulhu is defeated. Keep collecting and exploring the mine."
+    },
+    {
+      "ru": "Следующая цель: дверь на 120 м. За ней лежит оружие против Ктулху.",
+      "en": "Next goal: the door at 120 m. A weapon to fight Cthulhu lies beyond it."
+    },
+    {
+      "ru": "Собери ключи и открой дверь на 120 м. Перед спуском заправляй общий бак у колонки или дома.",
+      "en": "Collect the keys and open the door at 120 m. Refill your shared tank at the pump or house before each descent."
+    },
+    {
+      "ru": "Общая громкость",
+      "en": "Master volume"
+    },
+    {
+      "ru": "Музыка",
+      "en": "Music"
+    },
+    {
+      "ru": "Эффекты",
+      "en": "Effects"
+    },
+    {
+      "ru": "Окружение",
+      "en": "Ambience"
+    },
+    {
+      "ru": "Для слабых телефонов: ниже разрешение, без теней, проще текстуры.",
+      "en": "For slower phones: lower resolution, no shadows and simpler textures."
+    },
+    {
+      "ru": "Баланс качества и скорости. Подходит большинству устройств.",
+      "en": "Balanced quality and performance. Suits most devices."
+    },
+    {
+      "ru": "Полное разрешение, сглаживание, мягкие тени и больше света. Для мощных компьютеров.",
+      "en": "Full resolution, anti-aliasing, soft shadows and more lights. For powerful devices."
+    },
+    {
+      "ru": "НАСТРОЙКИ",
+      "en": "SETTINGS"
+    },
+    {
+      "ru": "Чувствительность\nкамеры",
+      "en": "Camera\nsensitivity"
+    },
+    {
+      "ru": "ГРАФИКА",
+      "en": "GRAPHICS"
+    },
+    {
+      "ru": "Готово",
+      "en": "Done"
+    },
+    {
+      "ru": "Лагерь у корней",
+      "en": "Root Camp"
+    },
+    {
+      "ru": "Кто-то оставил здесь припасы. Тайник у дальней стены.",
+      "en": "Someone left supplies here. Look for a stash by the far wall."
+    },
+    {
+      "ru": "Старая штольня",
+      "en": "Old Mine Tunnel"
+    },
+    {
+      "ru": "Рельсы обрываются. Рядом с вагонеткой остался тайник.",
+      "en": "The rails end here. A stash remains beside the minecart."
+    },
+    {
+      "ru": "Кристальный грот",
+      "en": "Crystal Grotto"
+    },
+    {
+      "ru": "Свет под землёй. На старом настиле сохранился ларец.",
+      "en": "Light beneath the earth. A casket rests on the old platform."
+    },
+    {
+      "ru": "Прогресс сохраняется на этом устройстве",
+      "en": "Progress is saved on this device"
+    },
+    {
+      "ru": "Восстановлена резервная копия прогресса",
+      "en": "Progress restored from a backup"
+    },
+    {
+      "ru": "Сохранение не прочитано. Исходные данные сохранены; новая сессия временная",
+      "en": "Could not read your save. Original data preserved; this session is temporary"
+    },
+    {
+      "ru": "Новая игра",
+      "en": "New game"
+    },
+    {
+      "ru": "Не удалось сохранить прогресс на устройстве",
+      "en": "Could not save progress on this device"
+    },
+    {
+      "ru": "Садовый гном",
+      "en": "Garden Gnome"
+    },
+    {
+      "ru": "Прятался в дальнем углу сада. Бывший хозяин оставил под ним пару монет.",
+      "en": "Hidden in the far corner of the garden. The old owner left a few coins underneath."
+    },
+    {
+      "ru": "Письмо в почтовом ящике",
+      "en": "Letter in the Mailbox"
+    },
+    {
+      "ru": "«Капсулу я закопал в углу участка ближе к дому, по левую руку, если стоять к дому лицом. Метров девять вглубь.»",
+      "en": "“I buried the capsule in the corner nearest the house, on your left when facing it. About nine meters down.”"
+    },
+    {
+      "ru": "Капсула времени",
+      "en": "Time Capsule"
+    },
+    {
+      "ru": "Внутри — детский рисунок двора и немного монет. Похоже, копать тут начали давно.",
+      "en": "Inside: a child's drawing of the yard and a few coins. People have been digging here for a long time."
+    },
+    {
+      "ru": "Окаменелый череп",
+      "en": "Fossil Skull"
+    },
+    {
+      "ru": "Огромный череп неизвестного зверя. Музей хорошо заплатил бы за такое.",
+      "en": "A huge skull from an unknown animal. A museum would pay well for this."
+    },
+    {
+      "ru": "Золотой Нубик",
+      "en": "Golden Nubik"
+    },
+    {
+      "ru": "Кто-то построил комнату ради статуэтки. Теперь скупщик платит тебе на 10% больше.",
+      "en": "Someone built a room just for this figurine. The buyer now pays you 10% more."
+    },
+    {
+      "ru": "Светящийся гриб",
+      "en": "Glowing Mushroom"
+    },
+    {
+      "ru": "Гриб светится даже в полной темноте. Учёные из города купили образец.",
+      "en": "It glows even in complete darkness. Scientists from the city bought a sample."
+    },
+    {
+      "ru": "Старый сейф",
+      "en": "Old Safe"
+    },
+    {
+      "ru": "Замок проржавел и открылся от удара. Чей-то клад ждал десятки лет.",
+      "en": "A blow broke the rusty lock. Someone's treasure had waited here for decades."
+    },
+    {
+      "ru": "БЕНЗИН",
+      "en": "FUEL"
+    },
+    {
+      "ru": "ЗАПРАВКА",
+      "en": "REFUEL"
+    },
+    {
+      "ru": "ШАХТА  /  120 м",
+      "en": "MINE  /  120 m"
+    },
+    {
+      "ru": "ДОМ  ·  СКУПКА И МАСТЕРСКАЯ",
+      "en": "HOME  ·  ORE BUYER & WORKSHOP"
+    },
+    {
+      "ru": "СКУПКА РУДЫ",
+      "en": "ORE BUYER"
+    },
+    {
+      "ru": "МАСТЕРСКАЯ",
+      "en": "WORKSHOP"
+    },
+    {
+      "ru": "Язык",
+      "en": "Language"
+    }
+  ]
+}

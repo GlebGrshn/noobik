@@ -14,6 +14,7 @@ namespace Nubik.PlayTests
     {
         private const string Key = "nubik.progress.v1", SettingsKey = "nubik.settings.v1";
         private string saved, savedBackup, savedSettings;
+        private string savedLanguage;
 
         [UnitySetUp]
         public IEnumerator LoadScene()
@@ -21,6 +22,8 @@ namespace Nubik.PlayTests
             saved = PlayerPrefs.GetString(Key, null);
             savedBackup = PlayerPrefs.GetString(Key + ".backup", null);
             savedSettings = PlayerPrefs.GetString(SettingsKey, null);
+            savedLanguage = GameSettings.Current.language;
+            GameSettings.Set(s => s.language = "ru", false);
             PlayerPrefs.DeleteKey(Key);
             PlayerPrefs.DeleteKey(Key + ".backup");
             yield return SceneManager.LoadSceneAsync("Mine");
@@ -37,6 +40,7 @@ namespace Nubik.PlayTests
             Restore(Key + ".backup", savedBackup);
             Restore(SettingsKey, savedSettings);
             PlayerPrefs.Save();
+            GameSettings.Set(s => s.language = savedLanguage, false);
         }
 
         private static void Restore(string key, string value)

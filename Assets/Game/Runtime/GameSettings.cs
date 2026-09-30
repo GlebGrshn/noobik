@@ -18,6 +18,8 @@ namespace Nubik
         public const float MinSensitivity = .25f, MaxSensitivity = 2f;
         public float cameraSensitivity = 1f;
         public int quality = Normal;
+        // Empty for both fresh installs and older settings: ask once, without touching progress.
+        public string language = "";
 
         public static GameSettings Current { get; private set; } = Load();
         /// <summary>Raised after any change, so audio and graphics follow at once.</summary>
@@ -37,6 +39,7 @@ namespace Nubik
 
         private void Clamp()
         {
+            if (language != "ru" && language != "en") language = "";
             master = Mathf.Clamp01(float.IsNaN(master) ? 1 : master);
             music = Mathf.Clamp01(float.IsNaN(music) ? .7f : music);
             effects = Mathf.Clamp01(float.IsNaN(effects) ? 1 : effects);

@@ -9,6 +9,86 @@ namespace Nubik.PlayTests
 {
     public partial class DepthSnapshots
     {
+        [UnityTest] public IEnumerator PlatformLanguageIsTakenWithoutAskingAndOtherwiseThePlayerChooses()
+        {
+            var hud = Object.FindAnyObjectByType<MineGame>().GetComponent<MineHud>();
+            var platform = Localization.PlatformLanguage;
+            string settings = PlayerPrefs.GetString("nubik.settings.v1", null);
+            try
+            {
+                // Yandex Games: while its SDK answers nothing is asked, then its language is taken.
+                string answer = "";
+                Localization.PlatformLanguage = () => answer;
+                GameSettings.Set(s => s.language = "", false);
+                hud.AwaitLanguage();
+                yield return null;
+                Assert.IsFalse(hud.LanguageChoiceOpen);
+                Assert.IsTrue(hud.WaitingForLanguage);
+                answer = "en";
+                yield return null;
+                Assert.AreEqual("en", GameSettings.Current.language);
+                Assert.IsFalse(hud.LanguageChoiceOpen || hud.WaitingForLanguage);
+
+                // A language the player picked later stays on the next launch.
+                Localization.Select("ru");
+                hud.AwaitLanguage();
+                yield return null;
+                Assert.AreEqual("ru", GameSettings.Current.language);
+
+                // The SDK failed to load: the player is asked instead.
+                GameSettings.Set(s => s.language = "", false);
+                answer = "";
+                hud.AwaitLanguage();
+                yield return null;
+                answer = null;
+                yield return null;
+                Assert.IsTrue(hud.LanguageChoiceOpen);
+                GameObject.Find("Choose Russian").GetComponent<Button>().onClick.Invoke();
+                Assert.AreEqual("ru", GameSettings.Current.language);
+
+                // Other portals have no platform language: the question comes at once.
+                GameSettings.Set(s => s.language = "", false);
+                hud.AwaitLanguage();
+                Assert.IsTrue(hud.LanguageChoiceOpen);
+                GameObject.Find("Choose Russian").GetComponent<Button>().onClick.Invoke();
+            }
+            finally
+            {
+                Localization.PlatformLanguage = platform;
+                if (settings == null) PlayerPrefs.DeleteKey("nubik.settings.v1"); else PlayerPrefs.SetString("nubik.settings.v1", settings);
+                PlayerPrefs.Save();
+            }
+        }
+
+        [UnityTest] public IEnumerator LanguageChoiceAndLiveSwitchTranslateTheWholeInterface()
+        {
+            var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game);
+            var hud = game.GetComponent<MineHud>();
+            string settings = PlayerPrefs.GetString("nubik.settings.v1", null);
+            GameSettings.Set(s => s.language = "", false);
+            hud.ShowLanguageChoice();
+            Assert.IsTrue(hud.PanelOpen); Assert.IsFalse(game.Active);
+            hud.ClosePanel(); Assert.IsTrue(hud.LanguageChoiceOpen);
+            GameObject.Find("Choose English").GetComponent<Button>().onClick.Invoke();
+            Assert.IsFalse(hud.LanguageChoiceOpen);
+            Assert.AreEqual("en", GameSettings.Load().language);
+            for (int page = 0; page < 5; page++)
+            {
+                hud.ShowHouse(page); yield return null;
+                foreach (var label in Object.FindObjectsByType<Text>(FindObjectsSortMode.None))
+                    Assert.IsFalse(System.Text.RegularExpressions.Regex.IsMatch(label.text, "[А-Яа-яЁё]"), label.text);
+            }
+            hud.OpenSettings(); yield return null;
+            Assert.IsTrue(Object.FindObjectsByType<Text>(FindObjectsSortMode.None).Any(t => t.text == "SETTINGS"));
+            Localization.Select("ru"); yield return null;
+            Assert.IsTrue(Object.FindObjectsByType<Text>(FindObjectsSortMode.None).Any(t => t.text == "НАСТРОЙКИ"));
+            Localization.Select("en"); yield return null;
+            Assert.IsTrue(Object.FindObjectsByType<Text>(FindObjectsSortMode.None).Any(t => t.text == "SETTINGS"));
+            hud.CloseSettings(); hud.ClosePanel();
+            if (settings == null) PlayerPrefs.DeleteKey("nubik.settings.v1"); else PlayerPrefs.SetString("nubik.settings.v1", settings);
+            PlayerPrefs.Save();
+        }
+
         [UnityTest] public IEnumerator PortalMuteDoesNotFreezePlayAndSurvivesVisibilityChanges()
         {
             var game = Object.FindAnyObjectByType<MineGame>(); PlayByTouch(game);

@@ -192,6 +192,12 @@ public static class ProjectSetup
     // A separate compressed base keeps the GitHub Pages build and its hosting settings intact.
     public static void BuildPlatformsBase() => Build("Builds/PlatformsBase", BuildOptions.None, true);
 
+    public static void BuildAllWeb()
+    {
+        BuildWeb();
+        BuildPlatformsBase();
+    }
+
     /// <summary>Development build with readable stack traces, next to the release one.</summary>
     [MenuItem("Nubik/Build WebGL (development)")]
     public static void BuildWebDevelopment() => Build("Builds/WebGL-dev", BuildOptions.Development);

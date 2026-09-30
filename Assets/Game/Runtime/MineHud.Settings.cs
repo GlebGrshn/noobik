@@ -17,6 +17,12 @@ namespace Nubik
         private Button startGear;
         private Slider sensitivitySlider;
         private Text sensitivityValue;
+        private GameObject languageChoice;
+        private Button russianLanguage, englishLanguage;
+        public bool LanguageChoiceOpen => languageChoice != null && languageChoice.activeSelf;
+        private float languageWaitUntil = -1;
+        /// <summary>The platform is still telling its language; the start card waits so it does not flash in the other one.</summary>
+        public bool WaitingForLanguage => languageWaitUntil >= 0;
         public bool SettingsOpen => settings != null && settings.activeSelf;
 
         private static readonly string[] VolumeNames = { "Общая громкость", "Музыка", "Эффекты", "Окружение" };
@@ -31,7 +37,7 @@ namespace Nubik
         {
             settings = Backdrop("Settings");
             settingsCard = Panel("Settings card", settings.transform, Ink);
-            Center(settingsCard, 0, 0, 500, 644);
+            Center(settingsCard, 0, 0, 500, 692);
             Icon(settingsCard, UiGlyph.Kind.Gear, Mint, 24, 20, 36);
             Caption(settingsCard, "НАСТРОЙКИ", 26, Cream, 72, 18, 380, 40, true);
             Func<GameSettings, float>[] read = { s => s.master, s => s.music, s => s.effects, s => s.ambience };
@@ -78,9 +84,70 @@ namespace Nubik
                 qualityButtons.Add(button);
             }
             qualityNote = Caption(settingsCard, "", 14, Muted, 28, 498, 444, 44);
+            Caption(settingsCard, "Язык", 17, Cream, 28, 548, 150, 44, true);
+            russianLanguage = Action(settingsCard, "Русский", Inset, () => Localization.Select("ru"), Cream);
+            englishLanguage = Action(settingsCard, "English", Inset, () => Localization.Select("en"), Cream);
+            At((RectTransform)russianLanguage.transform, 184, 548, 138, 44);
+            At((RectTransform)englishLanguage.transform, 334, 548, 138, 44);
             var done = Action(settingsCard, "Готово", Amber, CloseSettings);
-            At((RectTransform)done.transform, 28, 558, 444, 60);
+            At((RectTransform)done.transform, 28, 608, 444, 60);
             settings.SetActive(false);
+        }
+
+        private void BuildLanguageChoice()
+        {
+            languageChoice = Backdrop("Language choice");
+            var card = Panel("Language card", languageChoice.transform, Ink);
+            Center(card, 0, 0, 480, 310);
+            var title = Caption(card, "Choose your language", 28, Cream, 24, 36, 432, 48, true);
+            title.alignment = TextAnchor.MiddleCenter;
+            var subtitle = Caption(card, "Выберите язык", 20, Muted, 24, 84, 432, 40);
+            subtitle.alignment = TextAnchor.MiddleCenter;
+            var ru = Action(card, "Русский", Inset, () => ChooseLanguage("ru"), Cream);
+            ru.name = "Choose Russian";
+            var en = Action(card, "English", Amber, () => ChooseLanguage("en"));
+            en.name = "Choose English";
+            At((RectTransform)ru.transform, 28, 162, 204, 72);
+            At((RectTransform)en.transform, 248, 162, 204, 72);
+            var note = Caption(card, "You can change this in Settings", 15, Muted, 24, 254, 432, 28);
+            note.alignment = TextAnchor.MiddleCenter;
+            languageChoice.SetActive(false);
+        }
+
+        public void ShowLanguageChoice()
+        {
+            ClearInput();
+            languageChoice.SetActive(true);
+            languageChoice.transform.SetAsLastSibling();
+        }
+
+        /// <summary>
+        /// First launch without a language: a platform that sets one (Yandex Games, requirement 2.14) decides without a
+        /// question; elsewhere, or when the platform does not answer within 8 seconds, the player chooses.
+        /// </summary>
+        public void AwaitLanguage()
+        {
+            languageWaitUntil = -1;
+            if (Localization.Chosen) return;
+            if (Localization.PlatformLanguage() == null) { ShowLanguageChoice(); return; }
+            languageWaitUntil = Time.unscaledTime + 8;
+            UpdateLanguageWait();
+        }
+
+        private void UpdateLanguageWait()
+        {
+            if (languageWaitUntil < 0) return;
+            if (Localization.Chosen) { languageWaitUntil = -1; return; }
+            string language = Localization.PlatformLanguage();
+            if (!string.IsNullOrEmpty(language)) { languageWaitUntil = -1; Localization.Select(language); }
+            else if (language == null || Time.unscaledTime > languageWaitUntil) { languageWaitUntil = -1; ShowLanguageChoice(); }
+        }
+
+        private void ChooseLanguage(string language)
+        {
+            Localization.Select(language);
+            languageChoice.SetActive(false);
+            ClearInput();
         }
 
         /// <summary>A plain horizontal slider built from the HUD's own sprites.</summary>
@@ -147,6 +214,10 @@ namespace Nubik
                 qualityButtons[i].GetComponentInChildren<Text>().color = i == level ? Ink : Cream;
             }
             qualityNote.text = QualityNotes[level];
+            russianLanguage.GetComponent<Image>().color = Localization.IsEnglish ? Inset : Mint;
+            englishLanguage.GetComponent<Image>().color = Localization.IsEnglish ? Mint : Inset;
+            russianLanguage.GetComponentInChildren<Text>().color = Localization.IsEnglish ? Cream : Ink;
+            englishLanguage.GetComponentInChildren<Text>().color = Localization.IsEnglish ? Ink : Cream;
         }
     }
 }
