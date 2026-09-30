@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script src="language.js?v=eed1cdfe"></script>
   <title>Нубик Шахтёр</title>
   <style>
     * { box-sizing: border-box; }
@@ -31,28 +32,31 @@
 </head>
 <body>
   <div id="safe-area" aria-hidden="true"></div>
-  <div id="rotate" role="alert"><div class="phone" aria-hidden="true"></div><div>Поверни телефон горизонтально</div><div class="note">Игра рассчитана на горизонтальный экран</div></div>
+  <div id="rotate" role="alert"><div class="phone" aria-hidden="true"></div><div id="rotate-title">Поверни телефон горизонтально</div><div id="rotate-note" class="note">Игра рассчитана на горизонтальный экран</div></div>
   <canvas id="unity-canvas" tabindex="0" aria-label="Нубик Шахтёр. WASD — движение, ЛКМ — копать, пробел — прыжок и джетпак, E — дом, F — сканер, Q — аптечка, Esc — пауза"></canvas>
-  <div id="loading"><div class="mark" aria-hidden="true">↓</div><div class="badge">НАВСТРЕЧУ НАХОДКАМ</div><h1>НУБИК ШАХТЁР</h1><div class="caption">Готовим твою следующую вылазку…</div><progress id="progress" aria-label="Загрузка игры" value="0" max="1"></progress><div id="error" role="alert"></div></div>
+  <div id="loading"><div class="mark" aria-hidden="true">↓</div><div id="loading-badge" class="badge">НАВСТРЕЧУ НАХОДКАМ</div><h1 id="loading-heading">НУБИК ШАХТЁР</h1><div id="loading-caption" class="caption">Готовим твою следующую вылазку…</div><progress id="progress" aria-label="Загрузка игры" value="0" max="1"></progress><div id="error" role="alert"></div></div>
   <script>
     // The platform serves /sdk.js; localhost preview deliberately works offline without it.
     window.nubikReady = false;
     window.nubikPlaying = false;
     // Local and GitHub Pages playtests use a labelled ad stand-in instead of the Yandex SDK.
     const localTest = ['localhost', '127.0.0.1', 'glebgrshn.github.io'].includes(location.hostname) || /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+    // Yandex Games decides the language (requirement 2.14): the game waits for the SDK's answer, playtests ask the player.
+    window.nubikPlatformLanguage = localTest ? 0 : 1;
     if (!localTest) {
       const sdkScript = document.createElement('script');
       sdkScript.src = '/sdk.js';
       sdkScript.onload = () => YaGames.init().then(sdk => {
         window.nubikSDK = sdk;
+        window.nubikPlatformLanguageFrom(sdk.environment?.i18n?.lang);
         if (window.nubikReady) sdk.features.LoadingAPI?.ready();
         if (window.nubikPlaying) sdk.features.GameplayAPI?.start();
         // The platform pauses the game for its own overlays (ads, purchases, tab switches) and resumes it after.
         const platformPause = paused => { window.nubikPlatformPaused = paused; if (window.unityInstance) window.unityInstance.SendMessage('NubikGame', 'OnPlatformPause', paused ? '1' : '0'); };
         sdk.on?.('game_api_pause', () => platformPause(true));
         sdk.on?.('game_api_resume', () => platformPause(false));
-      }).catch(error => console.warn('Yandex SDK unavailable; local progress remains active.', error));
-      sdkScript.onerror = () => console.warn('Yandex SDK unavailable; running local prototype.');
+      }).catch(error => { window.nubikPlatformLanguage = 0; console.warn('Yandex SDK unavailable; local progress remains active.', error); });
+      sdkScript.onerror = () => { window.nubikPlatformLanguage = 0; console.warn('Yandex SDK unavailable; running local prototype.'); };
       document.head.appendChild(sdkScript);
     }
     // Playtests stand in for the ad network with a labelled three-second screen.
@@ -60,7 +64,7 @@
       if (document.pointerLockElement) document.exitPointerLock();
       const screen = document.createElement('div');
       screen.id = 'fake-ad';
-      screen.innerHTML = '<b>РЕКЛАМА</b><div>Тестовый ролик вместо рекламы Яндекса</div><div id="fake-ad-time">3</div>';
+      screen.innerHTML = '<b>' + window.nubikPageText('ad') + '</b><div>' + window.nubikPageText('testAd') + '</div><div id="fake-ad-time">3</div>';
       document.body.appendChild(screen);
       send('OnAdOpen', '');
       let left = 3;
@@ -152,11 +156,11 @@
       event.stopImmediatePropagation();
     });
     const loader = document.createElement('script');
-    loader.src = 'Build/WebGL.loader.js?v=f3ec947e';
+    loader.src = 'Build/WebGL.loader.js?v=eed1cdfe';
     loader.onload = () => createUnityInstance(canvas, {
-      dataUrl: 'Build/WebGL.data?v=f3ec947e',
-      frameworkUrl: 'Build/WebGL.framework.js?v=f3ec947e',
-      codeUrl: 'Build/WebGL.wasm?v=f3ec947e',
+      dataUrl: 'Build/WebGL.data?v=eed1cdfe',
+      frameworkUrl: 'Build/WebGL.framework.js?v=eed1cdfe',
+      codeUrl: 'Build/WebGL.wasm?v=eed1cdfe',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: 'GlebGrshn', productName: 'Nubik Miner', productVersion: '0.1.0',
       // Saves (PlayerPrefs) live in persistentDataPath; let Unity sync it to IndexedDB on every change.
@@ -177,8 +181,8 @@
       // ?at=counter | workbench | yard stands the player there (after the world is built).
       const testSpot = ['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('at');
       if (testSpot) setTimeout(() => instance.SendMessage('NubikGame', 'DebugGoto', testSpot), 4000);
-    }).catch(error => { document.getElementById('error').textContent = 'Не удалось запустить игру. Обновите страницу. ' + error; });
-    loader.onerror = () => { document.getElementById('error').textContent = 'Не удалось загрузить игру. Проверьте соединение и обновите страницу.'; };
+    }).catch(error => { document.getElementById('error').textContent = window.nubikPageText('launchError') + error; });
+    loader.onerror = () => { document.getElementById('error').textContent = window.nubikPageText('loadError'); };
     document.body.appendChild(loader);
   </script>
 </body>

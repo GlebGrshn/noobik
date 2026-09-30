@@ -1,7 +1,7 @@
 {
-  "cacheKey": "f3ec947e",
-  "channel": "release-ads",
-  "sourceCommit": "f3ec947eb1ba35322736b91a6132f26396b4f13b",
-  "publishedAt": "2026-09-29T22:32:30.4269812Z",
-  "builtAt": "2026-09-29T22:26:03.6101735Z"
+  "publishedAt": "2026-09-30T16:38:40Z",
+  "builtAt": "2026-09-30T16:30:15Z",
+  "cacheKey": "eed1cdfe",
+  "sourceCommit": "eed1cdfef899264ff7344397e0ccaa14901f88e5",
+  "channel": "bilingual"
 }
