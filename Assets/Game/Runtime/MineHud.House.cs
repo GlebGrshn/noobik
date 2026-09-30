@@ -392,8 +392,8 @@ namespace Nubik
                     return max ? "Общий бак " + config.fuelTank[level].value + " л. Заправка на базе."
                         : "Общий бак с " + config.fuelTank[level].value + " до " + config.fuelTank[next].value + " л · бур + джетпак";
                 case Track.Jetpack:
-                    return max ? "Расход " + config.jetpack[level].value + " л/с. Максимальная экономичность."
-                        : "Расход с " + config.jetpack[level].value + " до " + config.jetpack[next].value + " л/с. Бак общий с буром.";
+                    return max ? "Расход " + Localization.Decimal(config.jetpack[level].value) + " л/с. Максимальная экономичность."
+                        : "Расход с " + Localization.Decimal(config.jetpack[level].value) + " до " + Localization.Decimal(config.jetpack[next].value) + " л/с. Бак общий с буром.";
                 default:
                     return max ? config.health[level].value + " здоровья. Крепче некуда."
                         : "Здоровье с " + config.health[level].value + " до " + config.health[next].value + ": падения менее опасны";
@@ -414,7 +414,7 @@ namespace Nubik
             var dynamite = itemRows[2];
             var blast = config.dynamite;
             dynamite.title.text = blast.nameRu + (progress.dynamite > 0 ? "  ·  в рюкзаке " + progress.dynamite : "");
-            dynamite.info.text = "Взрывает любую породу в радиусе " + blast.power.ToString("0.#") + " м через " + config.dynamiteFuse.ToString("0.#") +
+            dynamite.info.text = "Взрывает любую породу в радиусе " + Localization.Decimal(blast.power) + " м через " + Localization.Decimal(config.dynamiteFuse) +
                 " с после броска. Отойди — взрыв ранит. " + blast.slots + " слот. " + (game.TouchMode ? "Кнопка «Динамит»" : "Клавиша G");
             dynamite.button.interactable = progress.coins >= blast.price && capacity - used >= blast.slots;
             dynamite.buttonText.text = capacity - used < blast.slots ? "Нет места" : "Купить  ·  " + blast.price;

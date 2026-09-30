@@ -1072,7 +1072,7 @@ namespace Nubik
             if (InBoss)
             {
                 int cue = Battle.Phase == BattlePhase.Warning ? 100000 + Battle.Pattern * 1000 + Mathf.CeilToInt(Battle.Remaining * 10) : (int)Battle.Phase;
-                if (cue != hintCue) { hintCue = cue; cueHint = boss.Battle.Cue + (Battle.Phase == BattlePhase.Warning ? " · " + Battle.Remaining.ToString("0.0") + " с" : ""); }
+                if (cue != hintCue) { hintCue = cue; cueHint = boss.Battle.Cue + (Battle.Phase == BattlePhase.Warning ? " · " + Localization.Decimal(Battle.Remaining, "0.0") + " с" : ""); }
                 Hint = cueHint;
                 return;
             }

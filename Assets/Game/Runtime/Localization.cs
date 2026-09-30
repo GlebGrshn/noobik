@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Runtime.InteropServices;
@@ -44,6 +45,8 @@ namespace Nubik
         }
         public static void SyncPage()
         {
+            // Before a choice the page keeps its own guess (browser or platform) instead of recording English.
+            if (!Chosen) return;
 #if UNITY_WEBGL && !UNITY_EDITOR
             NubikLanguage(Language);
 #endif
@@ -77,6 +80,9 @@ namespace Nubik
             Cache[source] = result;
             return result;
         }
+        /// <summary>A fraction in the game language's style (2,3 in Russian, 2.3 in English), whatever the browser's locale.</summary>
+        public static string Decimal(float value, string format = "0.##") =>
+            value.ToString(format, CultureInfo.InvariantCulture).Replace(".", IsEnglish ? "." : ",");
         public static string Source(UnityEngine.UI.Text text) => text is LocalizedText label ? label.SourceText : text.text;
     }
 }
