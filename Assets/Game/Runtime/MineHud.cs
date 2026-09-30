@@ -455,6 +455,24 @@ namespace Nubik
             ClearInput();
             At((RectTransform)startButton.transform, 32, 236, 416, wideTouch ? 64 : 60);
             LayoutHouse(portrait, wideTouch);
+            FitLabels();
+        }
+
+        /// <summary>
+        /// A line of NotoSans is 1.362 × its size, and Truncate draws nothing when not even one line fits: labels laid out
+        /// only just tall enough vanished at some screen scales (the wallet at 1250 × 625). Tight labels grow around their centre.
+        /// </summary>
+        private void FitLabels()
+        {
+            foreach (var label in root.GetComponentsInChildren<Text>(true))
+            {
+                var r = label.rectTransform;
+                if (label.verticalOverflow != VerticalWrapMode.Truncate || label.resizeTextForBestFit || r.anchorMin.y != r.anchorMax.y) continue;
+                float h = r.sizeDelta.y, room = label.fontSize * 1.5f;
+                if (h >= room) continue;
+                r.anchoredPosition += new Vector2(0, (.5f - r.pivot.y) * (h - room));
+                r.sizeDelta = new Vector2(r.sizeDelta.x, room);
+            }
         }
 
         private void Update()
